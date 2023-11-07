@@ -68,7 +68,7 @@ register `d`
 - `0100 0001 0xxx 0rrr` - `and` - `r = r & x`
 - `0100 0010 0xxx 0rrr` - `or` - `r = r | x`
 - `0100 0011 0xxx 0rrr` - `xor` - `r = r ^ x`
-    - `0100 0100 0xxx 0rrr` - `shl` - `r = r << x`
+- `0100 0100 0xxx 0rrr` - `shl` - `r = r << x`
 - `0100 0101 0xxx 0rrr` - `shr` - `r = r >> x`
 
 ## General-Purpose Arithmetic
