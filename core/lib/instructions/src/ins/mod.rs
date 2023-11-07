@@ -12,7 +12,11 @@ pub use analysis::*;
 mod encoding;
 pub use encoding::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+mod assembly;
+pub use assembly::*;
+use strum::AsRefStr;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, AsRefStr)]
 pub enum Instruction {
     // Core
     Nop,
