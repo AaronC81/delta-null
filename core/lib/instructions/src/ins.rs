@@ -76,92 +76,94 @@ impl Instruction {
 
 impl Encodable for Instruction {
     fn encode(self) -> u16 {
+        use Instruction::*;
+
         match self {
             // Core
-            Instruction::Nop => 0b_0000_0000_0000_0000,
-            Instruction::Hlt => 0b_1111_1111_1111_1111,
-            Instruction::Mov { src, dest }
+            Nop => 0b_0000_0000_0000_0000,
+            Hlt => 0b_1111_1111_1111_1111,
+            Mov { src, dest }
                 => 0b_0010_0001_0000_0000 | src.encode() << 4 | dest.encode(),
-            Instruction::DMov { src, dest }
+            DMov { src, dest }
                 => 0b_0010_0001_0000_1000 | src.encode() << 4 | dest.encode(),
 
             // Immediate Loads
-            Instruction::Putl { reg, imm }
+            Putl { reg, imm }
                 => 0b_0001_0000_0000_0000 | reg.encode() << 8 | imm as u16,
-            Instruction::Puth { reg, imm }
+            Puth { reg, imm }
                 => 0b_0001_1000_0000_0000 | reg.encode() << 8 | imm as u16,
 
             // Memory
-            Instruction::Read { addr, val }
+            Read { addr, val }
                 => 0b_0010_0000_0000_0000 | addr.encode() << 4 | val.encode(),
-            Instruction::Write { addr, val }
+            Write { addr, val }
                 => 0b_0010_0000_1000_0000 | addr.encode() << 4 | val.encode(),
-            Instruction::DRead { addr, val }
+            DRead { addr, val }
                 => 0b_0010_0000_0000_1000 | addr.encode() << 4 | val.encode(),
-            Instruction::DWrite { addr, val }
+            DWrite { addr, val }
                 => 0b_0010_0000_1000_1000 | addr.encode() << 4 | val.encode(),
 
             // Special-Purpose Registers
-            Instruction::Movso { src, dest }
+            Movso { src, dest }
                 => 0b_0010_0001_1000_0000 | src.encode() << 4 | dest.encode(),
-            Instruction::Movsi { src, dest }
+            Movsi { src, dest }
                 => 0b_0010_0001_1100_0000 | dest.encode() << 4 | src.encode(),
-            Instruction::Spadd { val }
+            Spadd { val }
                 => 0b_0010_0001_1101_1000 | val.encode(),
 
             // Bit Manipulation
-            Instruction::Not { reg }
+            Not { reg }
                 => 0b_0100_0000_0000_0000 | reg.encode(),
-            Instruction::And { reg, val }
+            And { reg, val }
                 => 0b_0100_0001_0000_0000 | val.encode() << 4 | reg.encode(),
-            Instruction::Or { reg, val }
+            Or { reg, val }
                 => 0b_0100_0010_0000_0000 | val.encode() << 4 | reg.encode(),
-            Instruction::Xor { reg, val }
+            Xor { reg, val }
                 => 0b_0100_0011_0000_0000 | val.encode() << 4 | reg.encode(),
-            Instruction::Shl { reg, val }
+            Shl { reg, val }
                 => 0b_0100_0100_0000_0000 | val.encode() << 4 | reg.encode(),
-            Instruction::Shr { reg, val }
+            Shr { reg, val }
                 => 0b_0100_0101_0000_0000 | val.encode() << 4 | reg.encode(),
 
             // General-Purpose Arithmetic
-            Instruction::Neg { reg }
+            Neg { reg }
                 => 0b_0100_1000_0000_0000 | reg.encode(),
-            Instruction::Inc { reg }
+            Inc { reg }
                 => 0b_0100_1000_0001_0000 | reg.encode(),
-            Instruction::Dec { reg }
+            Dec { reg }
                 => 0b_0100_1000_0010_0000 | reg.encode(),
-            Instruction::Add { reg, val }
+            Add { reg, val }
                 => 0b_0100_1001_0000_0000 | val.encode() << 4 | reg.encode(),
-            Instruction::Sub { reg, val }
+            Sub { reg, val }
                 => 0b_0100_1010_0000_0000 | val.encode() << 4 | reg.encode(),
-            Instruction::Mulu { reg, val }
+            Mulu { reg, val }
                 => 0b_0100_1011_0000_0000 | val.encode() << 4 | reg.encode(),
-            Instruction::Muli { reg, val }
+            Muli { reg, val }
                 => 0b_0100_1011_1000_0000 | val.encode() << 4 | reg.encode(),
 
             // Comparison
-            Instruction::Inv => 0b_0101_0000_0000_0000,
-            Instruction::Eqz { reg }
+            Inv => 0b_0101_0000_0000_0000,
+            Eqz { reg }
                 => 0b_0101_0000_0001_0000 | reg.encode(),
-            Instruction::Eq { left, right }
+            Eq { left, right }
                 => 0b_0101_0001_0000_0000 | left.encode() << 4 | right.encode(),
-            Instruction::Gt { left, right }
+            Gt { left, right }
                 => 0b_0101_0010_0000_0000 | left.encode() << 4 | right.encode(),
-            Instruction::Gteq { left, right }
+            Gteq { left, right }
                 => 0b_0101_0011_0000_0000 | left.encode() << 4 | right.encode(),
 
             // Branching
-            Instruction::Jmpoff { offset }
+            Jmpoff { offset }
                 => 0b_0110_0000_0000_0000 | offset as u16,
-            Instruction::Cjmpoff { offset }
+            Cjmpoff { offset }
                 => 0b_0110_0001_0000_0000 | offset as u16,
-            Instruction::Jmp { src }
+            Jmp { src }
                 => 0b_0110_0010_0000_0000 | src.encode(),
-            Instruction::Cjmp { src } 
+            Cjmp { src } 
                 => 0b_0110_0011_0000_0000 | src.encode(),
-            Instruction::Call { src }
+            Call { src }
                 => 0b_0110_0010_0001_0000 | src.encode(),
-            Instruction::Ret => 0b_0110_0010_0001_1000,
+            Ret => 0b_0110_0010_0001_1000,
         }
     }
 
