@@ -1,8 +1,9 @@
-use crate::{ToAssembly, Instruction};
+use crate::{ToAssembly, Instruction, InstructionOpcode};
 
 impl ToAssembly for Instruction {
     fn to_assembly(&self) -> String {
-        let opcode = self.opcode();
+        let opcode: InstructionOpcode = self.into();
+        let opcode = opcode.mnemonic();
         let operands = operands_for_assembly(self);
 
         if operands.is_empty() {
@@ -16,30 +17,6 @@ impl ToAssembly for Instruction {
                     .join(", ")
             )
         }
-    }
-}
-
-impl Instruction {
-    fn opcode(&self) -> String {
-        let raw_name = self.as_ref();
-        let mut opcode = String::new();
-
-        // Convert PascalCase to snake_case
-        for (i, char) in raw_name.chars().enumerate() {
-            if char.is_ascii_uppercase() {
-                // Don't add an underscore if we're at the beginning
-                // We want "SomeThing" -> "some_thing", not "_some_thing"
-                if i != 0 {
-                    opcode.push('_');
-                }
-
-                opcode.push(char.to_ascii_lowercase());
-            } else {
-                opcode.push(char);
-            }
-        }
-
-        opcode
     }
 }
 

@@ -5,6 +5,7 @@
 //! use the same categories as used in that document, to aid traceability.
 
 use crate::{GPR, SPR, DR};
+use strum::{AsRefStr, EnumDiscriminants};
 
 mod analysis;
 pub use analysis::*;
@@ -14,9 +15,13 @@ pub use encoding::*;
 
 mod assembly;
 pub use assembly::*;
-use strum::AsRefStr;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, AsRefStr)]
+mod opcode;
+pub use opcode::*;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, AsRefStr, EnumDiscriminants)]
+#[strum_discriminants(name(InstructionOpcode))]
+#[strum_discriminants(derive(AsRefStr))]
 pub enum Instruction {
     // Core
     Nop,
