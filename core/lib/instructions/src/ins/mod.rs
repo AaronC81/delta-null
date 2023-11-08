@@ -6,6 +6,7 @@
 
 use crate::{GPR, SPR, DR};
 use strum::{AsRefStr, EnumDiscriminants};
+use delta_null_core_macros::InstructionOpcodeMnemonics;
 
 mod analysis;
 pub use analysis::*;
@@ -16,12 +17,9 @@ pub use encoding::*;
 mod assembly;
 pub use assembly::*;
 
-mod opcode;
-pub use opcode::*;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, AsRefStr, EnumDiscriminants)]
 #[strum_discriminants(name(InstructionOpcode))]
-#[strum_discriminants(derive(AsRefStr))]
+#[strum_discriminants(derive(AsRefStr, InstructionOpcodeMnemonics))]
 pub enum Instruction {
     // Core
     Nop,

@@ -7,7 +7,7 @@ impl ToAssembly for Instruction {
         let operands = operands_for_assembly(self);
 
         if operands.is_empty() {
-            opcode
+            opcode.to_string()
         } else {
             format!("{} {}",
                 opcode,
