@@ -15,7 +15,8 @@
         - Stack pointer (SP)
         - Execution flags (EF)
             - **TODO: what flags?**
-            - Condition flag
+            - Halt flag (bit 0)
+            - Condition flag (bit 1)
 
 ## State
 

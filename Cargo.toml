@@ -2,4 +2,5 @@
 
 members = [
     "core/lib/instructions",
+    "core/lib/emulator",
 ]
