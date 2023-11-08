@@ -27,8 +27,8 @@ fn operands_for_assembly(ins: &Instruction) -> Vec<&dyn ToAssembly> {
         // Core
         Nop => vec![],
         Hlt => vec![],
-        Mov { src, dest } => vec![dest, src],
-        DMov { src, dest } => vec![dest, src],
+        Mov { dest, src } => vec![dest, src],
+        DMov { dest, src } => vec![dest, src],
 
         // Immediate Loads
         Putl { reg, imm } => vec![reg, imm],
@@ -41,8 +41,8 @@ fn operands_for_assembly(ins: &Instruction) -> Vec<&dyn ToAssembly> {
         DWrite { addr, val }  => vec![addr, val],
 
         // Special-Purpose Registers
-        Movso { src, dest } => vec![dest, src],
-        Movsi { src, dest } => vec![dest, src],
+        Movso { dest, src } => vec![dest, src],
+        Movsi { dest, src } => vec![dest, src],
         Spadd { val } => vec![val],
 
         // Bit Manipulation

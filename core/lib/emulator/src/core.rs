@@ -55,7 +55,7 @@ impl<M: Memory> Core<M> {
             // Core
             Nop => (),
             Hlt => self.ef |= 1, // Set halt flag
-            Mov { src, dest }
+            Mov { dest, src }
                 => self.write_gpr(dest, self.read_gpr(src)),
             DMov { .. } => todo!(),
 
@@ -74,7 +74,7 @@ impl<M: Memory> Core<M> {
             DWrite { .. } => todo!(),
 
             // Special-Purpose Registers
-            Movso { src, dest }
+            Movso { dest, src }
                 => self.write_gpr(dest, self.read_spr(src)),
             Movsi { src, dest }
                 => self.write_spr(dest, self.read_gpr(src)),

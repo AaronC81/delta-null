@@ -10,9 +10,9 @@ impl Encodable for Instruction {
             // Core
             Nop => 0b_0000_0000_0000_0000,
             Hlt => 0b_1111_1111_1111_1111,
-            Mov { src, dest }
+            Mov { dest, src }
                 => 0b_0010_0001_0000_0000 | src.encode() << 4 | dest.encode(),
-            DMov { src, dest }
+            DMov { dest, src }
                 => 0b_0010_0001_0000_1000 | src.encode() << 4 | dest.encode(),
 
             // Immediate Loads
@@ -32,9 +32,9 @@ impl Encodable for Instruction {
                 => 0b_0010_0000_1000_1000 | addr.encode() << 4 | val.encode(),
 
             // Special-Purpose Registers
-            Movso { src, dest }
+            Movso { dest, src }
                 => 0b_0010_0001_1000_0000 | src.encode() << 4 | dest.encode(),
-            Movsi { src, dest }
+            Movsi { dest, src }
                 => 0b_0010_0001_1100_0000 | dest.encode() << 4 | src.encode(),
             Spadd { val }
                 => 0b_0010_0001_1101_1000 | val.encode(),

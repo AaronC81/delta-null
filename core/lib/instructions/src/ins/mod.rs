@@ -24,8 +24,8 @@ pub enum Instruction {
     // Core
     Nop,
     Hlt,
-    Mov { src: GPR, dest: GPR },
-    DMov { src: DR, dest: DR },
+    Mov { dest: GPR, src: GPR },
+    DMov { dest: DR, src: DR },
 
     // Immediate Loads
     Putl { reg: GPR, imm: u8 },
@@ -38,8 +38,8 @@ pub enum Instruction {
     DWrite { addr: GPR, val: DR },
 
     // Special-purpose Registers
-    Movso { src: SPR, dest: GPR },
-    Movsi { src: GPR, dest: SPR },
+    Movso { dest: GPR, src: SPR },
+    Movsi { dest: SPR, src: GPR },
     Spadd { val: GPR },
 
     // Bit Manipulation
