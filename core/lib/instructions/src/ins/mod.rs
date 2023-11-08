@@ -4,9 +4,9 @@
 //! Whenever a complete list of instructions is specified somewhere (e.g. in a match), it should
 //! use the same categories as used in that document, to aid traceability.
 
-use crate::{GPR, SPR, DR};
+use crate::{GPR, SPR, DR, AnyRegister};
 use strum::{AsRefStr, EnumDiscriminants};
-use delta_null_core_macros::InstructionOpcodeMnemonics;
+use delta_null_core_macros::{InstructionOpcodeMnemonics, InstructionBuild};
 
 mod analysis;
 pub use analysis::*;
@@ -17,7 +17,7 @@ pub use encoding::*;
 mod assembly;
 pub use assembly::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, AsRefStr, EnumDiscriminants)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, AsRefStr, EnumDiscriminants, InstructionBuild)]
 #[strum_discriminants(name(InstructionOpcode))]
 #[strum_discriminants(derive(AsRefStr, InstructionOpcodeMnemonics))]
 pub enum Instruction {
@@ -73,4 +73,46 @@ pub enum Instruction {
     Cjmp { src: GPR },
     Call { src: GPR },
     Ret,
+}
+
+pub enum AnyOperand {
+    R(AnyRegister),
+    I(u8),
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{Instruction, InstructionOpcode, AnyOperand, GPR, AnyRegister, DR};
+
+    #[test]
+    fn test_build() {
+        assert_eq!(Some(Instruction::Nop), InstructionOpcode::Nop.build(&[]));
+        assert_eq!(None, InstructionOpcode::Nop.build(&[AnyOperand::I(1)]));
+
+        assert_eq!(
+            Some(Instruction::Inc { reg: GPR::R0 }),
+            InstructionOpcode::Inc.build(&[AnyOperand::R(AnyRegister::G(GPR::R0))]),
+        );
+        assert_eq!(
+            None,
+            InstructionOpcode::Inc.build(&[]),
+        );
+        assert_eq!(
+            None,
+            InstructionOpcode::Inc.build(&[AnyOperand::R(AnyRegister::D(DR::D1))]),
+        );
+
+        assert_eq!(
+            Some(Instruction::Mov { dest: GPR::R0, src: GPR::R1 }),
+            InstructionOpcode::Mov.build(&[AnyOperand::R(AnyRegister::G(GPR::R0)), AnyOperand::R(AnyRegister::G(GPR::R1))]),
+        );
+        assert_eq!(
+            None,
+            InstructionOpcode::Mov.build(&[]),
+        );
+        assert_eq!(
+            None,
+            InstructionOpcode::Mov.build(&[AnyOperand::R(AnyRegister::G(GPR::R0))]),
+        );
+    }    
 }
