@@ -76,7 +76,7 @@ impl<M: Memory> Core<M> {
             // Special-Purpose Registers
             Movso { dest, src }
                 => self.write_gpr(dest, self.read_spr(src)),
-            Movsi { src, dest }
+            Movsi { dest, src }
                 => self.write_spr(dest, self.read_gpr(src)),
             Spadd { val }
                 => self.write_spr(SPR::SP, self.read_spr(SPR::SP).overflowing_add(self.read_gpr(val)).0),
