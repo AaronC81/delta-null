@@ -17,6 +17,8 @@
             - **TODO: what flags?**
             - Halt flag (bit 0)
             - Condition flag (bit 1)
+- Connected to memory with 16-bit address and data bus
+    - Each address refers to a 16-bit word - smaller access not possible
 
 ## State
 
