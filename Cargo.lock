@@ -25,6 +25,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "delta-null-core-assembler"
+version = "0.1.0"
+dependencies = [
+ "delta-null-core-instructions",
+]
+
+[[package]]
 name = "delta-null-core-emulator"
 version = "0.1.0"
 dependencies = [

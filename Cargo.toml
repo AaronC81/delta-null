@@ -4,4 +4,5 @@ members = [
     "core/lib/instructions",
     "core/lib/emulator",
     "core/lib/macros",
+    "core/lib/assembler",
 ]
