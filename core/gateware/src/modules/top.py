@@ -1,23 +1,19 @@
 from amaranth import *
-
-class Blinky(Elaboratable):
-    def __init__(self, counter_size):
-        self.led = Signal()
-        self.count = Signal(counter_size)
-
-    def elaborate(self, platform) -> Module:
-        m = Module()
-        m.d.comb += self.led.eq(self.count[len(self.count) - 1])
-        m.d.sync += self.count.eq(self.count + 1)
-        return m
+from .harness import CoreSimHarness
         
 class Top(Elaboratable):
     def elaborate(self, platform) -> Module:
         m = Module()
 
-        led: Signal = platform.request("led")
-        blinky = Blinky(24)
-        m.submodules += blinky
-        m.d.comb += led.eq(blinky.led)
+        # TODO: use proper memory
+        core_harness = CoreSimHarness(instructions=[
+            0x1001, # putl r0, 0x01
+            0xFFFF, # hlt
+        ])
+        m.submodules += core_harness
+
+        # Bind LED to lowest bit of r0
+        led = platform.request("led")
+        m.d.comb += led.eq(core_harness.r0[0])
 
         return m
