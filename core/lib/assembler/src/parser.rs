@@ -13,7 +13,7 @@ pub struct AssemblyItem {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AssemblyItemKind {
     Instruction(InstructionOpcode, Vec<AssemblyOperand>),
-    WordConstant(u16), // TODO
+    WordConstant(u16),
 }
 
 struct Parser<'a> {
@@ -89,9 +89,27 @@ impl<'a> Parser<'a> {
                     break 'top;
                 }
 
+                // Check if this is a directive
+                let mut is_directive = false;
+                if let Some('.') = self.chars.peek() {
+                    self.chars.next();
+                    is_directive = true;
+                }
+
                 let atom = match self.parse_atom() {
                     Ok(a) => a,
-                    Err(e) => { errors.push(e); continue; }
+                    Err(e) => {
+                        errors.push(e);
+
+                        // Try to recover to a vaguely sensible state - skip until next whitespace
+                        while let Some(c) = self.chars.peek() {
+                            if c.is_whitespace() {
+                                break
+                            }
+                            self.chars.next();
+                        }
+                        continue 'top;
+                    }
                 };
 
                 // Is this a label?
@@ -100,6 +118,52 @@ impl<'a> Parser<'a> {
                     self.chars.next();
                     self.skip_whitespace();
                     continue;
+                }
+
+                // Is this a directive?
+                if is_directive {
+                    // Check against known ones
+                    match atom.as_ref() {
+                        "word" => {
+                            self.skip_same_line_whitespace();
+
+                            // Take an operand
+                            // TODO: deduplicate
+                            let operand_atom = match self.parse_atom() {
+                                Ok(a) => a,
+                                Err(e) => { errors.push(e); continue; }
+                            };
+                            let operand = match AssemblyOperand::parse(&operand_atom) {
+                                Ok(o) => o,
+                                Err(e) => { errors.push(e); continue; }
+                            };
+
+                            // Operand for `word` must always be an immediate
+                            let AssemblyOperand::Immediate(imm) = operand else {
+                                errors.push(ParseError::new(".word operand must be immediate".to_string()));
+                                continue 'top;
+                            };
+                            items.push(AssemblyItem {
+                                labels,
+                                kind: AssemblyItemKind::WordConstant(imm),
+                            });
+
+                            // This should be the end of the line
+                            self.skip_same_line_whitespace();
+
+                            if let Some(c) = self.chars.next() {
+                                if c != '\n' {
+                                    errors.push(ParseError::new(".word takes one operand".to_string()));
+                                }
+                            }
+
+                            continue 'top;
+                        },
+
+                        _ => {
+                            errors.push(ParseError::new(format!("unknown directive: {atom}")))
+                        }
+                    }
                 }
 
                 // If not, assume it's a mnemonic
@@ -281,6 +345,31 @@ mod test {
                 loop:
                 add r0, r1
                 movsi ip, r2
+            ").parse()
+        );
+    }
+
+    #[test]
+    fn test_word_constant() {
+        assert_eq!(
+            Ok(vec![
+                AssemblyItem {
+                    labels: vec![],
+                    kind: AssemblyItemKind::WordConstant(0xABCD),
+                },
+                AssemblyItem {
+                    labels: vec![],
+                    kind: AssemblyItemKind::Instruction(InstructionOpcode::Nop, vec![]),
+                },
+                AssemblyItem {
+                    labels: vec![],
+                    kind: AssemblyItemKind::WordConstant(123),
+                },
+            ]),
+            Parser::from_str("
+                .word 0xABCD
+                nop
+                .word 123
             ").parse()
         );
     }
