@@ -2,13 +2,23 @@ use std::{fmt::Display, error::Error};
 
 use delta_null_core_instructions::{AnyRegister, GPR, SPR, DR};
 
+/// Describes how a label is accessed by an [AssemblyOperand].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LabelAccess {
+    /// The high byte of the label's address.
     High,
+
+    /// The low byte of the label's address.
     Low,
+
+    /// The offset from the usage of the label to its definition.
     Offset,
 }
 
+/// An operand as found in a parsed assembly instruction.
+/// 
+/// This does not correspond to an operand as found in a core instruction, as this additionally
+/// encodes assembly syntax sugar, such as labels.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AssemblyOperand {
     Register(AnyRegister),
@@ -20,6 +30,7 @@ pub enum AssemblyOperand {
 }
 
 impl AssemblyOperand {
+    /// Parse a single operand.
     pub fn parse(op: &str) -> Result<Self, ParseError> {
         match op {
             // GPRs

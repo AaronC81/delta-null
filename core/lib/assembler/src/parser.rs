@@ -4,6 +4,7 @@ use delta_null_core_instructions::InstructionOpcode;
 
 use crate::{AssemblyOperand, ParseError};
 
+/// An item in parsed assembly, typically an instruction or a directive.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssemblyItem {
     pub labels: Vec<String>,
@@ -16,6 +17,7 @@ pub enum AssemblyItemKind {
     WordConstant(u16),
 }
 
+/// Parses lines of assembly into [AssemblyItem]s.
 struct Parser<'a> {
     chars: Peekable<Chars<'a>>,
 }
