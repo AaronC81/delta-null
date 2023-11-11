@@ -362,14 +362,14 @@ mod test {
                     kind: AssemblyItemKind::Instruction(InstructionOpcode::Nop, vec![]),
                 },
                 AssemblyItem {
-                    labels: vec![],
+                    labels: vec!["a".to_string(), "b".to_string()],
                     kind: AssemblyItemKind::WordConstant(123),
                 },
             ]),
             Parser::from_str("
                 .word 0xABCD
                 nop
-                .word 123
+                a: b: .word 123
             ").parse()
         );
     }
