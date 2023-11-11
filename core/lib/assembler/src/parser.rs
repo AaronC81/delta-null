@@ -17,8 +17,15 @@ pub enum AssemblyItemKind {
     WordConstant(u16),
 }
 
+impl AssemblyItem {
+    /// The size of the item, in words (not bytes).
+    pub fn word_size(&self) -> u16 {
+        1
+    }
+}
+
 /// Parses lines of assembly into [AssemblyItem]s.
-struct Parser<'a> {
+pub struct Parser<'a> {
     chars: Peekable<Chars<'a>>,
 }
 
