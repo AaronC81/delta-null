@@ -98,7 +98,8 @@ register `d`
 - `0110 0000 bbbb bbbb` - `jmpoff` - Sign-extend immediate `b` to 16-bits, and add to `IP`
 - `0110 0001 bbbb bbbb` - `cjmpoff` - If `EF.cond` set, sign-extend immediate `b` to 16-bits, and add
   to `IP`
-- `0110 0010 0000 0rrr` - `jmp` - Copy value from general-purpose register `r` into `IP`
+- `0110 0010 0000 0rrr` - **Unused but reserved** (was previously `jmp`, but `movsi` fills the same
+  role)
 - `0110 0011 0000 0rrr` - `cjmp` - If `EF.cond` set, copy value from general-purpose register `r`
   into `IP`
 - `0110 0010 0001 0rrr` - `call` - Copy address of next instruction into `RP`, then copy value from

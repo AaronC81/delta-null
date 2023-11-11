@@ -128,8 +128,6 @@ impl<M: Memory> Core<M> {
                 => if self.is_cond_set() {
                     self.write_spr(SPR::SP, self.read_spr(SPR::SP).overflowing_add(Self::sign_extend_u8_to_u16(offset)).0);
                 }
-            Jmp { src }
-                => self.write_spr(SPR::IP, self.read_gpr(src)),
             Cjmp { src }
                 => if self.is_cond_set() {
                     self.write_spr(SPR::IP, self.read_gpr(src));

@@ -69,7 +69,6 @@ pub enum Instruction {
     // Branching
     Jmpoff { offset: u8 },
     Cjmpoff { offset: u8 },
-    Jmp { src: GPR },
     Cjmp { src: GPR },
     Call { src: GPR },
     Ret,

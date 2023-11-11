@@ -85,8 +85,6 @@ impl Encodable for Instruction {
                 => 0b_0110_0000_0000_0000 | offset as u16,
             Cjmpoff { offset }
                 => 0b_0110_0001_0000_0000 | offset as u16,
-            Jmp { src }
-                => 0b_0110_0010_0000_0000 | src.encode(),
             Cjmp { src } 
                 => 0b_0110_0011_0000_0000 | src.encode(),
             Call { src }
@@ -150,7 +148,6 @@ impl Encodable for Instruction {
                 // Branching
                 "0110_0000_bbbb_bbbb" => Jmpoff { offset: b as u8 },
                 "0110_0001_bbbb_bbbb" => Cjmpoff { offset: b as u8 },
-                "0110_0010_0000_0rrr" => Jmp { src: GPR::decode(r)? },
                 "0110_0011_0000_0rrr" => Cjmp { src: GPR::decode(r)? },
                 "0110_0010_0001_0rrr" => Call { src: GPR::decode(r)? },
                 "0110_0010_0001_1000" => Ret,

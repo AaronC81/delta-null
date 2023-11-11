@@ -72,7 +72,6 @@ fn operands_for_assembly(ins: &Instruction) -> Vec<&dyn ToAssembly> {
         // Branching
         Jmpoff { offset } => vec![offset],
         Cjmpoff { offset }  => vec![offset],
-        Jmp { src } => vec![src],
         Cjmp { src } => vec![src],
         Call { src } => vec![src],
         Ret => vec![],
