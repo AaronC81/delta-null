@@ -167,7 +167,7 @@ mod test {
                     nop
                     putl r0, data/lo
                     puth r0, data/hi
-                    read r0, r1
+                    read r1, r0
                     hlt
                     data: .word 0
                 ").parse().unwrap(),
