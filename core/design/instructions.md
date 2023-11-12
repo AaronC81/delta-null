@@ -61,6 +61,8 @@ register `d`
 - `0010 0001 11dd 0sss` - `movsi` - Copy value from general-purpose register `s` into special-purpose
 register `d`
 - `0010 0001 1101 1ooo` - `spadd` - Add value from general-purpose register `o` onto SP
+- `0010 0010 1101 0000` - `spinc` - Increment SP by 1
+- `0010 0010 1101 0001` - `spdec` - Increment SP by 1
 
 ## Bit Manipulation
 

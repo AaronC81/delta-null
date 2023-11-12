@@ -41,6 +41,8 @@ pub enum Instruction {
     Movso { dest: GPR, src: SPR },
     Movsi { dest: SPR, src: GPR },
     Spadd { val: GPR },
+    Spinc,
+    Spdec,
 
     // Bit Manipulation
     Not { reg: GPR },

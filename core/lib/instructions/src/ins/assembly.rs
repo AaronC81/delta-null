@@ -44,6 +44,8 @@ fn operands_for_assembly(ins: &Instruction) -> Vec<&dyn ToAssembly> {
         Movso { dest, src } => vec![dest, src],
         Movsi { dest, src } => vec![dest, src],
         Spadd { val } => vec![val],
+        Spinc => vec![],
+        Spdec => vec![],
 
         // Bit Manipulation
         Not { reg } => vec![reg],

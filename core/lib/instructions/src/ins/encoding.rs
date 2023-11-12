@@ -38,6 +38,10 @@ impl Encodable for Instruction {
                 => 0b_0010_0001_1100_0000 | dest.encode() << 4 | src.encode(),
             Spadd { val }
                 => 0b_0010_0001_1101_1000 | val.encode(),
+            Spinc
+                => 0b_0010_0010_1101_0000,
+            Spdec
+                => 0b_0010_0010_1101_0001,
 
             // Bit Manipulation
             Not { reg }

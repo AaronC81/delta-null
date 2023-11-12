@@ -80,6 +80,10 @@ impl<M: Memory> Core<M> {
                 => self.write_spr(dest, self.read_gpr(src)),
             Spadd { val }
                 => self.write_spr(SPR::SP, self.read_spr(SPR::SP).overflowing_add(self.read_gpr(val)).0),
+            Spinc
+                => self.write_spr(SPR::SP, self.read_spr(SPR::SP).overflowing_add(1).0),
+            Spdec
+                => self.write_spr(SPR::SP, self.read_spr(SPR::SP).overflowing_sub(1).0),
 
             // Bit Manipulation
             Not { reg }
