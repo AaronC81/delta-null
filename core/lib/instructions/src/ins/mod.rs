@@ -32,9 +32,9 @@ pub enum Instruction {
     Puth { reg: GPR, imm: u8 },
 
     // Memory
-    Read { addr: GPR, val: GPR },
+    Read { val: GPR, addr: GPR },
     Write { addr: GPR, val: GPR },
-    DRead { addr: GPR, val: DR },
+    DRead { val: DR, addr: GPR },
     DWrite { addr: GPR, val: DR },
 
     // Special-purpose Registers
