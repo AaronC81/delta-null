@@ -7,8 +7,13 @@ class Top(Elaboratable):
 
         # TODO: use proper memory
         core_harness = CoreSimHarness(instructions=[
-            0x1001, # putl r0, 0x01
-            0xFFFF, # hlt
+            # putl r2, data/lo
+            # puth r2, data/hi
+            # read r1, r2
+            # read r0, r2
+            # hlt
+            # data: .word 1
+            0x1205, 0x1A00, 0x2021, 0x2020, 0xFFFF, 0x0001
         ])
         m.submodules += core_harness
 
