@@ -19,7 +19,7 @@ def run_sim(instructions: Union[List[int], str], after: Callable[[CoreSimHarness
     sim.add_clock(1e-6) # 1 MHz
 
     def proc():
-        for _ in range(len(instructions) * 3): # worst case
+        for _ in range(len(instructions) * 4): # worst case
             yield
 
         yield from after(core)

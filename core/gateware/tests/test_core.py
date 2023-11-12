@@ -39,3 +39,26 @@ def test_mov():
         
         hlt
     """, after)
+
+def test_read():
+    """Tests `read`."""
+    
+    def after(core):
+        assert (yield core.r1) == 0x1234
+        assert (yield core.r2) == 0xABCD
+        assert (yield core.r3) == 0x1234
+        assert (yield core.r4) == 0xABCD
+    run_sim("""
+        putl r0, data/lo
+        puth r0, data/hi
+        putl r7, other/lo
+        puth r7, other/hi
+        read r1, r0
+        read r2, r7
+        read r3, r0
+        read r4, r7
+        hlt
+            
+        data: .word 0x1234
+        other: .word 0xABCD
+    """, after)
