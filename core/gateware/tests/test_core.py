@@ -19,3 +19,23 @@ def test_put():
         
         hlt
     """, after)
+
+def test_mov():
+    """Tests `mov`."""
+    
+    def after(core):
+        assert (yield core.r0) == 0x1234
+        assert (yield core.r7) == 0x1234
+        assert (yield core.r6) == 0
+    run_sim("""
+        putl r6, 0
+        puth r6, 0
+        
+        putl r3, 0x34
+        puth r3, 0x12
+
+        mov r0, r3
+        mov r7, r0
+        
+        hlt
+    """, after)
