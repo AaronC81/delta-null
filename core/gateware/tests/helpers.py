@@ -1,19 +1,22 @@
 from ..src.modules.harness import CoreSimHarness
 from amaranth.sim import Simulator
-from typing import List
+from typing import List, Union, Callable
 import subprocess, os
+    
 
-def make_sim(instructions) -> (Simulator, CoreSimHarness):
-    core = CoreSimHarness(instructions)
-    sim = Simulator(core)
-    sim.add_clock(1e-6) # 1 MHz
-    return (sim, core)
+def run_sim(instructions: Union[List[int], str], after: Callable[[CoreSimHarness], None]):
+    """Creates and runs a simulator with the given instructions, either as words or assembly code.
+    
+    After running the simulator to completion, executes the given callable, which pay perform
+    additional assertions.
+    """
 
-def run(instructions, after):
     if isinstance(instructions, str):
         instructions = assemble(instructions)
 
-    sim, core = make_sim(instructions)
+    core = CoreSimHarness(instructions)
+    sim = Simulator(core)
+    sim.add_clock(1e-6) # 1 MHz
 
     def proc():
         for _ in range(len(instructions) * 3): # worst case
@@ -29,6 +32,8 @@ ASSEMBLER_PATH = os.path.abspath(os.path.join(
 ))
 
 def assemble(code: str) -> List[int]:
+    """Assembles code into a list of words."""
+
     if not os.path.exists(ASSEMBLER_PATH):
         raise RuntimeError(f"assembler does not exist, have you run `cargo build`? (at {ASSEMBLER_PATH})")
 
