@@ -1,5 +1,5 @@
 from amaranth.sim import Simulator
-from ..modules.harness import CoreSimHarness
+from ..src.modules.harness import CoreSimHarness
 
 class Helpers:
     def make_sim(instructions) -> (Simulator, CoreSimHarness):
