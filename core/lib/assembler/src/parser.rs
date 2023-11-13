@@ -42,6 +42,14 @@ impl<'a> Parser<'a> {
         while let Some(c) = self.chars.peek() {
             if c.is_whitespace() {
                 self.chars.next();
+            } else if *c == ';' {
+                // It's a comment - chuck everything out until we reach a newline
+                loop {
+                    match self.chars.next() {
+                        Some('\n') | None => break,
+                        _ => (),
+                    }
+                }
             } else {
                 break
             }
@@ -91,6 +99,7 @@ impl<'a> Parser<'a> {
         'top: while self.chars.peek().is_some() {
             // Parse labels and mnemonic
             self.skip_whitespace();
+
             let mut labels = vec![];
             let mnemonic;
             loop {
@@ -187,12 +196,17 @@ impl<'a> Parser<'a> {
                 self.skip_same_line_whitespace();
                 match self.chars.peek() {
                     None | Some('\n') => break,
+                    Some(';') => {
+                        // It's a comment!
+                        self.skip_whitespace();
+                        break;
+                    }
                     _ => (),
                 }
 
                 // Keep track of whether a comma is required
                 if !is_first_operand {
-                    if let Some(',') = self.chars.peek() {
+                    if let Some(',') = self.chars.next() {
                         self.chars.next();
                         self.skip_same_line_whitespace();
                     } else {
@@ -379,6 +393,29 @@ mod test {
                 .word 0xABCD
                 nop
                 a: b: .word 123
+            ").parse()
+        );
+    }
+
+    #[test]
+    fn test_comments() {
+        assert_eq!(
+            Ok(vec![
+                AssemblyItem {
+                    labels: vec![],
+                    kind: AssemblyItemKind::Instruction(InstructionOpcode::Nop, vec![]),
+                },
+                AssemblyItem {
+                    labels: vec![],
+                    kind: AssemblyItemKind::Instruction(InstructionOpcode::Hlt, vec![]),
+                },
+            ]),
+            Parser::from_str("
+                ; a comment!
+                nop ; this does nothing, you know
+
+                hlt ; and that's the end.
+                ; there's nothing more here!
             ").parse()
         );
     }

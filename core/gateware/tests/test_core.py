@@ -71,21 +71,26 @@ def test_write():
         assert (yield core.r4) == 0xABCD
         assert (yield core.r5) == 0xABCD
     run_sim("""
+        ; r0 = address of `data`
         putl r0, data/lo
         puth r0, data/hi
         
+        ; r1 = content of `new1`
         putl r1, new1/lo
         puth r1, new1/hi
         read r1, r1
             
+        ; r2 = content of `new2`
         putl r2, new2/lo
         puth r2, new2/hi
         read r2, r2
             
+        ; simple write
         read r3, r0
         write r0, r1
         read r4, r0
             
+        ; stress test
         write r0, r1
         write r0, r2
         write r0, r1
