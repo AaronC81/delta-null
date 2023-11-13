@@ -97,9 +97,17 @@ class Core(Elaboratable):
                         # Don't need to set read-enable - it's normally on
 
                     with m.Case("0010 0000 1--- 0---"): # write
-                        # TODO
-                        #   - Set write enable high, then set low again in HANDLE_MEMORY
-                        #   - Set read enable low (FETCH sets it back)
+                        addr_gpr_idx = ins[4:7]
+                        dest_gpr_idx = ins[0:3]
+
+                        # Set to write, not read
+                        self.read_en(m, 0)
+                        m.d.sync += self.mem_write_en.eq(C(1))
+                        
+                        # Set up write
+                        m.d.sync += self.mem_addr.eq(self.gprs[addr_gpr_idx])
+                        m.d.sync += self.mem_write_pending.eq(C(1))
+                        m.d.sync += self.mem_write_data.eq(self.gprs[dest_gpr_idx])
                         pass
 
 
@@ -123,6 +131,11 @@ class Core(Elaboratable):
                 with m.If(self.mem_read_pending):
                     m.d.sync += self.gprs[self.mem_read_pending_gpr].eq(self.mem_read_data)
                     m.d.sync += self.mem_read_pending.eq(C(0))
+
+                # If EXECUTE set up a pending memory write, then it's done now!
+                with m.Elif(self.mem_write_pending):
+                    m.d.sync += self.mem_write_en.eq(C(0))
+                    m.d.sync += self.mem_write_pending.eq(C(0))
 
                 # Set up memory read for FETCH stage, since we trashed everything memory-related
                 m.d.sync += self.mem_addr.eq(self.ip)

@@ -62,3 +62,41 @@ def test_read():
         data: .word 0x1234
         other: .word 0xABCD
     """, after)
+
+def test_write():
+    """Tests `write`."""
+
+    def after(core):
+        assert (yield core.r3) == 0x1234
+        assert (yield core.r4) == 0xABCD
+        assert (yield core.r5) == 0xABCD
+    run_sim("""
+        putl r0, data/lo
+        puth r0, data/hi
+        
+        putl r1, new1/lo
+        puth r1, new1/hi
+        read r1, r1
+            
+        putl r2, new2/lo
+        puth r2, new2/hi
+        read r2, r2
+            
+        read r3, r0
+        write r0, r1
+        read r4, r0
+            
+        write r0, r1
+        write r0, r2
+        write r0, r1
+        write r0, r2
+        write r0, r1
+        read r5, r0
+            
+        hlt
+            
+        data: .word 0x1234
+        new1: .word 0xABCD
+        new2: .word 0xEF78
+    """, after)
+    
