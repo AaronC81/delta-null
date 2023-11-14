@@ -136,6 +136,47 @@ class Core(Elaboratable):
                         m.d.sync += self.sp.eq(self.sp - C(1))
 
 
+                    # === Bit Manipulation ===
+                    # TODO: yuck, deduplicate
+                    with m.Case("0100 0000 0000 0---"): # not
+                        gpr_idx = ins[0:3]
+                        m.d.sync += self.gprs[gpr_idx].eq(~self.gprs[gpr_idx])
+
+                    with m.Case("0100 0001 0--- 0---"): # and
+                        dest_gpr_idx = ins[0:3]
+                        other_gpr_idx = ins[4:7]
+                        m.d.sync += self.gprs[dest_gpr_idx].eq(self.gprs[dest_gpr_idx] & self.gprs[other_gpr_idx])
+
+                    with m.Case("0100 0010 0--- 0---"): # or
+                        dest_gpr_idx = ins[0:3]
+                        other_gpr_idx = ins[4:7]
+                        m.d.sync += self.gprs[dest_gpr_idx].eq(self.gprs[dest_gpr_idx] | self.gprs[other_gpr_idx])
+
+                    with m.Case("0100 0011 0--- 0---"): # xor
+                        dest_gpr_idx = ins[0:3]
+                        other_gpr_idx = ins[4:7]
+                        m.d.sync += self.gprs[dest_gpr_idx].eq(self.gprs[dest_gpr_idx] ^ self.gprs[other_gpr_idx])
+
+                    with m.Case("0100 0100 0--- 0---"): # shl
+                        dest_gpr_idx = ins[0:3]
+                        other_gpr_idx = ins[4:7]
+
+                        # Amaranth's left-shift produces a ludicrously large result if we use the
+                        # operand register at its full size.
+                        # Instead, we know that a shift of 16 or larger always produces 0, and for
+                        # a shift of less, we only need to look at the lowest 4 bits.
+                        with m.If(self.gprs[other_gpr_idx] < C(16)):
+                            m.d.sync += self.gprs[dest_gpr_idx] \
+                                .eq(self.gprs[dest_gpr_idx] << self.gprs[other_gpr_idx][0:4])
+                        with m.Else():
+                            m.d.sync += self.gprs[dest_gpr_idx].eq(0)
+
+                    with m.Case("0100 0101 0--- 0---"): # shr
+                        dest_gpr_idx = ins[0:3]
+                        other_gpr_idx = ins[4:7]
+                        m.d.sync += self.gprs[dest_gpr_idx].eq(self.gprs[dest_gpr_idx] >> self.gprs[other_gpr_idx])
+
+
                     # === Exceptional Circumstances ===
                     with m.Default():
                         # TODO: consider trap?

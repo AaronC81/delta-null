@@ -159,3 +159,72 @@ def test_ip_movsi():
         putl r0, 5
         hlt
     """, after)
+
+def test_bit_ops():
+    """Tests some bitwise operations: `not`, `and`, `or`, `xor`."""
+
+    def after(core):
+        value =                   0b_00010100_01011010
+        mask  =                   0b_10111000_00001001
+
+        assert (yield core.r2) == 0b_11101011_10100101 # not
+        assert (yield core.r3) == 0b_00010000_00001000 # and
+        assert (yield core.r4) == 0b_10111100_01011011 # or
+        assert (yield core.r5) == 0b_10101100_01010011 # xor
+
+    run_sim("""
+        ; r0 = value
+        putl r0, 0b01011010
+        puth r0, 0b00010100
+
+        ; r1 = mask
+        putl r1, 0b00001001
+        puth r1, 0b10111000
+
+        mov r2, r0
+        not r2
+
+        mov r3, r0
+        and r3, r1
+
+        mov r4, r0
+        or r4, r1
+
+        mov r5, r0
+        xor r5, r1
+
+        hlt
+    """, after)
+
+def test_bit_shift():
+    """Tests bit shift operators: `shl`, `shr`."""
+
+    def after(core):
+        value =                   0b_00010100_01011010
+
+        assert (yield core.r2) == 0b_10100010_11010000 # shl
+        assert (yield core.r3) == 0b_00000010_10001011 # shr
+        assert (yield core.r4) == 0 # extreme shl
+
+    run_sim("""
+        ; r0 = value
+        putl r0, 0b01011010
+        puth r0, 0b00010100
+
+        ; r1 = 3
+        putl r1, 3
+        puth r1, 0
+
+        mov r2, r0
+        shl r2, r1
+
+        mov r3, r0
+        shr r3, r1
+
+        ; extreme
+        putl r1, 24
+        mov r4, r0
+        shl r4, r1
+
+        hlt
+    """, after)
