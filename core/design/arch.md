@@ -12,6 +12,7 @@
     - 4? decimal numeric registers
     - Special-purpose registers:
         - Instruction pointer (IP)
+        - Return pointer (RP)
         - Stack pointer (SP)
         - Execution flags (EF)
             - **TODO: what flags?**
