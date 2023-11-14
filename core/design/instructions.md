@@ -80,12 +80,13 @@ register `d`
 - `0100 1000 0010 0rrr` - `dec` - `r = r - 1`
 - `0100 1001 0xxx 0rrr` - `add` - `r = r + x`
 - `0100 1010 0xxx 0rrr` - `sub` - `r = r - x`
-- `0100 1011 0xxx 0rrr` - `mulu` - `r = r * x` (unsigned)
-- `0100 1011 1xxx 0rrr` - `muli` - `r = r * x` (signed)
+- `0100 1011 0xxx 0rrr` - `mul` - `r = r * x`
 
-**TODO: do we need separate signed/unsigned multiplication?**
-**TODO: do we need an 'add with carry'?**
-**TODO: do we need division? ARM doesn't have it!**
+This is a relatively limited set of arithmetic. Potential future improvements include:
+- With-carry operations (e.g. add with carry)
+- Division
+
+**TODO: overflow flag**
 
 ## Comparison
 
