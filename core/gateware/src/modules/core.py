@@ -18,6 +18,7 @@ class Core(Elaboratable):
         self.rp = Signal(Core.DATA_WIDTH)
         self.sp = Signal(Core.DATA_WIDTH)
         self.ef = Signal(Core.DATA_WIDTH)
+        self.sprs = Array([self.ip, self.rp, self.sp, self.ef])
 
         self.stage = Signal(2, reset=Core.Stage.FETCH)
 
@@ -109,6 +110,30 @@ class Core(Elaboratable):
                         m.d.sync += self.mem_write_pending.eq(C(1))
                         m.d.sync += self.mem_write_data.eq(self.gprs[dest_gpr_idx])
                         pass
+
+                    # TODO: d_read, d_write
+
+
+                    # === Special-Purpose Registers ===
+                    with m.Case("0010 0001 10-- 0---"): # movso
+                        dest_gpr_idx = ins[0:3]
+                        src_spr_idx = ins[4:6]
+                        m.d.sync += self.gprs[dest_gpr_idx].eq(self.sprs[src_spr_idx])
+
+                    with m.Case("0010 0001 11-- 0---"): # movsi
+                        src_gpr_idx = ins[0:3]
+                        dest_spr_idx = ins[4:6]
+                        m.d.sync += self.sprs[dest_spr_idx].eq(self.gprs[src_gpr_idx])
+
+                    with m.Case("0010 0001 1101 1---"): # spadd
+                        src_gpr_idx = ins[0:3]
+                        m.d.sync += self.sp.eq(self.sp + self.gprs[dest_gpr_idx])
+
+                    with m.Case("0010 0010 1101 0000"): # spinc
+                        m.d.sync += self.sp.eq(self.sp + C(1))
+
+                    with m.Case("0010 0010 1101 0001"): # spdec
+                        m.d.sync += self.sp.eq(self.sp - C(1))
 
 
                     # === Exceptional Circumstances ===

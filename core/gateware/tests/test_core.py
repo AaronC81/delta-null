@@ -105,3 +105,57 @@ def test_write():
         new2: .word 0xEF78
     """, after)
     
+def test_sp_ops():
+    """Tests SP-specific operations - `spadd`, `spinc`, `spdec`."""
+
+    def after(core):
+        assert (yield core.r1) == 21
+        assert (yield core.r2) == 22
+        assert (yield core.r3) == 21
+    run_sim("""
+        ; sp = 16
+        putl r0, 16
+        puth r0, 0
+        movsi sp, r0
+
+        ; r0 = 5
+        putl r0, 5
+        
+        ; r1 = (sp += r0)
+        spadd r0
+        movso r1, sp
+
+        ; r2 = (sp++)
+        spinc
+        movso r2, sp
+
+        ; r3 = (sp--)
+        spdec
+        movso r3, sp
+    """, after)
+
+def test_ip_movsi():
+    """Tests jumping implemented by `movsi`-ing into IP."""
+
+    def after(core):
+        assert (yield core.r0) == 5
+    run_sim("""
+        ; r0 = 0
+        putl r0, 0
+        puth r0, 0
+
+        ; jump to dest (thru r1)
+        putl r1, dest/lo
+        puth r1, dest/hi
+        movsi ip, r1
+
+        hlt
+        hlt
+        hlt
+        hlt
+        hlt
+
+        dest:
+        putl r0, 5
+        hlt
+    """, after)
