@@ -85,8 +85,7 @@ register `d`
 This is a relatively limited set of arithmetic. Potential future improvements include:
 - With-carry operations (e.g. add with carry)
 - Division
-
-**TODO: overflow flag**
+- Overflow flag
 
 ## Comparison
 
