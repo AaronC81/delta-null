@@ -1,0 +1,27 @@
+; r0 lowest bit is linked to LED in gateware
+xor r0, r0
+
+; r1 = constant 1
+putl r1, 1
+puth r1, 0
+
+blink:
+
+    ; busy-waits for 0xFFFF * 4 "soft cycles"
+    putl r2, 0xFF ; r2 = counter
+    puth r2, 0xFF
+    putl r3, loop/lo ; r3 = loop addr
+    puth r3, loop/hi
+    loop:
+        sub r2, r1
+        eqz r2
+        inv
+        cjmp r3
+
+    ; toggle LED
+    not r0
+
+    ; repeat
+    putl r2, blink/lo
+    puth r2, blink/hi
+    movsi ip, r2
