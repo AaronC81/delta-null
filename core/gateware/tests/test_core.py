@@ -362,3 +362,21 @@ def test_cjmp():
 
         hlt
     """, after)
+
+def test_gp_sub():
+    """Tests `sub`."""
+
+    def after(core):
+        assert (yield core.r0) == 6
+
+    run_sim("""
+        putl r0, 17
+        puth r0, 0
+
+        putl r1, 11
+        puth r1, 0
+            
+        sub r0, r1
+            
+        hlt
+    """, after)

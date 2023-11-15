@@ -201,6 +201,14 @@ class Core(Elaboratable):
                         m.d.sync += self.ef[1].eq(self.gprs[left_gpr_idx] >= self.gprs[right_gpr_idx])
 
 
+                    # === General-Purpose Arithmetic ===
+                    # TODO: all the other ones
+                    with m.Case("0100 1010 0--- 0---"): # sub
+                        dest_gpr_idx = ins[0:3]
+                        other_gpr_idx = ins[4:7]
+                        m.d.sync += self.gprs[dest_gpr_idx].eq(self.gprs[dest_gpr_idx] - self.gprs[other_gpr_idx])
+
+
                     # === Branching ===
                     # TODO: jmpoff
                     # TODO: cjmpoff
