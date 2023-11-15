@@ -132,6 +132,8 @@ def test_sp_ops():
         ; r3 = (sp--)
         spdec
         movso r3, sp
+            
+        hlt
     """, after)
 
 def test_ip_movsi():
