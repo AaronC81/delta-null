@@ -13,9 +13,12 @@ class CoreSimHarness(Elaboratable):
         self.r6 = Signal(Core.DATA_WIDTH)
         self.r7 = Signal(Core.DATA_WIDTH)
 
+        self.ef = Signal(Core.DATA_WIDTH)
+
         self.mem_init = [0 for _ in range(0x100)]
         for i, ins in enumerate(instructions):
             self.mem_init[i] = ins
+
 
     def elaborate(self, platform):
         m = Module()
@@ -35,6 +38,7 @@ class CoreSimHarness(Elaboratable):
 
         for i in range(8):
             m.d.comb += getattr(self, f"r{i}").eq(core.gprs[i])
+        m.d.comb += self.ef.eq(core.ef)
 
         m.submodules += mem_read
         m.submodules += mem_write

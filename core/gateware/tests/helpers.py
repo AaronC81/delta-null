@@ -18,9 +18,14 @@ def run_sim(instructions: Union[List[int], str], after: Callable[[CoreSimHarness
     sim = Simulator(core)
     sim.add_clock(1e-6) # 1 MHz
 
+    limit = 10000
     def proc():
-        for _ in range(len(instructions) * 4): # worst case
+        nonlocal limit
+        while (yield core.ef[0]) == 0:
             yield
+            limit -= 1
+            if limit == 0:
+                raise Exception("core didn't halt in reasonable time")
 
         yield from after(core)
 
