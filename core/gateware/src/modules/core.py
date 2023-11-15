@@ -177,6 +177,30 @@ class Core(Elaboratable):
                         m.d.sync += self.gprs[dest_gpr_idx].eq(self.gprs[dest_gpr_idx] >> self.gprs[other_gpr_idx])
 
 
+                    # === Comparison ===
+                    with m.Case("0101 0000 0000 0000"): # inv
+                        m.d.sync += self.ef[1].eq(~self.ef[1])
+
+                    with m.Case("0101 0000 0001 0---"): # eqz
+                        gpr_idx = ins[0:3]
+                        m.d.sync += self.ef[1].eq(self.gprs[gpr_idx] == C(0))
+
+                    with m.Case("0101 0001 0--- 0---"): # eq
+                        left_gpr_idx = ins[4:7]
+                        right_gpr_idx = ins[0:3]
+                        m.d.sync += self.ef[1].eq(self.gprs[left_gpr_idx] == self.gprs[right_gpr_idx])
+
+                    with m.Case("0101 0010 0--- 0---"): # gt
+                        left_gpr_idx = ins[4:7]
+                        right_gpr_idx = ins[0:3]
+                        m.d.sync += self.ef[1].eq(self.gprs[left_gpr_idx] > self.gprs[right_gpr_idx])
+
+                    with m.Case("0101 0011 0--- 0---"): # gteq
+                        left_gpr_idx = ins[4:7]
+                        right_gpr_idx = ins[0:3]
+                        m.d.sync += self.ef[1].eq(self.gprs[left_gpr_idx] >= self.gprs[right_gpr_idx])
+
+
                     # === Exceptional Circumstances ===
                     with m.Default():
                         # TODO: consider trap?

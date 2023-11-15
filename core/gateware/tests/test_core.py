@@ -228,3 +228,100 @@ def test_bit_shift():
 
         hlt
     """, after)
+
+def test_comparison_eq():
+    """Tests equality comparison operators: `eqz`, `eq`."""
+
+    def after(core):
+        assert (yield core.r3) == 0
+        assert (yield core.r4) > 0
+        assert (yield core.r5) > 0
+        assert (yield core.r6) > 0
+        assert (yield core.r7) == 0
+
+    run_sim("""
+        ; r0 = mask with extracts just comparison flag
+        ;      also, conveniently, 2 - we'll use this as one of the comparison items
+        putl r0, 0b00000010
+        puth r0, 0b00000000
+
+        ; r1 = 5
+        putl r1, 5
+        puth r1, 0
+            
+        ; r2 = 2
+        putl r2, 2
+        puth r2, 0
+            
+        ; r3 = (r1 == r2)   - false
+        eq r1, r2
+        movso r3, ef
+        and r3, r0
+            
+        ; r4 = (r0 == r2)   - true
+        eq r0, r2
+        movso r4, ef
+        and r4, r0
+            
+        ; r5 = (r0 == r0)   - true
+        eq r0, r0
+        movso r5, ef
+        and r5, r0
+            
+        ; r1 = 0
+        xor r1, r1
+            
+        ; r6 = (r1 == 0)    - true
+        eqz r1
+        movso r6, ef
+        and r6, r0
+            
+        ; r7 = (r2 == 0)   - false
+        eqz r2
+        movso r7, ef
+        and r7, r0
+
+        hlt
+    """, after)
+
+def test_comparison_ord():
+    """Tests ordered comparison operators: `gt`, `gteq`."""
+
+    def after(core):
+        assert (yield core.r3) > 0
+        assert (yield core.r4) == 0
+        assert (yield core.r5) == 0
+        assert (yield core.r6) > 0
+
+    run_sim("""
+        ; r0 = mask with extracts just comparison flag
+        ;      also, conveniently, 2 - we'll use this as one of the comparison items
+        putl r0, 0b00000010
+        puth r0, 0b00000000
+
+        ; r1 = 5
+        putl r1, 5
+        puth r1, 0
+                    
+        ; r3 = (r1 > r0)   - true
+        gt r1, r0
+        movso r3, ef
+        and r3, r0
+            
+        ; r4 = (r0 > r1)   - false
+        gt r0, r1
+        movso r4, ef
+        and r4, r0
+            
+        ; r5 = (r0 > r0)   - false
+        gt r0, r0
+        movso r5, ef
+        and r5, r0
+            
+        ; r6 = (r0 >= r0)    - true
+        gteq r0, r0
+        movso r6, ef
+        and r6, r0
+
+        hlt
+    """, after)
