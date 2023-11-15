@@ -2,6 +2,8 @@ from amaranth import *
 from .core import Core
 
 class CoreSimHarness(Elaboratable):
+    MEMORY_DEPTH = 0x100
+
     def __init__(self, instructions):
         # Arrays don't seem to show up on the simulator, so bind them to signals instead
         self.r0 = Signal(Core.DATA_WIDTH)
@@ -15,7 +17,7 @@ class CoreSimHarness(Elaboratable):
 
         self.ef = Signal(Core.DATA_WIDTH)
 
-        self.mem_init = [0 for _ in range(0x100)]
+        self.mem_init = [0 for _ in range(CoreSimHarness.MEMORY_DEPTH)]
         for i, ins in enumerate(instructions):
             self.mem_init[i] = ins
 
@@ -23,7 +25,7 @@ class CoreSimHarness(Elaboratable):
     def elaborate(self, platform):
         m = Module()
 
-        mem = Memory(width=Core.DATA_WIDTH, depth=0x100, init=self.mem_init)
+        mem = Memory(width=Core.DATA_WIDTH, depth=CoreSimHarness.MEMORY_DEPTH, init=self.mem_init)
         mem_read = mem.read_port()
         mem_write = mem.write_port()
         m.d.comb += mem_write.addr.eq(mem_read.addr)
