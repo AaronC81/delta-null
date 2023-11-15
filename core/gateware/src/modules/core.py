@@ -201,6 +201,17 @@ class Core(Elaboratable):
                         m.d.sync += self.ef[1].eq(self.gprs[left_gpr_idx] >= self.gprs[right_gpr_idx])
 
 
+                    # === Branching ===
+                    # TODO: jmpoff
+                    # TODO: cjmpoff
+                    with m.Case("0110 0011 0000 0---"): # cjmp
+                        dest_gpr_idx = ins[0:3]
+                        with m.If(self.ef[1]):
+                            m.d.sync += self.ip.eq(self.gprs[dest_gpr_idx])
+                    # TODO: call
+                    # TODO: ret
+
+
                     # === Exceptional Circumstances ===
                     with m.Default():
                         # TODO: consider trap?

@@ -327,3 +327,38 @@ def test_comparison_ord():
 
         hlt
     """, after)
+
+def test_cjmp():
+    """Tests `cjmp` by implementing a count-based loop construct."""
+
+    def after(core):
+        assert (yield core.r0) == (1 << 10)
+
+    run_sim("""
+        ; total, starts at 1
+        putl r0, 1
+        puth r0, 0
+
+        ; counter
+        ; at the time of writing, we don't have arithmetic instructions
+        ; instead, use a bit-shift representation
+        putl r1, 0b10000
+        puth r1, 0
+            
+        ; constant 1
+        putl r2, 1
+        puth r2, 0
+
+        putl r3, loop/lo
+        puth r3, loop/hi
+        loop:
+            shl r0, r2
+            shl r0, r2
+            shr r1, r2
+            
+            eqz r1
+            inv
+            cjmp r3
+
+        hlt
+    """, after)
