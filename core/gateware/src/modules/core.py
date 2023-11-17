@@ -150,6 +150,24 @@ class Core(Elaboratable):
                         m.d.sync += self.reg_read_2_idx.eq(ins[4:7])
 
 
+                    # === General-Purpose Arithmetic ===
+                    # TODO: all the other ones
+                    with m.Case("0100 1010 0--- 0---"): # sub
+                        m.d.sync += self.gprs.addr.eq(ins[0:3])
+                        m.d.sync += self.reg_read_2_idx.eq(ins[4:7])
+                        m.d.sync += self.reg_write_idx.eq(ins[0:3])
+                        m.d.sync += self.reg_write_required.eq(1)
+
+
+                    # === Branching ===
+                    # TODO: jmpoff
+                    # TODO: cjmpoff
+                    with m.Case("0110 0011 0000 0---"): # cjmp
+                        m.d.sync += self.gprs.addr.eq(ins[0:3])
+                    # TODO: call
+                    # TODO: ret
+
+
                     # === Exceptional Circumstances ===
                     with m.Default():
                         # TODO: consider trap?
@@ -288,6 +306,23 @@ class Core(Elaboratable):
 
                     with m.Case("0101 0011 0--- 0---"): # gteq
                         m.d.sync += self.ef[1].eq(self.reg_read_2_buffer >= self.reg_read_1_buffer)
+
+
+                    # === General-Purpose Arithmetic ===
+                    # TODO: all the other ones
+                    with m.Case("0100 1010 0--- 0---"): # sub
+                        m.d.sync += self.gprs.write_data.eq(self.reg_read_1_buffer - self.reg_read_2_buffer)
+
+
+                    # === Branching ===
+                    # TODO: jmpoff
+                    # TODO: cjmpoff
+                    with m.Case("0110 0011 0000 0---"): # cjmp
+                        with m.If(self.ef[1]):
+                            m.d.sync += self.ip.eq(self.reg_read_1_buffer)
+                    # TODO: call
+                    # TODO: ret
+
 
 
                 # If write is required, set it up
