@@ -5,6 +5,11 @@ from typing import Optional
 
 class Core(Elaboratable):
     class Stage(Enum):
+        """The stages of execution which take place to completely execute an instruction.
+        
+        See the comments in `elaborate` for documentation on the purpose of each stage.
+        """
+
         FETCH = 0
         FETCH_LATENCY = 1
         DECODE = 2
@@ -70,6 +75,9 @@ class Core(Elaboratable):
             # If it is, do nothing!
             pass
         with m.Else():
+            # FETCH:
+            #   Initiates a read from main memory, from the address pointed to by IP, in order to
+            #   retrieve the next instruction to execute.
             with m.If(self.stage == Core.Stage.FETCH.value):
                 # Set up memory read from IP
                 m.d.sync += self.mem_addr.eq(self.ip)
@@ -78,10 +86,29 @@ class Core(Elaboratable):
                 # Advance stage
                 m.d.sync += self.stage.eq(C(Core.Stage.FETCH_LATENCY.value))
 
+            # FETCH_LATENCY:
+            #   Does nothing. Provides memory read latency after `FETCH`.
             with m.Elif(self.stage == Core.Stage.FETCH_LATENCY.value):
                 # Allows for memory latency of instruction fetch
                 m.d.sync += self.stage.eq(C(Core.Stage.DECODE.value))
             
+            # DECODE:
+            #   Retrieves the instruction which was `FETCH`ed, and sets up state for the upcoming
+            #   stages.
+            #
+            #   Any instruction can read up to two GPRs, and write up to one GPR:
+            #   - If the decoded instruction needs to read one GPR, this stage initiates a read
+            #     from the GPR file, which will complete in `READ_1`.
+            #   - If it needs to read a second register, the index is saved into `reg_read_2_idx`.
+            #     `READ_1` will initiate this second read, and it will complete in `READ_2`.
+            #   - If the decoded instruction needs to write back to a GPR, the index is saved into
+            #     `reg_write_idx`, and `reg_write_required` is set.
+            #
+            #   The `read` and `write` instructions require special attention because they access
+            #   main memory, so set special `instruction_is_read|write` flags here, which override
+            #   future step behaviour. This is mentioned later where relevant.
+            #
+            #   SPRs are `Signal`s, so their access is immediate, and not considered here.
             with m.Elif(self.stage == Core.Stage.DECODE.value):
                 # Advance IP, now that read has finished
                 m.d.sync += self.ip.eq(self.ip + C(1))
@@ -206,11 +233,20 @@ class Core(Elaboratable):
                 # Advance
                 m.d.sync += self.stage.eq(C(Core.Stage.READ_1_LATENCY.value))
 
+            # READ_1_LATENCY:
+            #   Does nothing. Provides memory read latency before `READ_1`.
             with m.Elif(self.stage == Core.Stage.READ_1_LATENCY):
                 # Latency for memory read. Nothing happens here!
                 # Just advance
                 m.d.sync += self.stage.eq(C(Core.Stage.READ_1.value))
 
+            # READ_1:
+            #   Retrieves data read from the first decoded GPR, and initiates a read for the second
+            #   which will complete in `READ_2`.
+            #
+            #   If the instruction is `read`, this initiates a read from main memory instead. This
+            #   can happen now because the address is now known, as it was read from that first
+            #   GPR.
             with m.Elif(self.stage == Core.Stage.READ_1.value):
                 # Read 1 is complete - copy data into buffer
                 m.d.sync += self.reg_read_1_buffer.eq(self.gprs.read_data)
@@ -229,11 +265,16 @@ class Core(Elaboratable):
                 # Advance
                 m.d.sync += self.stage.eq(C(Core.Stage.READ_2_LATENCY.value))
 
+            # READ_2_LATENCY:
+            #   Does nothing. Provides memory read latency before `READ_2`.
             with m.Elif(self.stage == Core.Stage.READ_2_LATENCY):
                 # Latency for memory read. Nothing happens here!
                 # Just advance
                 m.d.sync += self.stage.eq(C(Core.Stage.READ_2.value))
 
+            # READ_2:
+            #   Retrieves data read from the second decoded GPR (or main memory, if the instruction
+            #   is `read`).
             with m.Elif(self.stage == Core.Stage.READ_2.value):
                 with m.If(self.instruction_is_read):
                     # Main memory read is complete - piggyback off the reg_read_2_buffer to store
@@ -250,6 +291,13 @@ class Core(Elaboratable):
                 # Advance
                 m.d.sync += self.stage.eq(C(Core.Stage.EXECUTE.value))
 
+            # EXECUTE:
+            #   Executes instruction logic, using data from read GPRs. If the `DECODE` stage
+            #   identified that the instruction will write back to a GPR, the new data shall be
+            #   provided as part of this stage, by storing it in `gprs.write_data`.
+            #
+            #   If the instruction is `write`, initiates a write back to main memory, instead of a
+            #   GPR.
             with m.Elif(self.stage == Core.Stage.EXECUTE.value):
                 # Switch on buffered instruction
                 with m.Switch(self.instruction_buffer):
@@ -384,6 +432,12 @@ class Core(Elaboratable):
                 # Advance
                 m.d.sync += self.stage.eq(C(Core.Stage.WRITE.value))
                 
+            # WRITE:
+            #   Completes the write initiated by `EXECUTE`, to a GPR, or main memory if the
+            #   instruction was `write`.
+            #
+            #   If the target GPR was r0 and `debug_led` was provided, also writes the lowest bit of
+            #   r0 out to that signal. 
             with m.Elif(self.stage == Core.Stage.WRITE.value):
                 # If the write was to r0, and we have a debugging LED, then update it
                 if self.debug_led is not None:
