@@ -3,7 +3,7 @@ from amaranth.sim import Simulator
 from src.modules.harness import CoreSimHarness
 
 def bench():
-    for _ in range(1000):
+    for _ in range(5000):
         yield
 
 sim = Simulator(CoreSimHarness(instructions=
