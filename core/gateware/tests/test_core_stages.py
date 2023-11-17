@@ -20,6 +20,10 @@ def test_core_stage_progression():
         yield
         assert (yield core.core.instruction_buffer) == 0
 
+        # === FETCH_LATENCY ===
+        yield
+        # Nothing interesting
+
         # === DECODE ===
         yield
         # Instruction buffer ready

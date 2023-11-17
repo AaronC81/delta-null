@@ -5,13 +5,14 @@ from .register_file import RegisterFile
 class Core(Elaboratable):
     class Stage(Enum):
         FETCH = 0
-        DECODE = 1
-        READ_1_LATENCY = 2
-        READ_1 = 3
-        READ_2_LATENCY = 4
-        READ_2 = 5
-        EXECUTE = 6
-        WRITE = 7
+        FETCH_LATENCY = 1
+        DECODE = 2
+        READ_1_LATENCY = 3
+        READ_1 = 4
+        READ_2_LATENCY = 5
+        READ_2 = 6
+        EXECUTE = 7
+        WRITE = 8
 
     # The size of a general/special-purpose register, and memory bus, in bits.
     DATA_WIDTH = 16
@@ -26,7 +27,7 @@ class Core(Elaboratable):
 
         # Execution state
         self.instruction_buffer = Signal(Core.DATA_WIDTH)
-        self.stage = Signal(3, reset=Core.Stage.FETCH)
+        self.stage = Signal(4, reset=Core.Stage.FETCH)
 
         # Memory interface signals
         self.mem_addr = mem_addr
@@ -58,12 +59,15 @@ class Core(Elaboratable):
             pass
         with m.Else():
             with m.If(self.stage == Core.Stage.FETCH.value):
-                # Allows for memory latency of fetching the instruction
                 # Set up memory read from IP
                 m.d.sync += self.mem_addr.eq(self.ip)
                 self.eq_unless_constant(m, self.mem_read_en, 1)
 
                 # Advance stage
+                m.d.sync += self.stage.eq(C(Core.Stage.FETCH_LATENCY.value))
+
+            with m.Elif(self.stage == Core.Stage.FETCH_LATENCY.value):
+                # Allows for memory latency of instruction fetch
                 m.d.sync += self.stage.eq(C(Core.Stage.DECODE.value))
             
             with m.Elif(self.stage == Core.Stage.DECODE.value):
