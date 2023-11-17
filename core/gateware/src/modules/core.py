@@ -111,6 +111,25 @@ class Core(Elaboratable):
                         pass
 
 
+                    # === Bit Manipulation ===
+                    with m.Case("0100 0000 0000 0---"): # not
+                        m.d.sync += self.gprs.addr.eq(ins[0:3])
+                        m.d.sync += self.reg_write_idx.eq(ins[0:3])
+                        m.d.sync += self.reg_write_required.eq(1)
+
+                    with m.Case(
+                        "0100 0001 0--- 0---", # and
+                        "0100 0010 0--- 0---", # or
+                        "0100 0011 0--- 0---", # xor
+                        "0100 0100 0--- 0---", # shl
+                        "0100 0101 0--- 0---", # shr
+                    ):
+                        m.d.sync += self.gprs.addr.eq(ins[0:3])
+                        m.d.sync += self.reg_read_2_idx.eq(ins[4:7])
+                        m.d.sync += self.reg_write_idx.eq(ins[0:3])
+                        m.d.sync += self.reg_write_required.eq(1)
+
+
                     # === Exceptional Circumstances ===
                     with m.Default():
                         # TODO: consider trap?
@@ -204,7 +223,35 @@ class Core(Elaboratable):
 
                     with m.Case("0010 0010 1101 0001"): # spdec
                         m.d.sync += self.sp.eq(self.sp - C(1))
-                    
+
+
+                    # === Bit Manipulation ===
+                    with m.Case("0100 0000 0000 0---"): # not
+                        m.d.sync += self.gprs.write_data.eq(~self.reg_read_1_buffer)
+
+                    with m.Case("0100 0001 0--- 0---"): # and
+                        m.d.sync += self.gprs.write_data.eq(self.reg_read_1_buffer & self.reg_read_2_buffer)
+
+                    with m.Case("0100 0010 0--- 0---"): # or
+                        m.d.sync += self.gprs.write_data.eq(self.reg_read_1_buffer | self.reg_read_2_buffer)
+
+                    with m.Case("0100 0011 0--- 0---"): # xor
+                        m.d.sync += self.gprs.write_data.eq(self.reg_read_1_buffer ^ self.reg_read_2_buffer)
+
+                    with m.Case("0100 0100 0--- 0---"): # shl
+                        # Amaranth's left-shift produces a ludicrously large result if we use the
+                        # operand register at its full size.
+                        # Instead, we know that a shift of 16 or larger always produces 0, and for
+                        # a shift of less, we only need to look at the lowest 4 bits.
+                        with m.If(self.reg_read_2_buffer < C(16)):
+                            m.d.sync += self.gprs.write_data \
+                                .eq(self.reg_read_1_buffer << self.reg_read_2_buffer[0:4])
+                        with m.Else():
+                            m.d.sync += self.gprs.write_data.eq(0)
+
+                    with m.Case("0100 0101 0--- 0---"): # shr
+                        m.d.sync += self.gprs.write_data.eq(self.reg_read_1_buffer >> self.reg_read_2_buffer)
+
 
                 # If write is required, set it up
                 with m.If(self.reg_write_required):
