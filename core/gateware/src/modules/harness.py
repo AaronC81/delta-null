@@ -4,7 +4,7 @@ from .core import Core
 class CoreSimHarness(Elaboratable):
     MEMORY_DEPTH = 0x100
 
-    def __init__(self, instructions):
+    def __init__(self, instructions, debug_led=None):
         # Arrays don't seem to show up on the simulator, so bind them to signals instead
         self.r0 = Signal(Core.DATA_WIDTH)
         self.r1 = Signal(Core.DATA_WIDTH)
@@ -21,6 +21,8 @@ class CoreSimHarness(Elaboratable):
         for i, ins in enumerate(instructions):
             self.mem_init[i] = ins
 
+        self.debug_led = debug_led
+
 
     def elaborate(self, platform):
         m = Module()
@@ -36,6 +38,7 @@ class CoreSimHarness(Elaboratable):
             mem_read_en=mem_read.en,
             mem_write_data=mem_write.data,
             mem_write_en=mem_write.en,
+            debug_led=self.debug_led,
         )
 
         for i in range(8):

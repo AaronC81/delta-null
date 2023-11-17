@@ -1,6 +1,7 @@
 from amaranth import *
 from enum import Enum
 from .register_file import RegisterFile
+from typing import Optional
 
 class Core(Elaboratable):
     class Stage(Enum):
@@ -17,7 +18,11 @@ class Core(Elaboratable):
     # The size of a general/special-purpose register, and memory bus, in bits.
     DATA_WIDTH = 16
 
-    def __init__(self, mem_addr: Signal, mem_read_data: Signal, mem_read_en: Signal, mem_write_data: Signal, mem_write_en: Signal):
+    def __init__(
+        self,
+        mem_addr: Signal, mem_read_data: Signal, mem_read_en: Signal, mem_write_data: Signal, mem_write_en: Signal,
+        debug_led: Optional[Signal] = None
+    ):
         # SPRs
         self.ip = Signal(Core.DATA_WIDTH)
         self.rp = Signal(Core.DATA_WIDTH)
@@ -47,6 +52,9 @@ class Core(Elaboratable):
         self.reg_read_2_idx = Signal(3)
         self.reg_write_required = Signal()
         self.reg_write_idx = Signal(3)
+
+        # Debugging stuff
+        self.debug_led = debug_led
 
     def elaborate(self, platform):
         m = Module()
@@ -337,6 +345,12 @@ class Core(Elaboratable):
                 m.d.sync += self.stage.eq(C(Core.Stage.WRITE.value))
                 
             with m.Elif(self.stage == Core.Stage.WRITE.value):
+                # If the write was to r0, and we have a debugging LED, then update it
+                if self.debug_led is not None:
+                    with m.If(self.reg_write_required):
+                        with m.If(self.reg_write_idx == C(0)):
+                            m.d.sync += self.debug_led.eq(self.gprs.write_data[0])
+
                 # Write, if any, has finished
                 m.d.sync += [
                     self.gprs.write_en.eq(C(0)),
