@@ -18,13 +18,14 @@ class RegisterFile(Elaboratable):
         self.write_data = Signal(self.width)
         self.write_en = Signal(self.width)
 
+        self._mem = Memory(width=self.width, depth=8, init=[0,0,0,0,0,0,0,0])
+
     def elaborate(self, platform):
         m = Module()
 
         # Instantiate memory
-        mem = Memory(width=self.width, depth=8, init=[0,0,0,0,0,0,0,0])
-        read = mem.read_port()
-        write = mem.write_port()
+        read = self._mem.read_port()
+        write = self._mem.write_port()
 
         m.submodules += read
         m.submodules += write
