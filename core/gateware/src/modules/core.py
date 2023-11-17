@@ -51,7 +51,7 @@ class Core(Elaboratable):
     def elaborate(self, platform):
         m = Module()
 
-        m.submodules += self.gprs
+        m.submodules.gprs = self.gprs
 
         # Check if halted flag is set
         with m.If(self.ef[0].bool()):

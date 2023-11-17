@@ -42,8 +42,8 @@ class CoreSimHarness(Elaboratable):
             m.d.comb += getattr(self, f"r{i}").eq(self.core.gprs._mem[i])
         m.d.comb += self.ef.eq(self.core.ef)
 
-        m.submodules += mem_read
-        m.submodules += mem_write
-        m.submodules += self.core
+        m.submodules.mem_read = mem_read
+        m.submodules.mem_write = mem_write
+        m.submodules.core = self.core
 
         return m

@@ -27,8 +27,8 @@ class RegisterFile(Elaboratable):
         read = self._mem.read_port()
         write = self._mem.write_port()
 
-        m.submodules += read
-        m.submodules += write
+        m.submodules.reg_mem_read = read
+        m.submodules.reg_mem_write = write
 
         m.d.comb += [
             write.addr.eq(read.addr),
