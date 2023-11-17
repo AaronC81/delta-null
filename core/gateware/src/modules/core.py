@@ -53,6 +53,10 @@ class Core(Elaboratable):
         self.reg_write_required = Signal()
         self.reg_write_idx = Signal(3)
 
+        # Special trackers used for specific instructions
+        self.instruction_is_read = Signal()
+        self.instruction_is_write = Signal()
+
         # Debugging stuff
         self.debug_led = debug_led
 
@@ -86,6 +90,10 @@ class Core(Elaboratable):
                 ins = self.mem_read_data
                 m.d.sync += self.instruction_buffer.eq(ins)
 
+                # Reset some stuff
+                m.d.sync += self.instruction_is_read.eq(C(0))
+                m.d.sync += self.instruction_is_write.eq(C(0))
+
                 # TODO
                 with m.Switch(ins):
                     # === Core ===
@@ -108,7 +116,17 @@ class Core(Elaboratable):
                         m.d.sync += self.reg_write_required.eq(1)
 
 
-                    # TODO: Memory
+                    # === Memory ===
+                    with m.Case("0010 0000 0--- 0---"): # read
+                        m.d.sync += self.gprs.addr.eq(ins[4:7])
+                        m.d.sync += self.reg_write_idx.eq(ins[0:3])
+                        m.d.sync += self.reg_write_required.eq(1)
+                        m.d.sync += self.instruction_is_read.eq(1)
+
+                    with m.Case("0010 0000 1--- 0---"): # write
+                        m.d.sync += self.gprs.addr.eq(ins[4:7])
+                        m.d.sync += self.reg_read_2_idx.eq(ins[0:3])
+                        m.d.sync += self.instruction_is_write.eq(1)
 
 
                     # === Special-Purpose Registers ===
@@ -197,11 +215,16 @@ class Core(Elaboratable):
                 # Read 1 is complete - copy data into buffer
                 m.d.sync += self.reg_read_1_buffer.eq(self.gprs.read_data)
 
-                # Set up read 2
-                m.d.sync += [
-                    self.gprs.addr.eq(self.reg_read_2_idx),
-                    self.gprs.read_en.eq(C(1)),
-                ]
+                with m.If(self.instruction_is_read):
+                    # Set up main memory read
+                    m.d.sync += self.mem_addr.eq(self.gprs.read_data)
+                    self.eq_unless_constant(m, self.mem_read_en, 1)
+                with m.Else():
+                    # Set up read 2
+                    m.d.sync += [
+                        self.gprs.addr.eq(self.reg_read_2_idx),
+                        self.gprs.read_en.eq(C(1)),
+                    ]
 
                 # Advance
                 m.d.sync += self.stage.eq(C(Core.Stage.READ_2_LATENCY.value))
@@ -212,11 +235,17 @@ class Core(Elaboratable):
                 m.d.sync += self.stage.eq(C(Core.Stage.READ_2.value))
 
             with m.Elif(self.stage == Core.Stage.READ_2.value):
-                # Read 2 is complete - copy data into buffer
-                m.d.sync += [
-                    self.reg_read_2_buffer.eq(self.gprs.read_data),
-                    self.gprs.read_en.eq(C(0)),
-                ]
+                with m.If(self.instruction_is_read):
+                    # Main memory read is complete - piggyback off the reg_read_2_buffer to store
+                    # the read value
+                    m.d.sync += self.reg_read_2_buffer.eq(self.mem_read_data)
+                    self.eq_unless_constant(m, self.mem_read_en, 0)
+                with m.Else():
+                    # Read 2 is complete - copy data into buffer
+                    m.d.sync += [
+                        self.reg_read_2_buffer.eq(self.gprs.read_data),
+                        self.gprs.read_en.eq(C(0)),
+                    ]
 
                 # Advance
                 m.d.sync += self.stage.eq(C(Core.Stage.EXECUTE.value))
@@ -249,7 +278,18 @@ class Core(Elaboratable):
                         )
 
 
-                    # TODO: Memory
+                    # === Memory ===
+                    with m.Case("0010 0000 0--- 0---"): # read
+                        # Read 2 was "magic" for this instruction, and actually read main memory
+                        # instead. See those sections for details.
+                        m.d.sync += self.gprs.write_data.eq(self.reg_read_2_buffer)
+
+                    with m.Case("0010 0000 1--- 0---"): # write
+                        m.d.sync += [
+                            self.mem_addr.eq(self.reg_read_1_buffer),
+                            self.mem_write_data.eq(self.reg_read_2_buffer),
+                            self.mem_write_en.eq(C(1)),
+                        ]
 
 
                     # === Special-Purpose Registers ===
@@ -356,6 +396,9 @@ class Core(Elaboratable):
                     self.gprs.write_en.eq(C(0)),
                     self.reg_write_required.eq(C(0)),
                 ]
+
+                with m.If(self.instruction_is_write):
+                    m.d.sync += self.mem_write_en.eq(C(0))
 
                 # Advance
                 m.d.sync += self.stage.eq(C(Core.Stage.FETCH.value))
