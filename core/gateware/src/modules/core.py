@@ -134,6 +134,22 @@ class Core(Elaboratable):
                         m.d.sync += self.reg_write_required.eq(1)
 
 
+                    # === Comparison ===
+                    with m.Case("0101 0000 0000 0000"): # inv
+                        pass
+
+                    with m.Case("0101 0000 0001 0---"): # eqz
+                        m.d.sync += self.gprs.addr.eq(ins[0:3])
+
+                    with m.Case(
+                        "0101 0001 0--- 0---", # eq
+                        "0101 0010 0--- 0---", # gt
+                        "0101 0011 0--- 0---", # gteq
+                    ):
+                        m.d.sync += self.gprs.addr.eq(ins[0:3])
+                        m.d.sync += self.reg_read_2_idx.eq(ins[4:7])
+
+
                     # === Exceptional Circumstances ===
                     with m.Default():
                         # TODO: consider trap?
@@ -255,6 +271,23 @@ class Core(Elaboratable):
 
                     with m.Case("0100 0101 0--- 0---"): # shr
                         m.d.sync += self.gprs.write_data.eq(self.reg_read_1_buffer >> self.reg_read_2_buffer)
+
+
+                    # === Comparison ===
+                    with m.Case("0101 0000 0000 0000"): # inv
+                        m.d.sync += self.ef[1].eq(~self.ef[1])
+
+                    with m.Case("0101 0000 0001 0---"): # eqz
+                        m.d.sync += self.ef[1].eq(self.reg_read_1_buffer == C(0))
+
+                    with m.Case("0101 0001 0--- 0---"): # eq
+                        m.d.sync += self.ef[1].eq(self.reg_read_2_buffer == self.reg_read_1_buffer)
+
+                    with m.Case("0101 0010 0--- 0---"): # gt
+                        m.d.sync += self.ef[1].eq(self.reg_read_2_buffer > self.reg_read_1_buffer)
+
+                    with m.Case("0101 0011 0--- 0---"): # gteq
+                        m.d.sync += self.ef[1].eq(self.reg_read_2_buffer >= self.reg_read_1_buffer)
 
 
                 # If write is required, set it up
