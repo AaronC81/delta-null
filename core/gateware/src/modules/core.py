@@ -96,6 +96,21 @@ class Core(Elaboratable):
                         m.d.sync += self.reg_write_required.eq(1)
 
 
+                    # TODO: Memory
+
+
+                    # === Special-Purpose Registers ===
+                    with m.Case("0010 0001 10-- 0---"): # movso
+                        m.d.sync += self.reg_write_idx.eq(ins[0:3])
+                        m.d.sync += self.reg_write_required.eq(1)
+
+                    with m.Case("0010 0001 11-- 0---", "0010 0001 1101 1---"): # movsi, spadd
+                        m.d.sync += self.gprs.addr.eq(ins[0:3])
+
+                    with m.Case("0010 0010 1101 0000", "0010 0010 1101 0001"): # spinc, spdec
+                        pass
+
+
                     # === Exceptional Circumstances ===
                     with m.Default():
                         # TODO: consider trap?
@@ -167,6 +182,29 @@ class Core(Elaboratable):
                         m.d.sync += self.gprs.write_data.eq(
                             Cat(self.reg_read_1_buffer[0:8], self.immediate_buffer)
                         )
+
+
+                    # TODO: Memory
+
+
+                    # === Special-Purpose Registers ===
+                    with m.Case("0010 0001 10-- 0---"): # movso
+                        spr_idx = self.instruction_buffer[4:6]
+                        m.d.sync += self.gprs.write_data.eq(self.sprs[spr_idx])
+
+                    with m.Case("0010 0001 11-- 0---"): # movsi
+                        spr_idx = self.instruction_buffer[4:6]
+                        m.d.sync += self.sprs[spr_idx].eq(self.reg_read_1_buffer)
+
+                    with m.Case("0010 0001 1101 1---"): # spadd
+                        m.d.sync += self.sp.eq(self.sp + self.reg_read_1_buffer)
+
+                    with m.Case("0010 0010 1101 0000"): # spinc
+                        m.d.sync += self.sp.eq(self.sp + C(1))
+
+                    with m.Case("0010 0010 1101 0001"): # spdec
+                        m.d.sync += self.sp.eq(self.sp - C(1))
+                    
 
                 # If write is required, set it up
                 with m.If(self.reg_write_required):
