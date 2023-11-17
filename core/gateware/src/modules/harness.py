@@ -30,7 +30,7 @@ class CoreSimHarness(Elaboratable):
         mem_write = mem.write_port()
         m.d.comb += mem_write.addr.eq(mem_read.addr)
 
-        core = Core(
+        self.core = Core(
             mem_addr=mem_read.addr,
             mem_read_data=mem_read.data,
             mem_read_en=mem_read.en,
@@ -39,11 +39,11 @@ class CoreSimHarness(Elaboratable):
         )
 
         for i in range(8):
-            m.d.comb += getattr(self, f"r{i}").eq(core.gprs[i])
-        m.d.comb += self.ef.eq(core.ef)
+            m.d.comb += getattr(self, f"r{i}").eq(self.core.gprs._mem[i])
+        m.d.comb += self.ef.eq(self.core.ef)
 
         m.submodules += mem_read
         m.submodules += mem_write
-        m.submodules += core
+        m.submodules += self.core
 
         return m
