@@ -207,10 +207,11 @@ class Core(Elaboratable):
                     # === Branching ===
                     # TODO: jmpoff
                     # TODO: cjmpoff
-                    with m.Case("0110 0011 0000 0---"): # cjmp
+                    with m.Case("0110 0011 0000 0---", "0110 0010 0001 0---"): # cjmp, call
                         self.decode(m, read_1=ins[0:3])
-                    # TODO: call
-                    # TODO: ret
+
+                    with m.Case("0110 0010 0001 1000"): # ret
+                        pass
 
 
                     # === Exceptional Circumstances ===
@@ -422,8 +423,13 @@ class Core(Elaboratable):
                     with m.Case("0110 0011 0000 0---"): # cjmp
                         with m.If(self.ef[1]):
                             m.d.sync += self.ip.eq(self.reg_read_1_buffer)
-                    # TODO: call
-                    # TODO: ret
+                    
+                    with m.Case("0110 0010 0001 0---"): # call
+                        m.d.sync += self.rp.eq(self.ip)
+                        m.d.sync += self.ip.eq(self.reg_read_1_buffer)
+
+                    with m.Case("0110 0010 0001 1000"): # ret
+                        m.d.sync += self.ip.eq(self.rp)
 
 
 

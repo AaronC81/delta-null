@@ -436,3 +436,36 @@ def test_gp_neg():
             
         hlt
     """, after)
+
+def test_call():
+    """Tests `call` and `ret`."""
+
+    def after(core):
+        assert (yield core.r1) == (12 + 5)
+        assert (yield core.r2) == (100 + 5)
+
+    run_sim("""
+        putl r0, add5/lo
+        puth r0, add5/hi
+
+        putl r7, 12
+        puth r7, 0
+        call r0
+        mov r1, r7
+            
+        putl r7, 100
+        puth r7, 0
+        call r0
+        mov r2, r7
+            
+        hlt
+            
+
+        ; adds 5 to r7
+        ; trashes r6
+        add5:
+            putl r6, 5
+            puth r6, 0
+            add r7, r6
+            ret
+    """, after)
