@@ -128,41 +128,32 @@ class Core(Elaboratable):
                         pass
 
                     with m.Case("0010 0001 0--- 0---"): # mov
-                        m.d.sync += self.gprs.addr.eq(ins[4:7])
-                        m.d.sync += self.reg_write_idx.eq(ins[0:3])
-                        m.d.sync += self.reg_write_required.eq(1)
+                        self.decode(m, read_1=ins[4:7], write=ins[0:3])
 
                     # TODO: d_mov
 
 
                     # === Immediate Loads ===
                     with m.Case("0001 0--- ---- ----", "0001 1--- ---- ----"): # putl, puth
-                        m.d.sync += self.immediate_buffer.eq(ins[0:8])
-                        m.d.sync += self.gprs.addr.eq(ins[8:11])
-                        m.d.sync += self.reg_write_idx.eq(ins[8:11])
-                        m.d.sync += self.reg_write_required.eq(1)
+                        self.decode(m, read_1=ins[8:11], write=ins[8:11], imm=ins[0:8])
 
 
                     # === Memory ===
                     with m.Case("0010 0000 0--- 0---"): # read
-                        m.d.sync += self.gprs.addr.eq(ins[4:7])
-                        m.d.sync += self.reg_write_idx.eq(ins[0:3])
-                        m.d.sync += self.reg_write_required.eq(1)
+                        self.decode(m, read_1=ins[4:7], write=ins[0:3])
                         m.d.sync += self.instruction_is_read.eq(1)
 
                     with m.Case("0010 0000 1--- 0---"): # write
-                        m.d.sync += self.gprs.addr.eq(ins[4:7])
-                        m.d.sync += self.reg_read_2_idx.eq(ins[0:3])
+                        self.decode(m, read_1=ins[4:7], read_2=ins[0:3])
                         m.d.sync += self.instruction_is_write.eq(1)
 
 
                     # === Special-Purpose Registers ===
                     with m.Case("0010 0001 10-- 0---"): # movso
-                        m.d.sync += self.reg_write_idx.eq(ins[0:3])
-                        m.d.sync += self.reg_write_required.eq(1)
+                        self.decode(m, write=ins[0:3])
 
                     with m.Case("0010 0001 11-- 0---", "0010 0001 1101 1---"): # movsi, spadd
-                        m.d.sync += self.gprs.addr.eq(ins[0:3])
+                        self.decode(m, read_1=ins[0:3])
 
                     with m.Case("0010 0010 1101 0000", "0010 0010 1101 0001"): # spinc, spdec
                         pass
@@ -170,9 +161,7 @@ class Core(Elaboratable):
 
                     # === Bit Manipulation ===
                     with m.Case("0100 0000 0000 0---"): # not
-                        m.d.sync += self.gprs.addr.eq(ins[0:3])
-                        m.d.sync += self.reg_write_idx.eq(ins[0:3])
-                        m.d.sync += self.reg_write_required.eq(1)
+                        self.decode(m, read_1=ins[0:3], write=ins[0:3])
 
                     with m.Case(
                         "0100 0001 0--- 0---", # and
@@ -181,10 +170,7 @@ class Core(Elaboratable):
                         "0100 0100 0--- 0---", # shl
                         "0100 0101 0--- 0---", # shr
                     ):
-                        m.d.sync += self.gprs.addr.eq(ins[0:3])
-                        m.d.sync += self.reg_read_2_idx.eq(ins[4:7])
-                        m.d.sync += self.reg_write_idx.eq(ins[0:3])
-                        m.d.sync += self.reg_write_required.eq(1)
+                        self.decode(m, read_1=ins[0:3], read_2=ins[4:7], write=ins[0:3])
 
 
                     # === Comparison ===
@@ -192,31 +178,27 @@ class Core(Elaboratable):
                         pass
 
                     with m.Case("0101 0000 0001 0---"): # eqz
-                        m.d.sync += self.gprs.addr.eq(ins[0:3])
+                        self.decode(m, read_1=ins[0:3])
 
                     with m.Case(
                         "0101 0001 0--- 0---", # eq
                         "0101 0010 0--- 0---", # gt
                         "0101 0011 0--- 0---", # gteq
                     ):
-                        m.d.sync += self.gprs.addr.eq(ins[0:3])
-                        m.d.sync += self.reg_read_2_idx.eq(ins[4:7])
+                        self.decode(m, read_1=ins[0:3], read_2=ins[4:7])
 
 
                     # === General-Purpose Arithmetic ===
                     # TODO: all the other ones
                     with m.Case("0100 1010 0--- 0---"): # sub
-                        m.d.sync += self.gprs.addr.eq(ins[0:3])
-                        m.d.sync += self.reg_read_2_idx.eq(ins[4:7])
-                        m.d.sync += self.reg_write_idx.eq(ins[0:3])
-                        m.d.sync += self.reg_write_required.eq(1)
+                        self.decode(m, read_1=ins[0:3], read_2=ins[4:7], write=ins[0:3])
 
 
                     # === Branching ===
                     # TODO: jmpoff
                     # TODO: cjmpoff
                     with m.Case("0110 0011 0000 0---"): # cjmp
-                        m.d.sync += self.gprs.addr.eq(ins[0:3])
+                        self.decode(m, read_1=ins[0:3])
                     # TODO: call
                     # TODO: ret
 
@@ -458,6 +440,28 @@ class Core(Elaboratable):
                 m.d.sync += self.stage.eq(C(Core.Stage.FETCH.value))
 
         return m
+
+    def decode(
+        self, m: Module,
+        read_1: Optional[Signal] = None, read_2: Optional[Signal] = None,
+        write: Optional[Signal] = None,
+        imm: Optional[Signal] = None,
+    ):
+        """Completes the `DECODE` stage for a particular instruction, by starting `READ_1` and
+        saving state for `READ_2` and `WRITE`."""
+
+        if imm is not None:
+            m.d.sync += self.immediate_buffer.eq(imm)
+
+        if read_1 is not None:
+            m.d.sync += self.gprs.addr.eq(read_1)
+        
+        if read_2 is not None:
+            m.d.sync += self.reg_read_2_idx.eq(read_2)
+
+        if write is not None:
+            m.d.sync += self.reg_write_idx.eq(write)
+            m.d.sync += self.reg_write_required.eq(1)
 
     def eq_unless_constant(self, m: Module, signal_or_const, value: int):
         # Set read enabler, if we have one - sometimes it's a constant 1, depending on the
