@@ -4,7 +4,7 @@ use std::error::Error;
 
 use delta_null_core_emulator::{Core, memory::SimpleMemory};
 use delta_null_core_emulator_protocol::{Request, Response, EmulatorState};
-use zmq::{Message, Context, Socket};
+use zmq::{Context, Socket};
 
 fn server() -> Result<!, Box<dyn Error>> {
     let ctx = zmq::Context::new();
@@ -53,6 +53,7 @@ fn server() -> Result<!, Box<dyn Error>> {
     }
 }
 
+#[allow(unused)]
 pub struct FrontendSocket {
     ctx: Context,
     socket: Socket,

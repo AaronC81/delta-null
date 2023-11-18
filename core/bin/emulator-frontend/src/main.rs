@@ -6,8 +6,7 @@ use std::{error::Error, io};
 use crossterm::{terminal::{enable_raw_mode, disable_raw_mode, LeaveAlternateScreen, EnterAlternateScreen}, execute, event::{Event, self, KeyCode}};
 use delta_null_core_emulator_protocol::{Request, Response, EmulatorState};
 use delta_null_core_instructions::{Instruction, Encodable, ToAssembly};
-use ratatui::{backend::CrosstermBackend, Terminal, Frame, widgets::{Paragraph, Table, Row, Cell, Block, Borders}, text::{Span, Line}, style::{Style, Color, Modifier}, layout::{Constraint, Layout, Direction, Rect}};
-use zmq::{Context, Socket};
+use ratatui::{backend::CrosstermBackend, Terminal, Frame, widgets::{Table, Row, Cell, Block, Borders}, style::{Style, Color, Modifier}, layout::{Constraint, Layout, Direction, Rect}};
 
 mod socket;
 use socket::BackendSocket;
