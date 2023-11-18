@@ -189,8 +189,11 @@ class Core(Elaboratable):
 
 
                     # === General-Purpose Arithmetic ===
-                    # TODO: inv, mul
-                    with m.Case("0100 1000 0001 0---", "0100 1000 0010 0---"): # inc, dec
+                    with m.Case(
+                        "0100 1000 0000 0---", # neg
+                        "0100 1000 0001 0---", # inc
+                        "0100 1000 0010 0---", # dec
+                    ):
                         self.decode(m, read_1=ins[0:3], write=ins[0:3])
 
                     with m.Case(
@@ -394,7 +397,9 @@ class Core(Elaboratable):
 
 
                     # === General-Purpose Arithmetic ===
-                    # TODO: all the other ones
+                    with m.Case("0100 1000 0000 0---"): # neg
+                        m.d.sync += self.gprs.write_data.eq(-self.reg_read_1_buffer)
+
                     with m.Case("0100 1000 0001 0---"): # inc
                         m.d.sync += self.gprs.write_data.eq(self.reg_read_1_buffer + 1)
 

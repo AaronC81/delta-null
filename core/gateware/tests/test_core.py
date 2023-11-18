@@ -418,3 +418,21 @@ def test_gp_mul():
             
         hlt
     """, after)
+
+def test_gp_neg():
+    """Tests `neg`."""
+
+    def after(core):
+        assert (yield core.r0) == 0
+        assert (yield core.r1) == 0xFFFB # -5
+
+    run_sim("""
+        xor r0, r0
+        neg r0
+
+        putl r1, 5
+        puth r1, 0
+        neg r1
+            
+        hlt
+    """, after)
