@@ -3,8 +3,11 @@
 members = [
     "core/lib/instructions",
     "core/lib/emulator",
+    "core/lib/emulator-protocol",
     "core/lib/macros",
     "core/lib/assembler",
 
     "core/bin/assembler",
+    "core/bin/emulator-backend",
+    "core/bin/emulator-frontend",
 ]
