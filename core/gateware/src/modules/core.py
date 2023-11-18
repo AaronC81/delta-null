@@ -193,7 +193,11 @@ class Core(Elaboratable):
                     with m.Case("0100 1000 0001 0---", "0100 1000 0010 0---"): # inc, dec
                         self.decode(m, read_1=ins[0:3], write=ins[0:3])
 
-                    with m.Case("0100 1001 0--- 0---", "0100 1010 0--- 0---"): # add, sub
+                    with m.Case(
+                        "0100 1001 0--- 0---", # add
+                        "0100 1010 0--- 0---", # sub
+                        "0100 1011 0--- 0---", # mul
+                    ):
                         self.decode(m, read_1=ins[0:3], read_2=ins[4:7], write=ins[0:3])
 
 
@@ -402,6 +406,9 @@ class Core(Elaboratable):
                         
                     with m.Case("0100 1010 0--- 0---"): # sub
                         m.d.sync += self.gprs.write_data.eq(self.reg_read_1_buffer - self.reg_read_2_buffer)
+
+                    with m.Case("0100 1011 0--- 0---"): # mul
+                        m.d.sync += self.gprs.write_data.eq(self.reg_read_1_buffer * self.reg_read_2_buffer)
 
 
                     # === Branching ===

@@ -393,3 +393,28 @@ def test_gp_add_sub():
             
         hlt
     """, after)
+
+def test_gp_mul():
+    """Tests `mul`."""
+
+    def after(core):
+        assert (yield core.r3) == (17 * 11)
+        assert (yield core.r4) == 0
+
+    run_sim("""
+        putl r0, 17
+        puth r0, 0
+
+        putl r1, 11
+        puth r1, 0
+            
+        xor r2, r2
+            
+        mov r3, r0
+        mul r3, r1
+            
+        mov r4, r0
+        mul r4, r2
+            
+        hlt
+    """, after)
