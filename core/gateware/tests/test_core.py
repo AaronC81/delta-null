@@ -363,11 +363,14 @@ def test_cjmp():
         hlt
     """, after)
 
-def test_gp_sub():
-    """Tests `sub`."""
+def test_gp_add_sub():
+    """Tests `inc`, `dec`, `add`, and `sub`."""
 
     def after(core):
-        assert (yield core.r0) == 6
+        assert (yield core.r2) == 18
+        assert (yield core.r3) == 16
+        assert (yield core.r4) == 28
+        assert (yield core.r5) == 6
 
     run_sim("""
         putl r0, 17
@@ -376,7 +379,17 @@ def test_gp_sub():
         putl r1, 11
         puth r1, 0
             
-        sub r0, r1
+        mov r2, r0
+        inc r2
+            
+        mov r3, r0
+        dec r3
+            
+        mov r4, r0
+        add r4, r1
+
+        mov r5, r0
+        sub r5, r1
             
         hlt
     """, after)
