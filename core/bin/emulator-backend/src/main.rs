@@ -23,6 +23,8 @@ fn server() -> Result<!, Box<dyn Error>> {
                 => emulator.gprs[index as usize] = data,
             Request::ExecuteOneInstruction
                 => result = emulator.step(),
+            Request::GetState
+                => (),
         }
 
         let response = match result {

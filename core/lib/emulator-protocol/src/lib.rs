@@ -14,6 +14,7 @@ pub struct EmulatorState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "operation", content = "parameters")]
 pub enum Request {
+    GetState,
     SetMainMemory {
         address: u16,
         data: u16,
