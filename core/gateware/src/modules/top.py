@@ -7,7 +7,9 @@ class Top(Elaboratable):
 
         # TODO: use proper memory
         core_harness = CoreSimHarness(instructions=
-            [int(x, 16) for x in "4300 1101 1900 12FF 1AFF 1307 1B00 4A12 5012 5000 6303 4000 1203 1A00 21C2".split()],
+            [int(x, 16) for x in """
+                4300 1219 1A00 1322 1B00 6212 6212 6212 6213 6213 6213 6212 6212 6212 142F 1C00 6214 6214 6214 6214 6214 6214 1701 1F00 21C7 2195 142F 1C00 4000 6214 4000 6214 21D5 6218 2195 142F 1C00 4000 6214 6214 6214 4000 6214 6214 6214 21D5 6218 16FF 1EFF 1733 1F00 4826 5016 5000 6307 6218
+            """.split()],
 
             # LED will show lowest bit of r0
             debug_led=platform.request("led")

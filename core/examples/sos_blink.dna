@@ -1,0 +1,81 @@
+; r0 lowest bit is linked to LED in gateware
+xor r0, r0
+
+main:
+    putl r2, dot/lo
+    puth r2, dot/hi
+
+    putl r3, dash/lo
+    puth r3, dash/hi
+
+    call r2
+    call r2
+    call r2
+    call r3
+    call r3
+    call r3
+    call r2
+    call r2
+    call r2
+
+    putl r4, delay/lo
+    puth r4, delay/hi
+    call r4
+    call r4
+    call r4
+    call r4
+    call r4
+    call r4
+
+    putl r7, main/lo
+    puth r7, main/hi
+    movsi ip, r7
+
+; flashes a dot - assumes LED is off when called
+; trashes r4, r5, r6, r7
+dot:
+    movso r5, rp
+    putl r4, delay/lo
+    puth r4, delay/hi
+    
+    not r0
+    call r4
+    not r0
+    call r4
+
+    movsi rp, r5
+    ret
+
+; flashes a dash - assumes LED is off when called
+; trashes r4, r5, r6, r7
+dash:
+    movso r5, rp
+    putl r4, delay/lo
+    puth r4, delay/hi
+    
+    not r0
+    call r4
+    call r4
+    call r4
+    not r0
+    call r4
+    call r4
+    call r4
+
+    movsi rp, r5
+    ret
+
+; delays one time unit
+; trashes r6 and r7
+delay:
+    ; busy-waits for 0xFFFF cycles
+    putl r6, 0xFF ; r6 = counter
+    puth r6, 0xFF
+    putl r7, loop/lo ; r7 = loop addr
+    puth r7, loop/hi
+    loop:
+        dec r6
+        eqz r6
+        inv
+        cjmp r7
+    ret

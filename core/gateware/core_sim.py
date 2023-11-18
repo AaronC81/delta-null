@@ -7,7 +7,9 @@ def bench():
         yield
 
 sim = Simulator(CoreSimHarness(instructions=
-    [int(x, 16) for x in "4300 1101 1900 1210 1A00 1307 1B00 4A12 5012 5000 6303 4000 1203 1A00 21C2".split()]
+    [int(x, 16) for x in """
+        4300 1211 1A00 131A 1B00 6212 6212 6212 6213 6213 6213 6212 6212 6212 1701 1F00 21C7 2195 1427 1C00 4000 6214 4000 6214 21D5 6218 2195 1427 1C00 4000 6214 6214 6214 4000 6214 6214 6214 21D5 6218 1603 1E00 172B 1F00 4826 5016 5000 6307 6218
+    """.split()]
 ))
 sim.add_clock(1e-6) # 1 MHz
 sim.add_sync_process(bench)
