@@ -5,6 +5,7 @@ use std::{error::Error, io};
 
 use crossterm::{terminal::{enable_raw_mode, disable_raw_mode, LeaveAlternateScreen, EnterAlternateScreen}, execute, event::{Event, self, KeyCode}};
 use delta_null_core_emulator_protocol::{Request, Response, EmulatorState};
+use delta_null_core_instructions::{Instruction, Encodable, ToAssembly};
 use ratatui::{backend::CrosstermBackend, Terminal, Frame, widgets::{Paragraph, Table, Row, Cell, Block, Borders}, text::{Span, Line}, style::{Style, Color, Modifier}, layout::{Constraint, Layout, Direction, Rect}};
 use zmq::{Context, Socket};
 
@@ -38,6 +39,12 @@ impl BackendSocket {
 
         Ok(response)
     }
+
+    pub fn read_memory(&self, address: u16) -> Result<u16, Box<dyn Error>> {
+        let resp = self.send_request(&Request::GetMainMemory { address })?;
+        let Response::Data { data } = resp else { unreachable!() };
+        Ok(data)
+    }
 }
 
 fn tui_setup() -> Result<Terminal<CrosstermBackend<io::Stdout>>, Box<dyn Error>> {
@@ -53,20 +60,29 @@ fn main() -> Result<(), Box<dyn Error>> {
     let backend = BackendSocket::connect("ipc:///tmp/delta-null-emulator.ipc")?;
     let mut terminal = tui_setup()?;
 
-    let Response::Ok { mut state } = backend.send_request(&Request::GetState)? else {
+    // TEMP - load SOS-blink
+    let code = "4300 1219 1A00 1322 1B00 6212 6212 6212 6213 6213 6213 6212 6212 6212 142F 1C00 6214 6214 6214 6214 6214 6214 1701 1F00 21C7 2195 142F 1C00 4000 6214 4000 6214 21D5 6218 2195 142F 1C00 4000 6214 6214 6214 4000 6214 6214 6214 21D5 6218 16FF 1EFF 1733 1F00 4826 5016 5000 6307 6218";
+    for (i, word) in code.split_ascii_whitespace().enumerate() {
+        backend.send_request(&Request::SetMainMemory {
+            address: i as u16,
+            data: u16::from_str_radix(word, 16).unwrap()
+        }).unwrap();
+    }
+
+    let Response::UpdatedState { mut state } = backend.send_request(&Request::GetState)? else {
         panic!("GetState error")
     };
     let mut changes = vec![];
 
     loop {
-        terminal.draw(|f| draw(f, &state, &changes)).unwrap();
+        terminal.draw(|f| draw(f, &state, &changes, &backend)).unwrap();
 
         if let Event::Key(key) = event::read()? {
             #[allow(clippy::single_match)]
             match key.code {
                 KeyCode::Char('s') => {
                     // Single-step
-                    let Response::Ok { state: new_state } = backend.send_request(&Request::ExecuteOneInstruction)? else {
+                    let Response::UpdatedState { state: new_state } = backend.send_request(&Request::ExecuteOneInstruction)? else {
                         panic!("back-end error")
                     };
 
@@ -100,8 +116,49 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn draw(f: &mut Frame, state: &EmulatorState, changes: &[String]) {
-    register_view(f, f.size(), state, changes);
+fn draw(f: &mut Frame, state: &EmulatorState, changes: &[String], socket: &BackendSocket) {
+    let layout = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Length(50), Constraint::Min(0)])
+        .split(f.size());
+
+    instruction_view(f, layout[0], state, socket);
+    register_view(f, layout[1], state, changes);
+}
+
+fn instruction_view(f: &mut Frame, rect: Rect, state: &EmulatorState, socket: &BackendSocket) {
+    // Fetch instructions around this one
+    let mut instruction_data = vec![];
+    for i in state.ip..(state.ip + rect.height) {
+        instruction_data.push((i, socket.read_memory(i).ok()))
+    }
+
+    let mut rows = vec![];
+    for (addr, encoded_value) in instruction_data {
+        // Try to decode
+        let disassembled = encoded_value
+            .map(|bits| Instruction::decode(bits))
+            .flatten()
+            .map(|ins| ins.to_assembly());
+
+        rows.push(Row::new(vec![
+            Cell::from(if state.ip == addr { ">" } else { " " }),
+            Cell::from(format!("{addr:04x}")).style(REGISTER_NAME_STYLE),
+            Cell::from(match encoded_value {
+                Some(encoded_value) => format!("{encoded_value:04x}"),
+                None => "????".to_string(),
+            }).style(REGISTER_VALUE_STYLE),
+            Cell::from(disassembled.unwrap_or("????".to_string())),
+        ]))
+    }
+
+    let table = Table::new(rows)
+        .widths(&[Constraint::Length(1), Constraint::Length(4), Constraint::Length(4), Constraint::Min(12)]);
+
+    f.render_widget(
+        table.block(Block::default().borders(Borders::ALL).title("Instructions")),
+        rect
+    );
 }
 
 fn register_view(f: &mut Frame, rect: Rect, state: &EmulatorState, changes: &[String]) {

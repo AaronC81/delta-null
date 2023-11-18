@@ -25,10 +25,19 @@ fn server() -> Result<!, Box<dyn Error>> {
                 => result = emulator.step(),
             Request::GetState
                 => (),
+            Request::GetMainMemory { address } => {
+                // This doesn't send an updated state, so handle specially
+                if let Some(data) = emulator.memory.data.get(address as usize) {
+                    frontend.send_response(&Response::Data { data: *data })?;
+                } else {
+                    frontend.send_response(&Response::Err { description: "out-of-range".to_string() })?;
+                }
+                continue;
+            }
         }
 
         let response = match result {
-            Ok(_) => Response::Ok {
+            Ok(_) => Response::UpdatedState {
                 state: EmulatorState {
                     gprs: emulator.gprs,
                     ip: emulator.ip,

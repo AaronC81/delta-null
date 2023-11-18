@@ -328,6 +328,7 @@ version = "0.1.0"
 dependencies = [
  "crossterm",
  "delta-null-core-emulator-protocol",
+ "delta-null-core-instructions",
  "ratatui",
  "serde",
  "serde_json",

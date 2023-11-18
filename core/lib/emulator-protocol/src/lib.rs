@@ -19,6 +19,9 @@ pub enum Request {
         address: u16,
         data: u16,
     },
+    GetMainMemory {
+        address: u16,
+    },
     SetGPR {
         index: u8,
         data: u16,
@@ -27,12 +30,14 @@ pub enum Request {
 }
 
 /// Possible responses that could be sent from back-end to front-end, after handling a [Request].
-/// Any successful operation provides an updated [EmulatorState].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "status", content = "content")]
 pub enum Response {
-    Ok {
+    UpdatedState {
         state: EmulatorState,
+    },
+    Data {
+        data: u16,
     },
     Err {
         description: String,
