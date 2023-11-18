@@ -9,43 +9,8 @@ use delta_null_core_instructions::{Instruction, Encodable, ToAssembly};
 use ratatui::{backend::CrosstermBackend, Terminal, Frame, widgets::{Paragraph, Table, Row, Cell, Block, Borders}, text::{Span, Line}, style::{Style, Color, Modifier}, layout::{Constraint, Layout, Direction, Rect}};
 use zmq::{Context, Socket};
 
-pub struct BackendSocket {
-    ctx: Context,
-    socket: Socket,
-}
-
-impl BackendSocket {
-    pub fn connect(endpoint: &str) -> Result<Self, Box<dyn Error>> {
-        let ctx = zmq::Context::new();
-
-        let socket = ctx.socket(zmq::REQ)?;
-        socket.connect(endpoint)?;
-    
-        Ok(BackendSocket::new(ctx, socket))
-    }
-
-    pub fn new(ctx: Context, socket: Socket) -> Self {
-        Self { ctx, socket }
-    }
-
-    pub fn send_request(&self, request: &Request) -> Result<Response, Box<dyn Error>> {
-        // Send
-        let json = serde_json::to_string(request)?;
-        self.socket.send(&json, 0)?;
-
-        // Receive
-        let buffer = self.socket.recv_bytes(0)?;
-        let response: Response = serde_json::from_slice(&buffer)?;
-
-        Ok(response)
-    }
-
-    pub fn read_memory(&self, address: u16) -> Result<u16, Box<dyn Error>> {
-        let resp = self.send_request(&Request::GetMainMemory { address })?;
-        let Response::Data { data } = resp else { unreachable!() };
-        Ok(data)
-    }
-}
+mod socket;
+use socket::BackendSocket;
 
 fn tui_setup() -> Result<Terminal<CrosstermBackend<io::Stdout>>, Box<dyn Error>> {
     enable_raw_mode()?;
@@ -69,13 +34,20 @@ fn main() -> Result<(), Box<dyn Error>> {
         }).unwrap();
     }
 
-    let Response::UpdatedState { mut state } = backend.send_request(&Request::GetState)? else {
+    let Response::UpdatedState { state: mut emulator } = backend.send_request(&Request::GetState)? else {
         panic!("GetState error")
     };
     let mut changes = vec![];
 
     loop {
-        terminal.draw(|f| draw(f, &state, &changes, &backend)).unwrap();
+        terminal.draw(|f| {
+            let state = ApplicationState {
+                emulator: &emulator,
+                changes: &changes,
+                socket: &backend,
+            };
+            draw(f, &state)
+        }).unwrap();
 
         if let Event::Key(key) = event::read()? {
             #[allow(clippy::single_match)]
@@ -88,18 +60,18 @@ fn main() -> Result<(), Box<dyn Error>> {
 
                     // Find changes
                     changes.clear();
-                    for (i, (old, new)) in state.gprs.iter().zip(new_state.gprs).enumerate() {
+                    for (i, (old, new)) in emulator.gprs.iter().zip(new_state.gprs).enumerate() {
                         if *old != new {
                             changes.push(format!("r{i}"));
                         }
                     }
-                    if state.ip != new_state.ip { changes.push("ip".to_string()); }
-                    if state.rp != new_state.rp { changes.push("rp".to_string()); }
-                    if state.sp != new_state.sp { changes.push("sp".to_string()); }
-                    if state.ef != new_state.ef { changes.push("ef".to_string()); }
+                    if emulator.ip != new_state.ip { changes.push("ip".to_string()); }
+                    if emulator.rp != new_state.rp { changes.push("rp".to_string()); }
+                    if emulator.sp != new_state.sp { changes.push("sp".to_string()); }
+                    if emulator.ef != new_state.ef { changes.push("ef".to_string()); }
 
                     // Swap out state
-                    state = new_state;
+                    emulator = new_state;
                 }
 
                 KeyCode::Char('x') => {
@@ -116,21 +88,27 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn draw(f: &mut Frame, state: &EmulatorState, changes: &[String], socket: &BackendSocket) {
+pub struct ApplicationState<'a> {
+    emulator: &'a EmulatorState,
+    changes: &'a [String],
+    socket: &'a BackendSocket,
+}
+
+fn draw(f: &mut Frame, state: &ApplicationState) {
     let layout = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(50), Constraint::Length(50), Constraint::Min(0)])
         .split(f.size());
 
-    instruction_view(f, layout[0], state, socket);
-    register_view(f, layout[1], state, changes);
+    draw_instruction_view(f, layout[0], state);
+    draw_register_view(f, layout[1], state);
 }
 
-fn instruction_view(f: &mut Frame, rect: Rect, state: &EmulatorState, socket: &BackendSocket) {
+fn draw_instruction_view(f: &mut Frame, rect: Rect, state: &ApplicationState) {
     // Fetch instructions around this one
     let mut instruction_data = vec![];
-    for i in state.ip..(state.ip + rect.height) {
-        instruction_data.push((i, socket.read_memory(i).ok()))
+    for i in state.emulator.ip..(state.emulator.ip + rect.height) {
+        instruction_data.push((i, state.socket.read_memory(i).ok()))
     }
 
     let mut rows = vec![];
@@ -142,7 +120,7 @@ fn instruction_view(f: &mut Frame, rect: Rect, state: &EmulatorState, socket: &B
             .map(|ins| ins.to_assembly());
 
         rows.push(Row::new(vec![
-            Cell::from(if state.ip == addr { ">" } else { " " }),
+            Cell::from(if state.emulator.ip == addr { ">" } else { " " }),
             Cell::from(format!("{addr:04x}")).style(REGISTER_NAME_STYLE),
             Cell::from(match encoded_value {
                 Some(encoded_value) => format!("{encoded_value:04x}"),
@@ -161,18 +139,18 @@ fn instruction_view(f: &mut Frame, rect: Rect, state: &EmulatorState, socket: &B
     );
 }
 
-fn register_view(f: &mut Frame, rect: Rect, state: &EmulatorState, changes: &[String]) {
+fn draw_register_view(f: &mut Frame, rect: Rect, state: &ApplicationState) {
     let layout = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Length(9), Constraint::Length(9), Constraint::Min(0)])
         .split(rect);
 
     f.render_widget(
-        gpr_table(state, changes)
+        gpr_table(state)
             .block(Block::default().borders(Borders::ALL).title("GPRs")), layout[0]
     );
     f.render_widget(
-        spr_table(state, changes)
+        spr_table(state)
             .block(Block::default().borders(Borders::ALL).title("SPRs")), layout[1]
     );
 }
@@ -181,12 +159,12 @@ const REGISTER_NAME_STYLE: Style = Style::new().add_modifier(Modifier::DIM);
 const REGISTER_VALUE_STYLE: Style = Style::new().add_modifier(Modifier::BOLD);
 const REGISTER_CHANGED_VALUE_STYLE: Style = Style::new().add_modifier(Modifier::BOLD).fg(Color::Blue);
 
-fn gpr_table(state: &EmulatorState, changes: &[String]) -> Table<'static> {
+fn gpr_table(state: &ApplicationState) -> Table<'static> {
     let mut rows = vec![];
-    for (i, value) in state.gprs.iter().enumerate() {
+    for (i, value) in state.emulator.gprs.iter().enumerate() {
         let name = format!("r{i}");
         let value_style =
-            if changes.contains(&name) {
+            if state.changes.contains(&name) {
                 REGISTER_CHANGED_VALUE_STYLE
             } else {
                 REGISTER_VALUE_STYLE
@@ -204,12 +182,12 @@ fn gpr_table(state: &EmulatorState, changes: &[String]) -> Table<'static> {
     table 
 }
 
-fn spr_table(state: &EmulatorState, changes: &[String]) -> Table<'static> {
+fn spr_table(state: &ApplicationState) -> Table<'static> {
     let sprs = vec![
-        ("ip", state.ip, changes.contains(&"ip".to_string())),
-        ("rp", state.rp, changes.contains(&"rp".to_string())),
-        ("sp", state.sp, changes.contains(&"sp".to_string())),
-        ("ef", state.ef, changes.contains(&"ef".to_string())),
+        ("ip", state.emulator.ip, state.changes.contains(&"ip".to_string())),
+        ("rp", state.emulator.rp, state.changes.contains(&"rp".to_string())),
+        ("sp", state.emulator.sp, state.changes.contains(&"sp".to_string())),
+        ("ef", state.emulator.ef, state.changes.contains(&"ef".to_string())),
     ];
 
     let mut rows = vec![];
