@@ -58,8 +58,7 @@ pub enum Instruction {
     Dec { reg: GPR },
     Add { reg: GPR, val: GPR },
     Sub { reg: GPR, val: GPR },
-    Mulu { reg: GPR, val: GPR },
-    Muli { reg: GPR, val: GPR },
+    Mul { reg: GPR, val: GPR },
 
     // Comparison
     Inv,

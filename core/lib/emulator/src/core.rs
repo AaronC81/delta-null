@@ -110,8 +110,8 @@ impl<M: Memory> Core<M> {
                 => self.apply_gpr_binary(reg, val, |r, v| r.overflowing_add(v).0),
             Sub { reg, val }
                 => self.apply_gpr_binary(reg, val, |r, v: u16| r.overflowing_sub(v).0),
-            Mulu { .. } => todo!(),
-            Muli { .. } => todo!(),
+            Mul { reg, val }
+                => self.apply_gpr_binary(reg, val, |r, v: u16| r.overflowing_mul(v).0),
 
             // Comparison
             Inv

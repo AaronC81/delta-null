@@ -61,8 +61,7 @@ fn operands_for_assembly(ins: &Instruction) -> Vec<&dyn ToAssembly> {
         Dec { reg } => vec![reg],
         Add { reg, val } => vec![reg, val],
         Sub { reg, val } => vec![reg, val],
-        Mulu { reg, val } => vec![reg, val],
-        Muli { reg, val } => vec![reg, val],
+        Mul { reg, val } => vec![reg, val],
 
         // Comparison
         Inv => vec![],

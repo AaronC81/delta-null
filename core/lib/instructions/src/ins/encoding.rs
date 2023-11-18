@@ -68,10 +68,8 @@ impl Encodable for Instruction {
                 => 0b_0100_1001_0000_0000 | val.encode() << 4 | reg.encode(),
             Sub { reg, val }
                 => 0b_0100_1010_0000_0000 | val.encode() << 4 | reg.encode(),
-            Mulu { reg, val }
+            Mul { reg, val }
                 => 0b_0100_1011_0000_0000 | val.encode() << 4 | reg.encode(),
-            Muli { reg, val }
-                => 0b_0100_1011_1000_0000 | val.encode() << 4 | reg.encode(),
 
             // Comparison
             Inv => 0b_0101_0000_0000_0000,
@@ -139,8 +137,7 @@ impl Encodable for Instruction {
                 "0100_1000_0010_0rrr" => Dec { reg: GPR::decode(r)? },
                 "0100_1001_0xxx_0rrr" => Add { reg: GPR::decode(r)?, val: GPR::decode(x)? },
                 "0100_1010_0xxx_0rrr" => Sub { reg: GPR::decode(r)?, val: GPR::decode(x)? },
-                "0100_1011_0xxx_0rrr" => Mulu { reg: GPR::decode(r)?, val: GPR::decode(x)? },
-                "0100_1011_1xxx_0rrr" => Muli { reg: GPR::decode(r)?, val: GPR::decode(x)? },
+                "0100_1011_0xxx_0rrr" => Mul { reg: GPR::decode(r)?, val: GPR::decode(x)? },
 
                 // Comparison
                 "0101_0000_0000_0000" => Inv,
