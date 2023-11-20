@@ -6,13 +6,13 @@ use std::{error::Error, io, time::Duration};
 use crossterm::{terminal::{enable_raw_mode, disable_raw_mode, LeaveAlternateScreen, EnterAlternateScreen}, execute, event::{Event, self, KeyCode, KeyEvent}};
 use delta_null_core_emulator_protocol::{Request, Response, EmulatorState};
 use delta_null_core_instructions::{Instruction, Encodable, ToAssembly};
-use ratatui::{backend::CrosstermBackend, Terminal, Frame, widgets::{Table, Row, Cell, Block, Borders}, style::{Style, Color, Modifier}, layout::{Constraint, Layout, Direction, Rect}};
+use ratatui::{backend::CrosstermBackend, Terminal, Frame, widgets::{Table, Row, Cell, Block, Borders, Paragraph}, style::{Style, Color, Modifier}, layout::{Constraint, Layout, Direction, Rect}, text::{Line, Span, Text}};
 
 mod socket;
 use socket::BackendSocket;
 
 mod state;
-use state::ApplicationState;
+use state::{ApplicationState, ExecutionState};
 
 fn tui_setup() -> Result<Terminal<CrosstermBackend<io::Stdout>>, Box<dyn Error>> {
     enable_raw_mode()?;
@@ -36,7 +36,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }).unwrap();
     }
 
-    let Response::UpdatedState { state: mut emulator } = backend.send_request(&Request::GetState)? else {
+    let Response::UpdatedState { state: emulator } = backend.send_request(&Request::GetState)? else {
         panic!("GetState error")
     };
     
@@ -44,6 +44,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         emulator,
         changes: vec![],
         socket: backend,
+
+        execution_state: ExecutionState::Break,
     };
 
     loop {
@@ -54,9 +56,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                 KeyCode::Char('s') => state.emulator_step()?,
 
                 KeyCode::Char('r') => {
+                    state.execution_state = ExecutionState::Running;
+
                     loop {
                         if event::poll(Duration::from_secs(0))? {
                             if let Event::Key(KeyEvent { code: KeyCode::Char('p'), .. }) = event::read()? {
+                                state.execution_state = ExecutionState::Break;
                                 break;
                             }
                         }
@@ -67,7 +72,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     }
                 }
 
-                KeyCode::Char('x') => {
+                KeyCode::Char('q') => {
                     break;
                 }
                 _ => {}
@@ -82,10 +87,24 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn draw(f: &mut Frame, state: &ApplicationState) {
+    draw_top_level(f, f.size(), state)
+}
+
+fn draw_top_level(f: &mut Frame, rect: Rect, state: &ApplicationState) {
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Max(100), Constraint::Min(1)])
+        .split(rect);
+
+    draw_core_view(f, layout[0], state);
+    draw_controls(f, layout[1], state);
+}
+
+fn draw_core_view(f: &mut Frame, rect: Rect, state: &ApplicationState) {
     let layout = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(50), Constraint::Length(50), Constraint::Min(0)])
-        .split(f.size());
+        .split(rect);
 
     draw_instruction_view(f, layout[0], state);
     draw_register_view(f, layout[1], state);
@@ -192,3 +211,30 @@ fn spr_table(state: &ApplicationState) -> Table<'static> {
     table 
 }
 
+fn draw_controls(f: &mut Frame, rect: Rect, state: &ApplicationState) {
+    let mut spans = vec![
+        Span::styled(match state.execution_state {
+            ExecutionState::Break =>   " BREAK ",
+            ExecutionState::Running => "  RUN  ",
+        }, Style::default().add_modifier(Modifier::REVERSED)),
+        Span::from("   "),
+    ];
+
+    let available_commands = match state.execution_state {
+        ExecutionState::Break => vec![
+            "[S]tep",
+            "[R]un",
+            "[Q]uit",
+        ],
+        ExecutionState::Running => vec![
+            "[P]ause",
+        ],
+    };
+    for command in available_commands {
+        spans.push(Span::from(format!("{command}   ")));
+    }
+
+    let para = Paragraph::new(Text::from(Line::from(spans)));
+
+    f.render_widget(para, rect);
+}

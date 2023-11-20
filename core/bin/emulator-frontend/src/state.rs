@@ -4,10 +4,18 @@ use delta_null_core_emulator_protocol::{Response, EmulatorState, Request};
 
 use crate::socket::BackendSocket;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExecutionState {
+    Break,
+    Running,
+}
+
 pub struct ApplicationState {
     pub emulator: EmulatorState,
     pub changes: Vec<String>,
     pub socket: BackendSocket,
+
+    pub execution_state: ExecutionState,
 }
 
 impl ApplicationState {
