@@ -1,9 +1,9 @@
 #![feature(never_type)]
 #![feature(const_trait_impl)]
 
-use std::{error::Error, io};
+use std::{error::Error, io, time::Duration};
 
-use crossterm::{terminal::{enable_raw_mode, disable_raw_mode, LeaveAlternateScreen, EnterAlternateScreen}, execute, event::{Event, self, KeyCode}};
+use crossterm::{terminal::{enable_raw_mode, disable_raw_mode, LeaveAlternateScreen, EnterAlternateScreen}, execute, event::{Event, self, KeyCode, KeyEvent}};
 use delta_null_core_emulator_protocol::{Request, Response, EmulatorState};
 use delta_null_core_instructions::{Instruction, Encodable, ToAssembly};
 use ratatui::{backend::CrosstermBackend, Terminal, Frame, widgets::{Table, Row, Cell, Block, Borders}, style::{Style, Color, Modifier}, layout::{Constraint, Layout, Direction, Rect}};
@@ -49,28 +49,28 @@ fn main() -> Result<(), Box<dyn Error>> {
         }).unwrap();
 
         if let Event::Key(key) = event::read()? {
-            #[allow(clippy::single_match)]
             match key.code {
-                KeyCode::Char('s') => {
-                    // Single-step
-                    let Response::UpdatedState { state: new_state } = backend.send_request(&Request::ExecuteOneInstruction)? else {
-                        panic!("back-end error")
-                    };
+                KeyCode::Char('s') => emulator_step(&backend, &mut emulator, &mut changes)?,
 
-                    // Find changes
-                    changes.clear();
-                    for (i, (old, new)) in emulator.gprs.iter().zip(new_state.gprs).enumerate() {
-                        if *old != new {
-                            changes.push(format!("r{i}"));
+                KeyCode::Char('r') => {
+                    loop {
+                        if event::poll(Duration::from_secs(0))? {
+                            if let Event::Key(KeyEvent { code: KeyCode::Char('p'), .. }) = event::read()? {
+                                break;
+                            }
                         }
-                    }
-                    if emulator.ip != new_state.ip { changes.push("ip".to_string()); }
-                    if emulator.rp != new_state.rp { changes.push("rp".to_string()); }
-                    if emulator.sp != new_state.sp { changes.push("sp".to_string()); }
-                    if emulator.ef != new_state.ef { changes.push("ef".to_string()); }
 
-                    // Swap out state
-                    emulator = new_state;
+                        emulator_step(&backend, &mut emulator, &mut changes)?;
+
+                        terminal.draw(|f| {
+                            let state = ApplicationState {
+                                emulator: &emulator,
+                                changes: &changes,
+                                socket: &backend,
+                            };
+                            draw(f, &state)
+                        }).unwrap();
+                    }
                 }
 
                 KeyCode::Char('x') => {
@@ -84,6 +84,30 @@ fn main() -> Result<(), Box<dyn Error>> {
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;
+    Ok(())
+}
+
+fn emulator_step(backend: &BackendSocket, emulator: &mut EmulatorState, changes: &mut Vec<String>) -> Result<(), Box<dyn Error>> {
+    // Single-step
+    let Response::UpdatedState { state: new_state } = backend.send_request(&Request::ExecuteOneInstruction)? else {
+        panic!("back-end error")
+    };
+
+    // Find changes
+    changes.clear();
+    for (i, (old, new)) in emulator.gprs.iter().zip(new_state.gprs).enumerate() {
+        if *old != new {
+            changes.push(format!("r{i}"));
+        }
+    }
+    if emulator.ip != new_state.ip { changes.push("ip".to_string()); }
+    if emulator.rp != new_state.rp { changes.push("rp".to_string()); }
+    if emulator.sp != new_state.sp { changes.push("sp".to_string()); }
+    if emulator.ef != new_state.ef { changes.push("ef".to_string()); }
+
+    // Swap out state
+    *emulator = new_state;
+
     Ok(())
 }
 
