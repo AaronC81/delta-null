@@ -11,6 +11,9 @@ use ratatui::{backend::CrosstermBackend, Terminal, Frame, widgets::{Table, Row, 
 mod socket;
 use socket::BackendSocket;
 
+mod state;
+use state::ApplicationState;
+
 fn tui_setup() -> Result<Terminal<CrosstermBackend<io::Stdout>>, Box<dyn Error>> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -76,38 +79,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;
     Ok(())
-}
-
-pub struct ApplicationState {
-    emulator: EmulatorState,
-    changes: Vec<String>,
-    socket: BackendSocket,
-}
-
-impl ApplicationState {
-    pub fn emulator_step(&mut self) -> Result<(), Box<dyn Error>> {
-        // Single-step
-        let Response::UpdatedState { state: new_state } = self.socket.send_request(&Request::ExecuteOneInstruction)? else {
-            panic!("back-end error")
-        };
-
-        // Find changes
-        self.changes.clear();
-        for (i, (old, new)) in self.emulator.gprs.iter().zip(new_state.gprs).enumerate() {
-            if *old != new {
-                self.changes.push(format!("r{i}"));
-            }
-        }
-        if self.emulator.ip != new_state.ip { self.changes.push("ip".to_string()); }
-        if self.emulator.rp != new_state.rp { self.changes.push("rp".to_string()); }
-        if self.emulator.sp != new_state.sp { self.changes.push("sp".to_string()); }
-        if self.emulator.ef != new_state.ef { self.changes.push("ef".to_string()); }
-
-        // Swap out state
-        self.emulator = new_state;
-
-        Ok(())
-    }
 }
 
 fn draw(f: &mut Frame, state: &ApplicationState) {
