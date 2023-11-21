@@ -65,7 +65,18 @@ impl Builder {
                                 let imm = match access {
                                     LabelAccess::High => ((address & 0xFF00) >> 8) as u8,
                                     LabelAccess::Low => (address & 0x00FF) as u8,
-                                    LabelAccess::Offset => todo!(), // TODO
+                                    LabelAccess::Offset => {
+                                        // IP is one ahead of the instruction address
+                                        let current_ip = current_address + 1;
+                                        let big_offset = address as i32 - current_ip as i32;
+                                        let offset: Result<i8, _> = big_offset.try_into();
+                                        if let Ok(offset) = offset {
+                                            offset as u8
+                                        } else {
+                                            errors.push(BuildError::OffsetOutOfRange { from: current_ip, to: address });
+                                            continue 'item;
+                                        }
+                                    }
                                 };
                                 AnyOperand::I(imm)
                             }
@@ -97,6 +108,7 @@ impl Builder {
 pub enum BuildError {
     InvalidOperands(InstructionOpcode),
     ImmediateOutOfRange(u16),
+    OffsetOutOfRange { from: u16, to: u16 },
     UndefinedLabel(String),
 }
 
@@ -105,6 +117,7 @@ impl Display for BuildError {
         match self {
             BuildError::InvalidOperands(opcode) => write!(f, "invalid operands for {}", opcode.mnemonic()),
             BuildError::ImmediateOutOfRange(imm) => write!(f, "immediate {imm} is out-of-range"),
+            BuildError::OffsetOutOfRange { from, to } => write!(f, "offset operand cannot reach from {from} to {to}"),
             BuildError::UndefinedLabel(label) => write!(f, "undefined label {label}"),
         }
     }
@@ -170,6 +183,24 @@ mod test {
                     read r1, r0
                     hlt
                     data: .word 0
+                ").parse().unwrap(),
+                0x4000
+            )
+        )
+    }
+
+    #[test]
+    fn test_builder_offset() {
+        assert_eq!(
+            Ok(vec![0x0000, 0x6003, 0x0000, 0x0000, 0x0000, 0xFFFF]),
+            Builder::build_once(
+                &Parser::from_str("
+                    nop
+                    jmpoff dest/offset 
+                    nop
+                    nop
+                    nop
+                    dest: hlt
                 ").parse().unwrap(),
                 0x4000
             )
