@@ -113,7 +113,7 @@ fn draw_core_view(f: &mut Frame, rect: Rect, state: &ApplicationState) {
 fn draw_instruction_view(f: &mut Frame, rect: Rect, state: &ApplicationState) {
     // Fetch instructions around this one
     let mut instruction_data = vec![];
-    for i in state.emulator.ip..(state.emulator.ip + rect.height) {
+    for i in state.emulator.ip..(state.emulator.ip.saturating_add(rect.height)) {
         instruction_data.push((i, state.socket.read_memory(i).ok()))
     }
 
