@@ -27,9 +27,7 @@ main:
     call r4
     call r4
 
-    putl r7, main/lo
-    puth r7, main/hi
-    movsi ip, r7
+    jmpoff main/offset
 
 ; flashes a dot - assumes LED is off when called
 ; trashes r4, r5, r6, r7
@@ -71,11 +69,9 @@ delay:
     ; busy-waits for 0xFFFF cycles
     putl r6, 0xFF ; r6 = counter
     puth r6, 0xFF
-    putl r7, loop/lo ; r7 = loop addr
-    puth r7, loop/hi
     loop:
         dec r6
         eqz r6
         inv
-        cjmp r7
+        cjmpoff loop/offset
     ret

@@ -10,18 +10,14 @@ blink:
     ; busy-waits for 0xFFFF * 4 "soft cycles"
     putl r2, 0xFF ; r2 = counter
     puth r2, 0xFF
-    putl r3, loop/lo ; r3 = loop addr
-    puth r3, loop/hi
     loop:
         sub r2, r1
         eqz r2
         inv
-        cjmp r3
+        cjmpoff loop/offset
 
     ; toggle LED
     not r0
 
     ; repeat
-    putl r2, blink/lo
-    puth r2, blink/hi
-    movsi ip, r2
+    jmpoff blink/offset
