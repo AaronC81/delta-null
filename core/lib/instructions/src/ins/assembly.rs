@@ -37,6 +37,8 @@ fn operands_for_assembly(ins: &Instruction) -> Vec<&dyn ToAssembly> {
         // Memory
         Read { addr, val } => vec![addr, val],
         Write { addr, val }  => vec![addr, val],
+        Spread { val, offset }  => vec![val, offset],
+        Spwrite { offset, val }  => vec![offset, val],
         DRead { addr, val }  => vec![addr, val],
         DWrite { addr, val }  => vec![addr, val],
 

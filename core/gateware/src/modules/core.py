@@ -61,6 +61,8 @@ class Core(Elaboratable):
         # Special trackers used for specific instructions
         self.instruction_is_read = Signal()
         self.instruction_is_write = Signal()
+        self.instruction_is_spread = Signal()
+        self.instruction_is_spwrite = Signal()
 
         # Debugging stuff
         self.debug_led = debug_led
@@ -146,6 +148,20 @@ class Core(Elaboratable):
                     with m.Case("0010 0000 1--- 0---"): # write
                         self.decode(m, read_1=ins[4:7], read_2=ins[0:3])
                         m.d.sync += self.instruction_is_write.eq(1)
+
+                    with m.Case("0011 0000 0--- ----"): # spread
+                        self.decode(m, write=ins[4:7])
+                        m.d.sync += [
+                            self.immediate_buffer.eq(ins[0:4]),
+                            self.instruction_is_spread.eq(1),
+                        ]
+
+                    with m.Case("0011 0000 1--- ----"): # spwrite
+                        self.decode(m, read_1=ins[4:7])
+                        m.d.sync += [
+                            self.immediate_buffer.eq(ins[0:4]),
+                            self.instruction_is_spwrite.eq(1),
+                        ]
 
 
                     # === Special-Purpose Registers ===
@@ -245,8 +261,12 @@ class Core(Elaboratable):
                 m.d.sync += self.reg_read_1_buffer.eq(self.gprs.read_data)
 
                 with m.If(self.instruction_is_read):
-                    # Set up main memory read
+                    # Set up main memory read, from address we just read
                     m.d.sync += self.mem_addr.eq(self.gprs.read_data)
+                    self.eq_unless_constant(m, self.mem_read_en, 1)
+                with m.Elif(self.instruction_is_spread):
+                    # Set up main memory read, indexed with immediate off SP
+                    m.d.sync += self.mem_addr.eq(self.sp + self.immediate_buffer)
                     self.eq_unless_constant(m, self.mem_read_en, 1)
                 with m.Else():
                     # Set up read 2
@@ -269,7 +289,7 @@ class Core(Elaboratable):
             #   Retrieves data read from the second decoded GPR (or main memory, if the instruction
             #   is `read`).
             with m.Elif(self.stage == Core.Stage.READ_2.value):
-                with m.If(self.instruction_is_read):
+                with m.If(self.instruction_is_read | self.instruction_is_spread):
                     # Main memory read is complete - piggyback off the reg_read_2_buffer to store
                     # the read value
                     m.d.sync += self.reg_read_2_buffer.eq(self.mem_read_data)
@@ -320,7 +340,7 @@ class Core(Elaboratable):
 
 
                     # === Memory ===
-                    with m.Case("0010 0000 0--- 0---"): # read
+                    with m.Case("0010 0000 0--- 0---", "0011 0000 0--- ----"): # read, spread
                         # Read 2 was "magic" for this instruction, and actually read main memory
                         # instead. See those sections for details.
                         m.d.sync += self.gprs.write_data.eq(self.reg_read_2_buffer)
@@ -329,6 +349,13 @@ class Core(Elaboratable):
                         m.d.sync += [
                             self.mem_addr.eq(self.reg_read_1_buffer),
                             self.mem_write_data.eq(self.reg_read_2_buffer),
+                            self.mem_write_en.eq(C(1)),
+                        ]
+
+                    with m.Case("0011 0000 1--- ----"): # spwrite
+                        m.d.sync += [
+                            self.mem_addr.eq(self.sp + self.immediate_buffer),
+                            self.mem_write_data.eq(self.reg_read_1_buffer),
                             self.mem_write_en.eq(C(1)),
                         ]
 
@@ -463,7 +490,7 @@ class Core(Elaboratable):
                     self.reg_write_required.eq(C(0)),
                 ]
 
-                with m.If(self.instruction_is_write):
+                with m.If(self.instruction_is_write | self.instruction_is_spwrite):
                     m.d.sync += self.mem_write_en.eq(C(0))
 
                 # Advance

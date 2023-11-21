@@ -34,6 +34,8 @@ pub enum Instruction {
     // Memory
     Read { val: GPR, addr: GPR },
     Write { addr: GPR, val: GPR },
+    Spread { val: GPR, offset: u8 }, 
+    Spwrite { offset: u8, val: GPR },
     DRead { val: DR, addr: GPR },
     DWrite { addr: GPR, val: DR },
 

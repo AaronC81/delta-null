@@ -70,6 +70,10 @@ impl<M: Memory> Core<M> {
                 => self.write_gpr(val, self.memory.read(self.read_gpr(addr))?),
             Write { addr, val }
                 => self.memory.write(self.read_gpr(addr), self.read_gpr(val))?,
+            Spread { val, offset }
+                => self.write_gpr(val, self.memory.read(self.sp.overflowing_add(offset as u16).0)?),
+            Spwrite { val, offset }
+                => self.memory.write(self.sp.overflowing_add(offset as u16).0, self.read_gpr(val))?,
             DRead { .. } => todo!(),
             DWrite { .. } => todo!(),
 

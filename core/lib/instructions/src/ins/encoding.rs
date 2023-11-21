@@ -26,6 +26,10 @@ impl Encodable for Instruction {
                 => 0b_0010_0000_0000_0000 | addr.encode() << 4 | val.encode(),
             Write { addr, val }
                 => 0b_0010_0000_1000_0000 | addr.encode() << 4 | val.encode(),
+            Spread { val, offset }
+                => 0b_0011_0000_0000_0000 | val.encode() << 4 | (offset & 0xF) as u16,
+            Spwrite { offset, val }
+                => 0b_0011_0000_1000_0000 | val.encode() << 4 | (offset & 0xF) as u16,
             DRead { addr, val }
                 => 0b_0010_0000_0000_1000 | addr.encode() << 4 | val.encode(),
             DWrite { addr, val }
@@ -115,6 +119,8 @@ impl Encodable for Instruction {
                 // Memory
                 "0010_0000_0aaa_0rrr" => Read { addr: GPR::decode(a)?, val: GPR::decode(r)? },
                 "0010_0000_1aaa_0rrr" => Write { addr: GPR::decode(a)?, val: GPR::decode(r)? },
+                "0011_0000_0rrr_iiii" => Spread { offset: i as u8, val: GPR::decode(r)? },
+                "0011_0000_1rrr_iiii" => Spwrite { offset: i as u8, val: GPR::decode(r)? },
                 "0010_0000_0aaa_10dd" => DRead { addr: GPR::decode(a)?, val: DR::decode(d)? },
                 "0010_0000_1aaa_10dd" => DWrite { addr: GPR::decode(a)?, val: DR::decode(d)? },
 

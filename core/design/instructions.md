@@ -28,8 +28,7 @@ decimal.
 
 ## Immediate Loads
 
-Due to the limited instruction width, immediate instructions are kept to a minimum. The only
-instructions with immediate operands are these, and some branching instructions covered later.
+Due to the limited instruction width, immediate instructions are kept to a minimum.
 
 It would be possible to minimise even further by using a "shift 1 byte left and load low byte"
 instruction, but this may be excessively minimal, and using an extra bit to select the byte rounds
@@ -48,11 +47,10 @@ instructions which perform any kind of memory access are those listed here.
 
 - `0010 0000 0aaa 0rrr` - `read` - Read word from memory `a` into general-purpose register `r`
 - `0010 0000 1aaa 0rrr` - `write` - Write word to memory `a` from general-purpose register `r`
+- `0011 0000 0rrr iiii` - `spread` - Read word from `SP + i` into general-purpose register `r`
+- `0011 0000 1rrr iiii` - `spwrite` - Write word to `SP + i` from general-purpose register `r`
 - `0010 0000 0aaa 10dd` - `d_read` - Read word from memory `a` into decimal register `d`
 - `0010 0000 1aaa 10dd` - `d_write` - Write word from memory `a` from decimal register `r`
-
-Note: Keep `0010 xxxx` free for offset versions 
-Note: Keep `0011` free in case immediate-offset versions of these exist
 
 ## Special-Purpose Registers
 

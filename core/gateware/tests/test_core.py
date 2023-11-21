@@ -469,3 +469,51 @@ def test_call():
             add r7, r6
             ret
     """, after)
+
+def test_stack():
+    """Tests behaviour of stack instructions like `spread`, `spwrite`, `spinc`, and `spdec`."""
+
+    def after(core):
+        assert (yield core.r1) == 0xABCD
+        assert (yield core.r2) == 0x1234
+        assert (yield core.r3) == 0x5678
+        assert (yield core.r4) == 0xDCBA
+
+    run_sim("""
+        ; sp = 0xFFFF
+        putl r0, 0xFF
+        puth r0, 0xFF
+        movsi sp, r0
+            
+        ; sp[0] (top) = 0xDCBA
+        putl r0, 0xBA
+        puth r0, 0xDC
+        spwrite 0, r0
+
+        spdec
+        spdec
+        spdec
+        
+        ; sp[0] = 0xABCD
+        putl r0, 0xCD
+        puth r0, 0xAB
+        spwrite 0, r0
+            
+        ; sp[1] = 0x1234
+        putl r0, 0x34
+        puth r0, 0x12
+        spwrite 1, r0
+            
+        ; sp[2] = 0x5678
+        putl r0, 0x78
+        puth r0, 0x56
+        spwrite 2, r0
+            
+        ; read stack items back
+        spread r1, 0
+        spread r2, 1
+        spread r3, 2
+        spread r4, 3
+            
+        hlt
+    """, after)
