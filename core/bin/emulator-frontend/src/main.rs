@@ -12,7 +12,7 @@ mod socket;
 use socket::BackendSocket;
 
 mod state;
-use state::{ApplicationState, ExecutionState};
+use state::{ApplicationState, ExecutionState, Menu};
 
 fn tui_setup() -> Result<Terminal<CrosstermBackend<io::Stdout>>, Box<dyn Error>> {
     enable_raw_mode()?;
@@ -46,37 +46,54 @@ fn main() -> Result<(), Box<dyn Error>> {
         socket: backend,
 
         execution_state: ExecutionState::Break,
+        menu: Menu::Normal,
     };
 
     loop {
         terminal.draw(|f| { draw(f, &state) }).unwrap();
 
         if let Event::Key(key) = event::read()? {
-            match key.code {
-                KeyCode::Char('s') => state.emulator_step()?,
-
-                KeyCode::Char('r') => {
-                    state.execution_state = ExecutionState::Running;
-
-                    loop {
-                        if event::poll(Duration::from_secs(0))? {
-                            if let Event::Key(KeyEvent { code: KeyCode::Char('p'), .. }) = event::read()? {
-                                state.execution_state = ExecutionState::Break;
-                                break;
+            match state.menu {
+                Menu::Normal => match key.code {
+                    KeyCode::Char('s') => state.emulator_step()?,
+    
+                    KeyCode::Char('r') => {
+                        state.execution_state = ExecutionState::Running;
+    
+                        loop {
+                            if event::poll(Duration::from_secs(0))? {
+                                if let Event::Key(KeyEvent { code: KeyCode::Char('p'), .. }) = event::read()? {
+                                    state.execution_state = ExecutionState::Break;
+                                    break;
+                                }
                             }
+    
+                            state.emulator_step()?;
+    
+                            terminal.draw(|f| draw(f, &state)).unwrap();
                         }
-
-                        state.emulator_step()?;
-
-                        terminal.draw(|f| draw(f, &state)).unwrap();
                     }
-                }
 
-                KeyCode::Char('q') => {
-                    break;
+                    KeyCode::Char('m') => state.menu = Menu::Memory,
+    
+                    KeyCode::Char('q') => break,
+
+                    _ => {}
+                },
+
+                Menu::Memory => match key.code {
+                    KeyCode::Char('c') => {
+                        for i in 0..0xFFFF {
+                            state.socket.send_request(&Request::SetMainMemory { address: i, data: 0 })?;
+                        }
+                        state.menu = Menu::Normal;
+                    }
+                    
+                    KeyCode::Esc => state.menu = Menu::Normal,
+
+                    _ => {},
                 }
-                _ => {}
-            };
+            }
         }
     }
 
@@ -221,11 +238,17 @@ fn draw_controls(f: &mut Frame, rect: Rect, state: &ApplicationState) {
     ];
 
     let available_commands = match state.execution_state {
-        ExecutionState::Break => vec![
-            "[S]tep",
-            "[R]un",
-            "[Q]uit",
-        ],
+        ExecutionState::Break => match state.menu {
+            Menu::Normal => vec![
+                "[S]tep",
+                "[R]un",
+                "[M]emory...",
+                "[Q]uit",
+            ],
+            Menu::Memory => vec![
+                "[C]lear",
+            ],
+        }
         ExecutionState::Running => vec![
             "[P]ause",
         ],

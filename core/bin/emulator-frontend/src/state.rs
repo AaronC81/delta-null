@@ -10,12 +10,19 @@ pub enum ExecutionState {
     Running,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Menu {
+    Normal,
+    Memory,
+}
+
 pub struct ApplicationState {
     pub emulator: EmulatorState,
     pub changes: Vec<String>,
     pub socket: BackendSocket,
 
     pub execution_state: ExecutionState,
+    pub menu: Menu,
 }
 
 impl ApplicationState {
