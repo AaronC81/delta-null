@@ -131,10 +131,10 @@ impl<M: Memory> Core<M> {
 
             // Branching
             Jmpoff { offset }
-                => self.write_spr(SPR::SP, self.read_spr(SPR::SP).overflowing_add(Self::sign_extend_u8_to_u16(offset)).0),
+                => self.write_spr(SPR::IP, self.read_spr(SPR::IP).overflowing_add(Self::sign_extend_u8_to_u16(offset)).0),
             Cjmpoff { offset }
                 => if self.is_cond_set() {
-                    self.write_spr(SPR::SP, self.read_spr(SPR::SP).overflowing_add(Self::sign_extend_u8_to_u16(offset)).0);
+                    self.write_spr(SPR::IP, self.read_spr(SPR::IP).overflowing_add(Self::sign_extend_u8_to_u16(offset)).0);
                 }
             Cjmp { src }
                 => if self.is_cond_set() {
