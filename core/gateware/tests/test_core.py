@@ -517,3 +517,36 @@ def test_stack():
             
         hlt
     """, after)
+
+def test_offset_jumps():
+    """Tests offset-immediate jump instructions: `jmpoff` and `cjmpoff`."""
+
+    def after(core):
+        assert (yield core.r0) == 19
+        assert (yield core.r1) == 11
+
+    run_sim("""
+        xor r0, r0
+        jmpoff target/offset
+
+        hlt
+        hlt
+        target:
+            putl r0, 19
+            jmpoff after/offset
+        hlt
+        hlt
+        after:
+        
+        xor r1, r1
+        eq r1, r0
+        cjmpoff end/offset
+        inv
+        cjmpoff correct/offset    
+        
+        end: hlt
+            
+        correct:
+            putl r1, 11
+            jmpoff end/offset
+    """, after)
