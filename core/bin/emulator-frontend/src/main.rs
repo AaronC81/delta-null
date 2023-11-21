@@ -4,7 +4,7 @@
 use std::{error::Error, io, time::Duration};
 
 use crossterm::{terminal::{enable_raw_mode, disable_raw_mode, LeaveAlternateScreen, EnterAlternateScreen}, execute, event::{Event, self, KeyCode, KeyEvent}};
-use delta_null_core_emulator_protocol::{Request, Response, EmulatorState};
+use delta_null_core_emulator_protocol::{Request, Response};
 use delta_null_core_instructions::{Instruction, Encodable, ToAssembly};
 use ratatui::{backend::CrosstermBackend, Terminal, Frame, widgets::{Table, Row, Cell, Block, Borders, Paragraph}, style::{Style, Color, Modifier}, layout::{Constraint, Layout, Direction, Rect}, text::{Line, Span, Text}};
 
@@ -27,8 +27,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let backend = BackendSocket::connect("ipc:///tmp/delta-null-emulator.ipc")?;
     let mut terminal = tui_setup()?;
 
-    // TEMP - load SOS-blink
-    let code = "4300 1219 1A00 1322 1B00 6212 6212 6212 6213 6213 6213 6212 6212 6212 142F 1C00 6214 6214 6214 6214 6214 6214 1701 1F00 21C7 2195 142F 1C00 4000 6214 4000 6214 21D5 6218 2195 142F 1C00 4000 6214 6214 6214 4000 6214 6214 6214 21D5 6218 16FF 1EFF 1733 1F00 4826 5016 5000 6307 6218";
+    // TEMP - load offset blink
+    let code = "4300 1101 1900 12FF 1AFF 4A12 5012 5000 61FC 4000 60F8";
     for (i, word) in code.split_ascii_whitespace().enumerate() {
         backend.send_request(&Request::SetMainMemory {
             address: i as u16,
