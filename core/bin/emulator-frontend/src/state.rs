@@ -34,10 +34,34 @@ impl ApplicationState {
 
         match command.as_str() {
             "core.step" => self.emulator_step(),
+
             "mem.clear" => {
                 for i in 0..0xFFFF {
                     self.socket.send_request(&Request::SetMainMemory { address: i, data: 0 })?;
                 }
+                Ok(())
+            },
+            "mem.load.ascii" => {
+                if args.len() != 1 {
+                    return Err(Box::new(CommandError::new("usage: mem.load.ascii <file>".to_string())));
+                }
+
+                // Load bytes from file
+                let mut contents = std::fs::read_to_string(&args[0])?;
+                contents.retain(|c| !c.is_whitespace());
+                let words = contents.chars()
+                    .collect::<Vec<_>>()
+                    .chunks(4)
+                    .map(|w| u16::from_str_radix(&w.iter().collect::<String>(), 16))
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                for (i, word) in words.iter().enumerate() {
+                    self.socket.send_request(&Request::SetMainMemory {
+                        address: i as u16,
+                        data: *word,
+                    }).unwrap();
+                }
+
                 Ok(())
             }
             

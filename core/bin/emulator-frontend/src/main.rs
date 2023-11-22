@@ -27,15 +27,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     let backend = BackendSocket::connect("ipc:///tmp/delta-null-emulator.ipc")?;
     let mut terminal = tui_setup()?;
 
-    // TEMP - load offset blink
-    let code = "4300 1101 1900 12FF 1AFF 4A12 5012 5000 61FC 4000 60F8";
-    for (i, word) in code.split_ascii_whitespace().enumerate() {
-        backend.send_request(&Request::SetMainMemory {
-            address: i as u16,
-            data: u16::from_str_radix(word, 16).unwrap()
-        }).unwrap();
-    }
-
     let Response::UpdatedState { state: emulator } = backend.send_request(&Request::GetState)? else {
         panic!("GetState error")
     };
