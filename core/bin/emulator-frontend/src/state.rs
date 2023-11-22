@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{error::Error, fmt::Display};
 
 use delta_null_core_emulator_protocol::{Response, EmulatorState, Request};
 
@@ -10,10 +10,11 @@ pub enum ExecutionState {
     Running,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Menu {
     Normal,
     Memory,
+    Command(String),
 }
 
 pub struct ApplicationState {
@@ -26,6 +27,30 @@ pub struct ApplicationState {
 }
 
 impl ApplicationState {
+    pub fn execute_command(&mut self, command: &str) -> Result<(), Box<dyn Error>> {
+        let [command, args@..] = &shell_words::split(command)?[..] else {
+            return Ok(()) // empty commands are fine, but don't do anything
+        };
+
+        match command.as_str() {
+            "core.step" => self.emulator_step(),
+            "mem.clear" => {
+                for i in 0..0xFFFF {
+                    self.socket.send_request(&Request::SetMainMemory { address: i, data: 0 })?;
+                }
+                Ok(())
+            }
+            
+            _ => Err(Box::new(CommandError::new(format!("unknown command: {command}")))),
+        }
+    }
+
+    pub fn execute_command_from_menu(&mut self, command: &str) -> Result<(), Box<dyn Error>> {
+        let result = self.execute_command(command);
+        self.menu = Menu::Normal;
+        result
+    }
+
     pub fn emulator_step(&mut self) -> Result<(), Box<dyn Error>> {
         // Single-step
         let Response::UpdatedState { state: new_state } = self.socket.send_request(&Request::ExecuteOneInstruction)? else {
@@ -50,3 +75,17 @@ impl ApplicationState {
         Ok(())
     }
 }
+
+#[derive(Clone, Debug)]
+pub struct CommandError(String);
+impl CommandError {
+    pub fn new(error: String) -> Self {
+        Self(error)
+    }
+}
+impl Display for CommandError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+impl Error for CommandError {}

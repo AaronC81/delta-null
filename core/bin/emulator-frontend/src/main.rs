@@ -55,7 +55,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         if let Event::Key(key) = event::read()? {
             match state.menu {
                 Menu::Normal => match key.code {
-                    KeyCode::Char('s') => state.emulator_step()?,
+                    KeyCode::Char('s') => state.execute_command_from_menu("core.step")?,
     
                     KeyCode::Char('r') => {
                         state.execution_state = ExecutionState::Running;
@@ -75,6 +75,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     }
 
                     KeyCode::Char('m') => state.menu = Menu::Memory,
+                    KeyCode::Char('/') => state.menu = Menu::Command(String::new()),
     
                     KeyCode::Char('q') => break,
 
@@ -82,13 +83,27 @@ fn main() -> Result<(), Box<dyn Error>> {
                 },
 
                 Menu::Memory => match key.code {
-                    KeyCode::Char('c') => {
-                        for i in 0..0xFFFF {
-                            state.socket.send_request(&Request::SetMainMemory { address: i, data: 0 })?;
-                        }
+                    KeyCode::Char('c') => state.execute_command_from_menu("mem.clear")?,
+
+                    KeyCode::Esc => state.menu = Menu::Normal,
+
+                    _ => {},
+                }
+
+                Menu::Command(ref mut buffer) => match key.code {
+                    KeyCode::Char(c) => buffer.push(c),
+                    KeyCode::Backspace => buffer.truncate(buffer.len().saturating_sub(1)),
+
+                    KeyCode::Enter => {
+                        // Twiddle the buffer to make the borrow checker happy
+                        let buffer_clone = buffer.clone();
+                        drop(buffer);
+
+                        // Execute command and return to normal (which empties the buffer)
+                        state.execute_command(&buffer_clone)?;
                         state.menu = Menu::Normal;
                     }
-                    
+
                     KeyCode::Esc => state.menu = Menu::Normal,
 
                     _ => {},
@@ -238,23 +253,32 @@ fn draw_controls(f: &mut Frame, rect: Rect, state: &ApplicationState) {
     ];
 
     let available_commands = match state.execution_state {
-        ExecutionState::Break => match state.menu {
-            Menu::Normal => vec![
+        ExecutionState::Break => match &state.menu {
+            Menu::Normal => Some(vec![
                 "[S]tep",
                 "[R]un",
                 "[M]emory...",
+                "[/]Command",
                 "[Q]uit",
-            ],
-            Menu::Memory => vec![
+            ]),
+            Menu::Memory => Some(vec![
                 "[C]lear",
-            ],
+            ]),
+            Menu::Command(buffer) => {
+                spans.push(Span::from("> ".to_string()));
+                spans.push(Span::from(buffer.clone()));
+
+                None
+            },
         }
-        ExecutionState::Running => vec![
+        ExecutionState::Running => Some(vec![
             "[P]ause",
-        ],
+        ]),
     };
-    for command in available_commands {
-        spans.push(Span::from(format!("{command}   ")));
+    if let Some(available_commands) = available_commands {
+        for command in available_commands {
+            spans.push(Span::from(format!("{command}   ")));
+        }
     }
 
     let para = Paragraph::new(Text::from(Line::from(spans)));

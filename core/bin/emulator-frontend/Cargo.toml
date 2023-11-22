@@ -13,3 +13,4 @@ delta-null-core-emulator-protocol = { path = "../../lib/emulator-protocol" }
 delta-null-core-instructions = { path = "../../lib/instructions" }
 crossterm = "0.27.0"
 ratatui = "0.24.0"
+shell-words = "1.1.0"
