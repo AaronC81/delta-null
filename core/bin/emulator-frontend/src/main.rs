@@ -91,14 +91,18 @@ fn main() -> Result<(), Box<dyn Error>> {
                         drop(buffer);
 
                         // Execute command and return to normal (which empties the buffer)
-                        state.execute_command(&buffer_clone)?;
-                        state.menu = Menu::Normal;
+                        state.menu = match state.execute_command(&buffer_clone) {
+                            Ok(_) => Menu::Normal,
+                            Err(e) => Menu::Error(e.to_string()),
+                        }
                     }
 
                     KeyCode::Esc => state.menu = Menu::Normal,
 
                     _ => {},
                 }
+
+                Menu::Error(_) => state.menu = Menu::Normal,
             }
         }
     }
@@ -261,6 +265,12 @@ fn draw_controls(f: &mut Frame, rect: Rect, state: &ApplicationState) {
 
                 None
             },
+            Menu::Error(e) => {
+                spans.push(Span::from("! ".to_string()));
+                spans.push(Span::from(e));
+
+                None
+            }
         }
         ExecutionState::Running => Some(vec![
             "[P]ause",

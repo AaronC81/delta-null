@@ -15,6 +15,7 @@ pub enum Menu {
     Normal,
     Memory,
     Command(String),
+    Error(String),
 }
 
 pub struct ApplicationState {
