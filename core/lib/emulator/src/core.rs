@@ -42,7 +42,7 @@ impl<M: Memory> Core<M> {
 
         // Read instruction and advance IP
         let instr_bits = self.memory.read(self.ip)?;
-        self.ip += 1;
+        self.ip = self.ip.overflowing_add(1).0;
 
         // Decode instruction
         let Some(instr) = Instruction::decode(instr_bits) else {
