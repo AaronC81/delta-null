@@ -447,11 +447,11 @@ class Core(Elaboratable):
 
                     # === Branching ===
                     with m.Case("0110 0000 ---- ----", ): # jmpoff
-                        m.d.sync += self.ip.eq(self.ip + self.immediate_buffer)
+                        m.d.sync += self.ip.eq(self.ip + self.immediate_buffer.as_signed())
 
                     with m.Case("0110 0001 ---- ----"): # cjmpoff
                         with m.If(self.ef[1]):
-                            m.d.sync += self.ip.eq(self.ip + self.immediate_buffer)
+                            m.d.sync += self.ip.eq(self.ip + self.immediate_buffer.as_signed())
 
                     with m.Case("0110 0011 0000 0---"): # cjmp
                         with m.If(self.ef[1]):
