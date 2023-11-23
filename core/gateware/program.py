@@ -1,5 +1,4 @@
-from src.modules.top import Top
-from src.platform.tinyfpga_bx import TinyFPGABXSerialProgPlatform
+from src.platform.tinyfpga_bx import TinyFPGABXSerialProgPlatform, TinyFPGABXTop
 import sys
 
 match sys.argv:
@@ -12,4 +11,8 @@ match sys.argv:
         print(f"Usage: {name} program/build")
         sys.exit(1)
 
-TinyFPGABXSerialProgPlatform().build(Top(), do_program=program)
+INSTRUCTIONS = [int(x, 16) for x in """
+4300 1217 1A00 1320 1B00 6212 6212 6212 6213 6213 6213 6212 6212 6212 142D 1C00 6214 6214 6214 6214 6214 6214 60EA 2195 142D 1C00 4000 6214 4000 6214 21D5 6218 2195 142D 1C00 4000 6214 6214 6214 4000 6214 6214 6214 21D5 6218 16FF 1EFF 4826 5016 5000 61FC 6218
+""".split()]
+
+TinyFPGABXSerialProgPlatform().build(TinyFPGABXTop(instructions=INSTRUCTIONS), do_program=program)
