@@ -33,9 +33,11 @@ part of a testbench.
 
 32 GPIO pins are accessible from the core through the HCR. These are numbered as follows:
 
-- Pin 0 references the onboard LED. (This is also exposed as a pin on the underside of the board.)
-- Pins 1-31 match the silkscreen on the board.
-  Note that only pins 1-24 are usable with the board soldered through-hole.
+- Pin 0 references the onboard LED, only usable as an output. (This is also exposed as a pin on the
+  underside of the board.)
+- Pins 1-31 match the silkscreen on the board, usable as both input and output.
+  Note that only pins 1-24 are usable with the board soldered through-hole; the others are on the
+  underside.
 
 The TinyFPGA BX does provide more pins, but they are occupied for other resources (e.g. flash, USB),
 so it is difficult to safely use them for additional I/O. Therefore they are not exposed through the
