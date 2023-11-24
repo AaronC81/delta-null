@@ -26,12 +26,13 @@ class Core(Elaboratable):
     def __init__(
         self,
         mem_addr: Signal, mem_read_data: Signal, mem_read_en: Signal, mem_write_data: Signal, mem_write_en: Signal,
-        debug_led: Optional[Signal] = None
+        initial_ip: int = 0, initial_sp: int = 0,
+        debug_led: Optional[Signal] = None,
     ):
         # SPRs
-        self.ip = Signal(Core.DATA_WIDTH)
+        self.ip = Signal(Core.DATA_WIDTH, reset=initial_ip)
         self.rp = Signal(Core.DATA_WIDTH)
-        self.sp = Signal(Core.DATA_WIDTH)
+        self.sp = Signal(Core.DATA_WIDTH, reset=initial_sp)
         self.ef = Signal(Core.DATA_WIDTH)
         self.sprs = Array([self.ip, self.rp, self.sp, self.ef])
 
