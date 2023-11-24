@@ -56,3 +56,36 @@ def test_hcr_metadata():
     sim.add_sync_process(proc)
     sim.run()
 
+def test_hcr_output():
+    """Tests HCR mode and output words."""
+
+    mem = TinyFPGABXMemoryMap(depth=10, init_ram=[0] * 10)
+    sim = Simulator(mem)
+    sim.add_clock(1e-6) # 1 MHz
+
+    def proc():
+        # Set pin 2 to output
+        yield mem.addr.eq(0xF010)
+        yield mem.write_data.eq(0b_0000_0000_0000_0100)
+        yield mem.write_en.eq(1)
+        yield
+        yield mem.write_en.eq(0)
+        yield
+
+        # Now an output, but defaults low
+        assert (yield mem.hcr_gpio_oe[2]) == 1
+        assert (yield mem.hcr_gpio_o[2]) == 0
+
+        # Pull pin 2 high
+        yield mem.addr.eq(0xF012)
+        yield mem.write_data.eq(0b_0000_0000_0000_0100)
+        yield mem.write_en.eq(1)
+        yield
+        yield mem.write_en.eq(0)
+        yield
+
+        # Now high
+        assert (yield mem.hcr_gpio_o[2]) == 1
+
+    sim.add_sync_process(proc)
+    sim.run()

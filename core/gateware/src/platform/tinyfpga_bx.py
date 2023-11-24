@@ -1,5 +1,6 @@
 import os, subprocess
 from amaranth import *
+from amaranth.build import *
 from ..modules.core import Core
 from amaranth_boards.tinyfpga_bx import TinyFPGABXPlatform
 
@@ -30,6 +31,9 @@ class TinyFPGABXMemoryMap(Elaboratable):
     # The start address of the HCR.
     HCR_START = 0xF000
 
+    # The total number of GPIO pins available through the HCR.
+    HCR_GPIO_PIN_COUNT = 32
+
     def __init__(self, init_ram, depth=None):
         self.init_ram = init_ram
 
@@ -43,7 +47,11 @@ class TinyFPGABXMemoryMap(Elaboratable):
         self.read_en = Signal()
         self.write_en = Signal()
 
-    def elaborate(self, platform) -> Module:
+        self.hcr_gpio_o = Signal(TinyFPGABXMemoryMap.HCR_GPIO_PIN_COUNT)
+        self.hcr_gpio_i = Signal(TinyFPGABXMemoryMap.HCR_GPIO_PIN_COUNT)
+        self.hcr_gpio_oe = Signal(TinyFPGABXMemoryMap.HCR_GPIO_PIN_COUNT)
+
+    def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
         # Instantiate RAM
@@ -55,6 +63,30 @@ class TinyFPGABXMemoryMap(Elaboratable):
         m.submodules.mem_read = mem_read
         m.submodules.mem_write = mem_write
 
+        if platform is not None:
+            # Create a new resource for every mapped hardware GPIO pin
+            # (There is a "connector" defined already, but I don't think we have direct access to
+            #  those...)
+            # It's possible to specify multiple pins for one resource, but that only gives us a single
+            # output-enable for every pin. We need per-pin control.
+            resources = []
+            for i in range(1, TinyFPGABXMemoryMap.HCR_GPIO_PIN_COUNT):
+                resources.append(Resource(f"gpio{i}", 0,
+                    Pins(f"{i}", dir="io", conn=("gpio", 0))                          
+                ))
+            platform.add_resources(resources)
+
+            # Bind each IO pin
+            # Pin 0 is LED (only output), the rest are GPIO (input/output)
+            m.d.comb += platform.request("led").eq(self.hcr_gpio_o[0])
+            for i in range(1, TinyFPGABXMemoryMap.HCR_GPIO_PIN_COUNT):
+                pin = platform.request(f"gpio{i}")
+                m.d.comb += [
+                    self.hcr_gpio_i[i].eq(pin.i),
+                    pin.oe.eq(self.hcr_gpio_oe[i]),
+                    pin.o.eq(self.hcr_gpio_o[i]),
+                ]
+
         with m.If(self.addr.matches("1111 ---- ---- ----")):
             # Handled by HCR (0xF---)
             hcr_rel_addr = self.addr - TinyFPGABXMemoryMap.HCR_START
@@ -65,9 +97,31 @@ class TinyFPGABXMemoryMap(Elaboratable):
                 with m.Elif(hcr_rel_addr == 0x1): # Harness indicator
                     m.d.comb += self.read_data.eq(0)
 
+                # === GPIO ===
+                with m.Elif(hcr_rel_addr == 0x10): # Mode configuration (low)
+                    m.d.comb += self.read_data.eq(self.hcr_gpio_oe[0:16])
+                with m.Elif(hcr_rel_addr == 0x11): # Mode configuration (high)
+                    m.d.comb += self.read_data.eq(self.hcr_gpio_oe[16:32])
+                with m.Elif(hcr_rel_addr == 0x12): # Output (low)
+                    m.d.comb += self.read_data.eq(self.hcr_gpio_o[0:16])
+                with m.Elif(hcr_rel_addr == 0x13): # Output (high)
+                    m.d.comb += self.read_data.eq(self.hcr_gpio_o[16:32])
+                # TODO: input
+
                 # Something we don't know!
                 with m.Else():
                     m.d.comb += self.read_data.eq(0x0BAD)
+            with m.Elif(self.write_en):
+                # === GPIO ===
+                with m.If(hcr_rel_addr == 0x10): # Mode configuration (low)
+                    m.d.sync += self.hcr_gpio_oe[0:16].eq(self.write_data)
+                with m.Elif(hcr_rel_addr == 0x11): # Mode configuration (high)
+                    m.d.sync += self.hcr_gpio_oe[16:32].eq(self.write_data)
+                with m.Elif(hcr_rel_addr == 0x12): # Output (low)
+                    m.d.sync += self.hcr_gpio_o[0:16].eq(self.write_data)
+                with m.Elif(hcr_rel_addr == 0x13): # Output (high)
+                    m.d.sync += self.hcr_gpio_o[16:32].eq(self.write_data)
+                # TODO: input
         
         with m.Else():
             # Forward to RAM
@@ -99,7 +153,6 @@ class TinyFPGABXTop(Elaboratable):
             mem_read_en=mem.read_en,
             mem_write_data=mem.write_data,
             mem_write_en=mem.write_en,
-            debug_led=platform.request("led"),
 
             initial_sp=0x1E00,
             initial_ip=0x1000,
