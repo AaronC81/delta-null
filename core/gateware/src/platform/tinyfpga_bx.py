@@ -27,8 +27,15 @@ class TinyFPGABXMemoryMap(Elaboratable):
     #    -> 0x2000 words
     RAM_DEPTH = 0x1E00
 
-    def __init__(self, init_ram):
+    # The start address of the HCR.
+    HCR_START = 0xF000
+
+    def __init__(self, init_ram, depth=None):
         self.init_ram = init_ram
+
+        if depth is None:
+            depth = TinyFPGABXMemoryMap.RAM_DEPTH
+        self.depth = depth
 
         self.addr = Signal(Core.DATA_WIDTH)
         self.read_data = Signal(Core.DATA_WIDTH)
@@ -40,22 +47,38 @@ class TinyFPGABXMemoryMap(Elaboratable):
         m = Module()
 
         # Instantiate RAM
-        ram = Memory(width=Core.DATA_WIDTH, depth=TinyFPGABXMemoryMap.RAM_DEPTH, init=self.init_ram)
-        mem_read = ram.read_port()
-        mem_write = ram.write_port()
+        self.ram = Memory(width=Core.DATA_WIDTH, depth=self.depth, init=self.init_ram)
+        mem_read = self.ram.read_port()
+        mem_write = self.ram.write_port()
         m.d.comb += mem_write.addr.eq(mem_read.addr)
 
         m.submodules.mem_read = mem_read
         m.submodules.mem_write = mem_write
 
-        m.d.comb += [
-            mem_read.addr.eq(self.addr),
-            self.read_data.eq(mem_read.data),
-            mem_write.data.eq(self.write_data),
-            mem_write.en.eq(self.write_en),
-        ]
-        if isinstance(mem_read.en, Signal):
-            m.d.comb += mem_read.en.eq(self.read_en)
+        with m.If(self.addr.matches("1111 ---- ---- ----")):
+            # Handled by HCR (0xF---)
+            hcr_rel_addr = self.addr - TinyFPGABXMemoryMap.HCR_START
+            with m.If(self.read_en):
+                # === Metadata ===
+                with m.If(hcr_rel_addr == 0x0): # Magic number
+                    m.d.comb += self.read_data.eq(0xF90A)
+                with m.Elif(hcr_rel_addr == 0x1): # Harness indicator
+                    m.d.comb += self.read_data.eq(0)
+
+                # Something we don't know!
+                with m.Else():
+                    m.d.comb += self.read_data.eq(0x0BAD)
+        
+        with m.Else():
+            # Forward to RAM
+            m.d.comb += [
+                mem_read.addr.eq(self.addr - TinyFPGABXMemoryMap.RAM_START),
+                self.read_data.eq(mem_read.data),
+                mem_write.data.eq(self.write_data),
+                mem_write.en.eq(self.write_en),
+            ]
+            if isinstance(mem_read.en, Signal):
+                m.d.comb += mem_read.en.eq(self.read_en)
 
         return m
 
@@ -77,12 +100,12 @@ class TinyFPGABXTop(Elaboratable):
             mem_write_data=mem.write_data,
             mem_write_en=mem.write_en,
             debug_led=platform.request("led"),
+
+            initial_sp=0x1E00,
+            initial_ip=0x1000,
         )
 
         m.submodules.mem = mem
         m.submodules.core = self.core
 
         return m
-
-
-
