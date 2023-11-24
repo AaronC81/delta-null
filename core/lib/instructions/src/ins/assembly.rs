@@ -35,7 +35,7 @@ fn operands_for_assembly(ins: &Instruction) -> Vec<&dyn ToAssembly> {
         Puth { reg, imm } => vec![reg, imm],
 
         // Memory
-        Read { addr, val } => vec![addr, val],
+        Read { addr, val } => vec![val, addr],
         Write { addr, val }  => vec![addr, val],
         Spread { val, offset }  => vec![val, offset],
         Spwrite { offset, val }  => vec![offset, val],
