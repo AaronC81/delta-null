@@ -155,9 +155,6 @@ class TinyFPGABXTop(Elaboratable):
 
         self.mem = mem = TinyFPGABXMemoryMap(self.mem_init, self.depth)
 
-        led = None
-        if platform is not None:
-            led = platform.request("led")
         self.core = Core(
             mem_addr=mem.addr,
             mem_read_data=mem.read_data,
@@ -167,8 +164,6 @@ class TinyFPGABXTop(Elaboratable):
 
             initial_sp=0x1E00,
             initial_ip=0x1000,
-
-            debug_led=led,
         )
 
         m.submodules.mem = mem
