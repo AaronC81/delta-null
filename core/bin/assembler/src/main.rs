@@ -1,7 +1,7 @@
 //! Light CLI wrapper around the `delta-null-core-assembler` project.
 //! All assembly parsing and building logic is written here.
 
-use std::{process::exit, fs::OpenOptions, io::{stdout, Write}};
+use std::{process::exit, fs::OpenOptions, io::{stdout, Write}, error::Error};
 
 use clap::{Parser as ClapParser, ValueEnum};
 use clap_stdin::FileOrStdin;
@@ -40,42 +40,15 @@ fn main() {
     // Tokenize code
     let code = args.input.to_string();
     let mut tokenizer = Tokenizer::new(code.chars().peekable());
-    let tokens = match tokenizer.tokenize() {
-        Ok(tokens) => tokens,
-        Err(errors) => {
-            eprintln!("Tokenizer errors occurred.\n");
-            for error in errors {
-                eprintln!("{error}");
-            }
-            exit(1)
-        }
-    };
+    let tokens = unwrap_or_abort(tokenizer.tokenize(), "Tokenize");
 
     // Parse code
     let mut parser = Parser::from_tokens(&tokens);
-    let items = match parser.parse() {
-        Ok(items) => items,
-        Err(errors) => {
-            eprintln!("Parse errors occurred.\n");
-            for error in errors {
-                eprintln!("{error}");
-            }
-            exit(1)
-        }
-    };
+    let items = unwrap_or_abort(parser.parse(), "Parse");
 
     // Build
     let mut builder = Builder::new();
-    let words = match builder.build(&items, args.start_address) {
-        Ok(words) => words,
-        Err(errors) => {
-            eprintln!("Build errors occurred.\n");
-            for error in errors {
-                eprintln!("{error}");
-            }
-            exit(1)
-        }
-    };
+    let words = unwrap_or_abort(builder.build(&items, args.start_address), "Build");
 
     // Open output
     let mut output_handle: Box<dyn Write> =
@@ -107,5 +80,18 @@ fn main() {
                 output_handle.write(&word.to_be_bytes()).unwrap();
             }
         },
+    }
+}
+
+fn unwrap_or_abort<T>(result: Result<T, Vec<impl Error>>, stage: &str) -> T {
+    match result {
+        Ok(t) => t,
+        Err(errors) => {
+            eprintln!("{stage} errors occurred.\n");
+            for error in errors {
+                eprintln!("{error}");
+            }
+            exit(1)
+        }
     }
 }

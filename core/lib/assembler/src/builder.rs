@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Display};
+use std::{collections::HashMap, fmt::Display, error::Error};
 
 use delta_null_core_instructions::{AnyOperand, Encodable, InstructionOpcode, Instruction};
 
@@ -154,6 +154,7 @@ impl Display for BuildError {
         }
     }
 }
+impl Error for BuildError {}
 
 #[cfg(test)]
 mod test {
