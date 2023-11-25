@@ -1,8 +1,8 @@
-use std::{iter::Peekable, str::Chars};
+use std::iter::Peekable;
 
 use delta_null_core_instructions::{InstructionOpcode, GPR, AnyRegister};
 
-use crate::{AssemblyOperand, ParseError};
+use crate::{AssemblyOperand, ParseError, Token, TokenKind};
 
 /// An item in parsed assembly, typically an instruction or a directive.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -29,264 +29,125 @@ impl AssemblyItem {
 }
 
 /// Parses lines of assembly into [AssemblyItem]s.
-pub struct Parser<'a> {
-    chars: Peekable<Chars<'a>>,
+pub struct Parser<'a, T: Iterator<Item = &'a Token>> {
+    tokens: Peekable<T>,
 }
 
-impl<'a> Parser<'a> {
-    pub fn new(chars: Peekable<Chars<'a>>) -> Self {
-        Self { chars }
+impl<'a> Parser<'a, std::slice::Iter<'a, Token>> {
+    pub fn from_tokens(tokens: &'a [Token]) -> Self {
+        Parser { tokens: tokens.iter().peekable() }
     }
+}
 
-    pub fn from_str(string: &'a str) -> Parser<'a> {
-        Self { chars: string.chars().peekable() }
-    }
-
-    fn skip_whitespace(&mut self) {
-        while let Some(c) = self.chars.peek() {
-            if c.is_whitespace() {
-                self.chars.next();
-            } else if *c == ';' {
-                // It's a comment - chuck everything out until we reach a newline
-                loop {
-                    match self.chars.next() {
-                        Some('\n') | None => break,
-                        _ => (),
-                    }
-                }
-            } else {
-                break
-            }
-        }
-    }
-
-    fn skip_same_line_whitespace(&mut self) {
-        while let Some(c) = self.chars.peek() {
-            if c.is_whitespace() && *c != '\n' {
-                self.chars.next();
-            } else if *c == ';' {
-                // It's a comment - chuck everything out until we reach a newline, but don't gobble
-                // it since we're trying to stay on the same line here
-                loop {
-                    match self.chars.peek() {
-                        Some('\n') | None => break,
-                        _ => { self.chars.next(); },
-                    }
-                }
-            } else {
-                break
-            }
-        }
-    }
-
-    fn parse_atom(&mut self) -> Result<String, ParseError> {
-        let mut buffer = String::new();
-        while let Some(c) = self.chars.peek() {
-            if c.is_alphanumeric() || *c == '_' || *c == '/' {
-                buffer.push(self.chars.next().unwrap())
-            } else {
-                break;
-            }
-        }
-    
-        if buffer.is_empty() {
-            let actually_found = self.describe_next();
-            return Err(ParseError::new(format!("expected atom, found: {actually_found}")))
-        }
-    
-        Ok(buffer)
-    }
-
-    fn describe_next(&mut self) -> String {
-        match self.chars.peek() {
-            Some(c) => c.to_string(),
-            None => "end of input".to_string(),
-        }
+impl<'a, T: Iterator<Item = &'a Token>> Parser<'a, T> {
+    pub fn new(tokens: Peekable<T>) -> Self {
+        Self { tokens }
     }
 
     pub fn parse(&mut self) -> Result<Vec<AssemblyItem>, Vec<ParseError>> {
         let mut items = vec![];
         let mut errors = vec![];
     
-        // Loop over characters until we run out
-        'top: while self.chars.peek().is_some() {
-            // Parse labels and mnemonic
-            self.skip_whitespace();
-
+        // Loop over tokens until we run out
+        'top: while self.tokens.peek().is_some() {
+            // Collect labels
             let mut labels = vec![];
-            let mnemonic;
             loop {
-                if self.chars.peek().is_none() {
-                    break 'top;
-                }
-
-                // Check if this is a directive
-                let mut is_directive = false;
-                if let Some('.') = self.chars.peek() {
-                    self.chars.next();
-                    is_directive = true;
-                }
-
-                let atom = match self.parse_atom() {
-                    Ok(a) => a,
-                    Err(e) => {
-                        errors.push(e);
-
-                        // Try to recover to a vaguely sensible state - skip until next whitespace
-                        while let Some(c) = self.chars.peek() {
-                            if c.is_whitespace() {
-                                break
-                            }
-                            self.chars.next();
-                        }
-                        continue 'top;
+                match self.tokens.peek() {
+                    Some(Token { kind: TokenKind::Label(l) }) => {
+                        labels.push(l.clone());
+                        self.tokens.next();
                     }
-                };
+                    Some(Token { kind: TokenKind::Newline }) => {
+                        self.tokens.next(); // Discard and ignore
+                    }
 
-                // Is this a label?
-                if let Some(':') = self.chars.peek() {
-                    labels.push(atom);
-                    self.chars.next();
-                    self.skip_whitespace();
-                    continue;
+                    Some(_) => break,
+                    None => break 'top,
                 }
+            }
 
-                // Is this a directive?
-                if is_directive {
-                    // Check against known ones
-                    match atom.as_ref() {
+            // After labels, we expect to find either:
+            //   - An atom, which we'll interpret as an instruction mnemonic
+            //   - A directive
+            let operation = self.tokens.next().unwrap();
+
+            // Parse operands
+            // (Both atoms and directives need these, so we might as well do it now!)
+            let operands = match self.parse_operands() {
+                Ok(o) => o,
+                Err(e) => {
+                    errors.extend(e);
+                    continue 'top;
+                }
+            };
+
+            // Create item based on operation
+            let item = match &operation.kind {
+                TokenKind::Atom(mnemonic) => {
+                    // Construct instruction
+                    let Some(opcode) = InstructionOpcode::from_mnemonic(&mnemonic) else {
+                        errors.push(ParseError::new(format!("no instruction: {mnemonic}"))); continue;
+                    };
+                    
+                    AssemblyItem {
+                        labels,
+                        kind: AssemblyItemKind::Instruction(opcode, operands)
+                    }
+                },
+                
+                TokenKind::Directive(directive) => {
+                    match directive.as_ref() {
                         "word" => {
-                            self.skip_same_line_whitespace();
-
-                            // Take an operand
-                            let operand = match self.parse_operand() {
-                                Ok(operand) => operand,
-                                Err(e) => { errors.push(e); continue },
-                            };
-
-                            // Operand for `word` must always be an immediate
-                            let AssemblyOperand::Immediate(imm) = operand else {
+                            if operands.len() != 1 {
+                                errors.push(ParseError::new(format!(".word takes 1 operand")));
+                                continue 'top;
+                            }
+                            let AssemblyOperand::Immediate(imm) = operands[0] else {
                                 errors.push(ParseError::new(".word operand must be immediate".to_string()));
                                 continue 'top;
                             };
-                            items.push(AssemblyItem {
+                            
+                            AssemblyItem {
                                 labels,
                                 kind: AssemblyItemKind::WordConstant(imm),
-                            });
-
-                            // This should be the end of the line
-                            self.skip_same_line_whitespace();
-
-                            if let Some(c) = self.chars.next() {
-                                if c != '\n' {
-                                    errors.push(ParseError::new(".word takes one operand".to_string()));
-                                }
                             }
-
-                            continue 'top;
                         },
-
+                        
                         "put" => {
-                            self.skip_same_line_whitespace();
-
-                            // Take two operands, separated with a comma
-                            let gpr = match self.parse_operand() {
-                                Ok(operand) => operand,
-                                Err(e) => { errors.push(e); continue },
-                            };
-                            self.skip_same_line_whitespace();
-                            let Some(',') = self.chars.next() else {
-                                errors.push(ParseError::new("expected ,".to_string()));
-                                continue;
-                            };
-                            self.skip_same_line_whitespace();
-                            let value = match self.parse_operand() {
-                                Ok(operand) => operand,
-                                Err(e) => { errors.push(e); continue },
-                            };
-                            
-                            // Interpret operands
-                            let AssemblyOperand::Register(AnyRegister::G(gpr)) = gpr else {
+                            if operands.len() != 2 {
+                                errors.push(ParseError::new(format!(".put takes 2 operands")));
+                                continue 'top;
+                            }
+                            let AssemblyOperand::Register(AnyRegister::G(gpr)) = operands[0] else {
                                 errors.push(ParseError::new(".put first operand must be a GPR".to_string()));
                                 continue 'top;
                             };
-                            let (AssemblyOperand::Immediate(_) | AssemblyOperand::Label { access: None, .. }) = value else {
+                            let (AssemblyOperand::Immediate(_) | AssemblyOperand::Label { access: None, .. }) = operands[1] else {
                                 errors.push(ParseError::new(".put second operand must be either: immediate, or label without access specifier".to_string()));
                                 continue 'top;
                             };
 
-                            // Create item
-                            items.push(AssemblyItem {
+                            AssemblyItem {
                                 labels,
-                                kind: AssemblyItemKind::WordPut(gpr, value),
-                            });
-
-                            // This should be the end of the line
-                            self.skip_same_line_whitespace();
-
-                            if let Some(c) = self.chars.next() {
-                                if c != '\n' {
-                                    errors.push(ParseError::new(".put takes two operands".to_string()));
-                                }
+                                kind: AssemblyItemKind::WordPut(gpr, operands[1].clone()),
                             }
-
-                            continue 'top;
                         },
 
                         _ => {
-                            errors.push(ParseError::new(format!("unknown directive: {atom}")))
+                            errors.push(ParseError::new(format!("unknown directive: {directive}")));
+                            continue 'top;
                         }
                     }
-                }
+                },
 
-                // If not, assume it's a mnemonic
-                mnemonic = atom;
-                break;
-            }
-
-            // Parse operands
-            let mut operands = vec![];
-            let mut is_first_operand = true;
-            loop {
-                self.skip_same_line_whitespace();
-                match self.chars.peek() {
-                    None | Some('\n') => break,
-                    Some(';') => {
-                        // It's a comment!
-                        self.skip_whitespace();
-                        break;
-                    }
-                    _ => (),
-                }
-
-                // Keep track of whether a comma is required
-                if !is_first_operand {
-                    if let Some(',') = self.chars.next() {
-                        self.chars.next();
-                        self.skip_same_line_whitespace();
-                    } else {
-                        errors.push(ParseError::new("expected comma separating operands".to_string()));
-                    }
-                } else {
-                    is_first_operand = false;
-                }
-
-                // Take and parse operand
-                match self.parse_operand() {
-                    Ok(operand) => operands.push(operand),
-                    Err(e) => errors.push(e),
-                }
-            }
-
-            // Construct instruction
-            let Some(opcode) = InstructionOpcode::from_mnemonic(&mnemonic) else {
-                errors.push(ParseError::new(format!("no instruction: {mnemonic}"))); continue;
+                t => {
+                    errors.push(ParseError::new(format!("unexpected {}", t.describe())));
+                    continue 'top;
+                },
             };
-            
-            items.push(AssemblyItem {
-                labels,
-                kind: AssemblyItemKind::Instruction(opcode, operands)
-            })
+
+            items.push(item);
         }
     
         if errors.is_empty() {
@@ -296,10 +157,47 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn parse_operands(&mut self) -> Result<Vec<AssemblyOperand>, Vec<ParseError>> {
+        let mut operands = vec![];
+        let mut errors = vec![];
+
+        let mut is_first_operand = true;
+        loop {
+            // Newline indicates end of operands
+            if let None | Some(Token { kind: TokenKind::Newline }) = self.tokens.peek() {
+                break;
+            }
+
+            // Keep track of whether a comma is required
+            if !is_first_operand {
+                if let Some(Token { kind: TokenKind::Comma }) = self.tokens.peek() {
+                    self.tokens.next();
+                } else {
+                    errors.push(ParseError::new("expected comma separating operands".to_string()));
+                }
+            } else {
+                is_first_operand = false;
+            }
+
+            // Take and parse operand
+            match self.parse_operand() {
+                Ok(operand) => operands.push(operand),
+                Err(e) => errors.push(e),
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(operands)
+        } else {
+            Err(errors)
+        }
+    }
+
     fn parse_operand(&mut self) -> Result<AssemblyOperand, ParseError> {
-        let operand_atom = match self.parse_atom() {
-            Ok(a) => a,
-            Err(e) => return Err(e),
+        let operand_atom = match self.tokens.next() {
+            Some(Token { kind: TokenKind::Atom(a) }) => a,
+            Some(t) => return Err(ParseError::new(format!("expected atom, got {}", t.describe()))),
+            None => return Err(ParseError::new("expected atom, got end-of-file".to_string())),
         };
         match AssemblyOperand::parse(&operand_atom) {
             Ok(o) => Ok(o),
@@ -309,10 +207,18 @@ impl<'a> Parser<'a> {
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
     use delta_null_core_instructions::{InstructionOpcode, AnyRegister, GPR, SPR};
 
-    use crate::{parser::Parser, AssemblyItem, AssemblyItemKind, AssemblyOperand, LabelAccess};
+    use crate::{parser::Parser, AssemblyItem, AssemblyItemKind, AssemblyOperand, LabelAccess, Tokenizer, ParseError};
+
+    pub fn parse_str(s: &str) -> Result<Vec<AssemblyItem>, Vec<ParseError>> {
+        let mut tokenizer = Tokenizer::from_str(&s);
+        let tokens = tokenizer.tokenize().unwrap();
+        
+        let mut parser = Parser::from_tokens(&tokens);
+        parser.parse()
+    }
 
     #[test]
     fn test_no_operands() {
@@ -324,7 +230,7 @@ mod test {
                     kind: AssemblyItemKind::Instruction(InstructionOpcode::Nop, vec![]),
                 },
             ]),
-            Parser::from_str("nop").parse()
+            parse_str("nop")
         );
 
         // Multiple instructions
@@ -343,12 +249,12 @@ mod test {
                     kind: AssemblyItemKind::Instruction(InstructionOpcode::Hlt, vec![]),
                 },
             ]),
-            Parser::from_str("
+            parse_str("
                 nop
                 nop
 
                 hlt
-            ").parse()
+            ")
         );
     }
 
@@ -363,7 +269,7 @@ mod test {
                     ]),
                 },
             ]),
-            Parser::from_str("eqz r5").parse()
+            parse_str("eqz r5")
         );
 
         assert_eq!(
@@ -376,7 +282,7 @@ mod test {
                     ]),
                 },
             ]),
-            Parser::from_str("putl r0, 0x12").parse()
+            parse_str("putl r0, 0x12")
         );
     }
 
@@ -421,7 +327,7 @@ mod test {
                     ]),
                 },
             ]),
-            Parser::from_str("
+            parse_str("
                 putl r1, 1
                 putl r2, loop/lo
                 puth r2, loop/hi
@@ -429,7 +335,7 @@ mod test {
                 loop:
                 add r0, r1
                 movsi ip, r2
-            ").parse()
+            ")
         );
     }
 
@@ -450,11 +356,11 @@ mod test {
                     kind: AssemblyItemKind::WordConstant(123),
                 },
             ]),
-            Parser::from_str("
+            parse_str("
                 .word 0xABCD
                 nop
                 a: b: .word 123
-            ").parse()
+            ")
         );
     }
 
@@ -471,13 +377,13 @@ mod test {
                     kind: AssemblyItemKind::Instruction(InstructionOpcode::Hlt, vec![]),
                 },
             ]),
-            Parser::from_str("
+            parse_str("
                 ; a comment!
                 nop ; this does nothing, you know
 
                 hlt ; and that's the end.
                 ; there's nothing more here!
-            ").parse()
+            ")
         );
     }
 
@@ -498,11 +404,11 @@ mod test {
                     kind: AssemblyItemKind::WordPut(GPR::R1, AssemblyOperand::Immediate(0x1234)),
                 },
             ]),
-            Parser::from_str("
+            parse_str("
                 .put r5, 0xABCD
                 nop 
                 .put r1, 0x1234 ; great number
-            ").parse()
+            ")
         );
     }
 }

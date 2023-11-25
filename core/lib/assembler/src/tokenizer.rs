@@ -4,12 +4,16 @@ use crate::ParseError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
-    kind: TokenKind,
+    pub kind: TokenKind,
 }
 
 impl Token {
     pub fn new(kind: TokenKind) -> Self {
         Self { kind }
+    }
+
+    pub fn describe(&self) -> String {
+        self.kind.describe()
     }
 }
 
@@ -22,6 +26,18 @@ pub enum TokenKind {
     Directive(String),
     Comma,
     Newline,
+}
+
+impl TokenKind {
+    pub fn describe(&self) -> String {
+        match self {
+            TokenKind::Atom(a) => format!("atom '{a}'"),
+            TokenKind::Label(l) => format!("label '{l}'"),
+            TokenKind::Directive(d) => format!("directive '{d}'"),
+            TokenKind::Comma => "comma".to_string(),
+            TokenKind::Newline => "newline".to_string(),
+        }
+    }
 }
 
 /// Converts lines of assembly into [Token]s.

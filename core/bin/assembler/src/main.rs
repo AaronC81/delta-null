@@ -5,7 +5,7 @@ use std::{process::exit, fs::OpenOptions, io::{stdout, Write}};
 
 use clap::{Parser as ClapParser, ValueEnum};
 use clap_stdin::FileOrStdin;
-use delta_null_core_assembler::{Parser, Builder};
+use delta_null_core_assembler::{Parser, Builder, Tokenizer};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 enum OutputFormat {
@@ -37,9 +37,22 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    // Parse code
+    // Tokenize code
     let code = args.input.to_string();
-    let mut parser = Parser::new(code.chars().peekable());
+    let mut tokenizer = Tokenizer::new(code.chars().peekable());
+    let tokens = match tokenizer.tokenize() {
+        Ok(tokens) => tokens,
+        Err(errors) => {
+            eprintln!("Tokenizer errors occurred.\n");
+            for error in errors {
+                eprintln!("{error}");
+            }
+            exit(1)
+        }
+    };
+
+    // Parse code
+    let mut parser = Parser::from_tokens(&tokens);
     let items = match parser.parse() {
         Ok(items) => items,
         Err(errors) => {

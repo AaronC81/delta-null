@@ -157,17 +157,17 @@ impl Display for BuildError {
 
 #[cfg(test)]
 mod test {
-    use crate::{Builder, Parser};
+    use crate::{Builder, test::parse_str};
 
     #[test]
     fn test_builder_basic() {
         assert_eq!(
             Ok(vec![0x0000, 0xFFFF]),
             Builder::build_once(
-                &Parser::from_str("
+                &parse_str("
                     nop
                     hlt
-                ").parse().unwrap(),
+                ").unwrap(),
                 0
             )
         )
@@ -178,12 +178,12 @@ mod test {
         assert_eq!(
             Ok(vec![0x1012, 0x1134, 0x4910, 0xFFFF]),
             Builder::build_once(
-                &Parser::from_str("
+                &parse_str("
                     putl r0, 0x12
                     putl r1, 0x34
                     add r0, r1
                     hlt
-                ").parse().unwrap(),
+                ").unwrap(),
                 0
             )
         )
@@ -194,10 +194,10 @@ mod test {
         assert_eq!(
             Ok(vec![0x1234, 0xFFFF]),
             Builder::build_once(
-                &Parser::from_str("
+                &parse_str("
                     .word 0x1234
                     .word 0xFFFF
-                ").parse().unwrap(),
+                ").unwrap(),
                 0
             )
         )
@@ -208,14 +208,14 @@ mod test {
         assert_eq!(
             Ok(vec![0x0000, 0x1005, 0x1840, 0x2001, 0xFFFF, 0x0000]),
             Builder::build_once(
-                &Parser::from_str("
+                &parse_str("
                     nop
                     putl r0, data/lo
                     puth r0, data/hi
                     read r1, r0
                     hlt
                     data: .word 0
-                ").parse().unwrap(),
+                ").unwrap(),
                 0x4000
             )
         )
@@ -226,14 +226,14 @@ mod test {
         assert_eq!(
             Ok(vec![0x0000, 0x6003, 0x0000, 0x0000, 0x0000, 0xFFFF]),
             Builder::build_once(
-                &Parser::from_str("
+                &parse_str("
                     nop
                     jmpoff dest/offset 
                     nop
                     nop
                     nop
                     dest: hlt
-                ").parse().unwrap(),
+                ").unwrap(),
                 0x4000
             )
         )
@@ -244,22 +244,22 @@ mod test {
         // Immediates
         assert_eq!(
             Builder::build_once(
-                &Parser::from_str("
+                &parse_str("
                     putl r1, 0x34
                     puth r1, 0x12
                     nop
                     putl r5, 0xCD
                     puth r5, 0xAB
-                ").parse().unwrap(),
+                ").unwrap(),
                 0x4000
             ),
 
             Builder::build_once(
-                &Parser::from_str("
+                &parse_str("
                     .put r1, 0x1234
                     nop
                     .put r5, 0xABCD
-                ").parse().unwrap(),
+                ").unwrap(),
                 0x4000
             )
         );
@@ -267,21 +267,21 @@ mod test {
         // Labels without access modifiers
         assert_eq!(
             Builder::build_once(
-                &Parser::from_str("
+                &parse_str("
                     putl r1, label/lo
                     puth r1, label/hi
                     nop
                     label: hlt
-                ").parse().unwrap(),
+                ").unwrap(),
                 0x4000
             ),
 
             Builder::build_once(
-                &Parser::from_str("
+                &parse_str("
                     .put r1, label
                     nop
                     label: hlt
-                ").parse().unwrap(),
+                ").unwrap(),
                 0x4000
             )
         );
