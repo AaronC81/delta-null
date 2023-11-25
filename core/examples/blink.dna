@@ -1,15 +1,12 @@
 ; set built-in LED to output
-putl r1, 0x10
-puth r1, 0xF0
-putl r2, 0x01
-puth r2, 0x00
+.put r1, 0xF010
+.put r2, 0x0001
 write r1, r2
 
 blink:
 
     ; busy-waits for 0xFFFF * 4 "soft cycles"
-    putl r2, 0xFF ; r2 = counter
-    puth r2, 0xFF
+    .put r2, 0xFFFF ; r2 = counter
     loop:
         dec r2
         eqz r2
@@ -17,8 +14,7 @@ blink:
         cjmpoff loop/offset
 
     ; toggle LED
-    putl r1, 0x12
-    puth r1, 0xF0
+    .put r1, 0xF012
     read r2, r1
     not r2
     write r1, r2
