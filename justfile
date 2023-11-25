@@ -10,8 +10,8 @@ test: build
     cd core/gateware && pytest
 
 alias a := assemble
-assemble FILE: build
-    cargo run --bin delta-null-core-assembler-bin {{join(invocation_directory(), FILE)}}
+assemble *ARGS: build
+    cd "{{invocation_directory()}}" && cargo run --bin delta-null-core-assembler-bin {{ARGS}}
 
 alias eb := emulator-backend
 emulator-backend: build
