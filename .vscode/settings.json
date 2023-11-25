@@ -1,0 +1,49 @@
+{
+  "highlight.regexes": {
+    "(;.+\\n)": {
+      "decorations": [
+        {
+          "color": "olivedrab"
+        }
+      ],
+      "filterFileRegex": ".*\\.dna",
+      "regexFlags": "g"
+    },
+    "(\\.put|\\.word)\\b": {
+      "decorations": [
+        {
+          "color": "plum"
+        }
+      ],
+      "filterFileRegex": ".*\\.dna",
+      "regexFlags": "g"
+    },
+    "\\b([A-Za-z0-9_]+:)": {
+      "decorations": [
+        {
+          "color": "bisque"
+        }
+      ],
+      "filterFileRegex": ".*\\.dna",
+      "regexFlags": "g"
+    },
+    "\\b(nop|hlt|mov|d_mov|putl|puth|read|write|spread|spwrite|d_read|d_write|movso|movsi|spadd|spinc|spdec|not|and|or|xor|shl|shr|neg|inc|dec|add|sub|mul|inv|eqz|eq|gt|gteq|jmpoff|cjmpoff|cjmp|call|ret)\\b": {
+      "decorations": [
+        {
+          "color": "cornflowerblue"
+        }
+      ],
+      "filterFileRegex": ".*\\.dna",
+      "regexFlags": "g"
+    },
+    "\\b(r0|r1|r2|r3|r4|r5|r6|r7|ip|rp|sp|ef)\\b": {
+      "decorations": [
+        {
+          "color": "lightskyblue"
+        }
+      ],
+      "filterFileRegex": ".*\\.dna",
+      "regexFlags": "g"
+    }
+  }
+}

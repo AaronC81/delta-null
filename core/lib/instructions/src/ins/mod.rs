@@ -5,7 +5,7 @@
 //! use the same categories as used in that document, to aid traceability.
 
 use crate::{GPR, SPR, DR, AnyRegister};
-use strum::{AsRefStr, EnumDiscriminants};
+use strum::{AsRefStr, EnumDiscriminants, EnumIter};
 use delta_null_core_macros::{InstructionOpcodeMnemonics, InstructionBuild};
 
 mod analysis;
@@ -20,6 +20,7 @@ pub use assembly::*;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, AsRefStr, EnumDiscriminants, InstructionBuild)]
 #[strum_discriminants(name(InstructionOpcode))]
 #[strum_discriminants(derive(AsRefStr, InstructionOpcodeMnemonics))]
+#[strum_discriminants(derive(EnumIter))]
 pub enum Instruction {
     // Core
     Nop,

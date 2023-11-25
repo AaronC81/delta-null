@@ -20,3 +20,6 @@ emulator-backend: build
 alias ef := emulator-frontend
 emulator-frontend: build
     cargo run --bin delta-null-core-emulator-frontend
+
+update-vscode-config: build
+    cargo run --bin delta-null-core-assembler-bin /dev/null --generate-highlight-config > .vscode/settings.json

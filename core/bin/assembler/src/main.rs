@@ -3,9 +3,12 @@
 
 use std::{process::exit, fs::OpenOptions, io::{stdout, Write}, error::Error};
 
-use clap::{Parser as ClapParser, ValueEnum};
+use clap::{Parser as ClapParser, ValueEnum, CommandFactory, error::ErrorKind};
 use clap_stdin::FileOrStdin;
 use delta_null_core_assembler::{Parser, Builder, Tokenizer};
+use delta_null_core_instructions::{InstructionOpcode, Instruction};
+use serde_json::{Value, json};
+use strum::IntoEnumIterator;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 enum OutputFormat {
@@ -32,10 +35,20 @@ struct Args {
     /// Start address to assemble from
     #[arg(short = 's', long, default_value = "0", value_parser = clap_num::maybe_hex::<u16>)]
     start_address: u16,
+
+    /// Instead of normal operation, print a JSON configuration snippet for syntax highlighting,
+    /// compatible with the `fabiospampinato.vscode-highlight` extension for Visual Studio Code
+    #[arg(long, default_value = "false")]
+    generate_highlight_config: bool,
 }
 
 fn main() {
     let args = Args::parse();
+
+    if args.generate_highlight_config {
+        println!("{}", serde_json::to_string_pretty(&generate_highlight_config()).unwrap());
+        exit(0);
+    }
 
     // Tokenize code
     let code = args.input.to_string();
@@ -94,4 +107,62 @@ fn unwrap_or_abort<T>(result: Result<T, Vec<impl Error>>, stage: &str) -> T {
             exit(1)
         }
     }
+}
+
+fn generate_highlight_config() -> Value {
+    // Collect instruction mnemonics into a regex
+    let mnemonics = InstructionOpcode::iter()
+        .map(|op| op.mnemonic().to_string())
+        .collect::<Vec<_>>()
+        .join("|");
+    let mnemonic_regex = format!("\\b({mnemonics})\\b");
+
+    json!({
+        "highlight.regexes": {
+            // Labels
+            "\\b([A-Za-z0-9_]+:)": {
+                "regexFlags": "g",
+                "filterFileRegex": ".*\\.dna",
+                "decorations": [
+                    { "color": "bisque" }
+                ]
+            },
+
+            // Directives
+            "(\\.put|\\.word)\\b": {
+                "regexFlags": "g",
+                "filterFileRegex": ".*\\.dna",
+                "decorations": [
+                    { "color": "plum" }
+                ]
+            },
+
+            // Comments
+            "(;.+\\n)": {
+                "regexFlags": "g",
+                "filterFileRegex": ".*\\.dna",
+                "decorations": [
+                    { "color": "olivedrab" }
+                ]
+            },
+            
+            // Registers
+            "\\b(r0|r1|r2|r3|r4|r5|r6|r7|ip|rp|sp|ef)\\b": {
+                "regexFlags": "g",
+                "filterFileRegex": ".*\\.dna",
+                "decorations": [
+                    { "color": "lightskyblue" }
+                ]
+            },
+
+            // Instruction mnemonics
+            mnemonic_regex: {
+                "regexFlags": "g",
+                "filterFileRegex": ".*\\.dna",
+                "decorations": [
+                    { "color": "cornflowerblue" }
+                ]
+            }
+        }
+    })
 }

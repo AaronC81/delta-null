@@ -311,6 +311,9 @@ dependencies = [
  "clap-num",
  "clap-stdin",
  "delta-null-core-assembler",
+ "delta-null-core-instructions",
+ "serde_json",
+ "strum",
 ]
 
 [[package]]

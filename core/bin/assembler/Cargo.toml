@@ -10,3 +10,6 @@ clap = { version = "4.4.8", features = ["derive"] }
 clap-num = "1.0.2"
 clap-stdin = "0.2.1"
 delta-null-core-assembler = { path = "../../lib/assembler" }
+delta-null-core-instructions = { path = "../../lib/instructions" }
+serde_json = "1.0.108"
+strum = { version = "0.25.0", features = ["derive"] }
