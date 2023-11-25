@@ -34,11 +34,8 @@ class TinyFPGABXMemoryMap(Elaboratable):
     # The total number of GPIO pins available through the HCR.
     HCR_GPIO_PIN_COUNT = 32
 
-    def __init__(self, init_ram, depth=None):
+    def __init__(self, init_ram, depth):
         self.init_ram = init_ram
-
-        if depth is None:
-            depth = TinyFPGABXMemoryMap.RAM_DEPTH
         self.depth = depth
 
         self.addr = Signal(Core.DATA_WIDTH)
@@ -138,15 +135,23 @@ class TinyFPGABXMemoryMap(Elaboratable):
 
 
 class TinyFPGABXTop(Elaboratable):
-    def __init__(self, instructions):
-        self.mem_init = [0 for _ in range(TinyFPGABXMemoryMap.RAM_DEPTH)]
+    def __init__(self, instructions, depth=None):
+        if depth is None:
+            depth = TinyFPGABXMemoryMap.RAM_DEPTH
+        self.depth = depth
+
+        self.mem_init = [0 for _ in range(depth)]
         for i, ins in enumerate(instructions):
             self.mem_init[i] = ins
 
     def elaborate(self, platform) -> Module:
         m = Module()
 
-        mem = TinyFPGABXMemoryMap(self.mem_init)
+        self.mem = mem = TinyFPGABXMemoryMap(self.mem_init, self.depth)
+
+        led = None
+        if platform is not None:
+            led = platform.request("led")
         self.core = Core(
             mem_addr=mem.addr,
             mem_read_data=mem.read_data,
@@ -156,6 +161,8 @@ class TinyFPGABXTop(Elaboratable):
 
             initial_sp=0x1E00,
             initial_ip=0x1000,
+
+            debug_led=led,
         )
 
         m.submodules.mem = mem
