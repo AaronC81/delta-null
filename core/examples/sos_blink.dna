@@ -1,5 +1,13 @@
-; r0 lowest bit is linked to LED in gateware
-xor r0, r0
+; set built-in LED to output
+putl r1, 0x10
+puth r1, 0xF0
+putl r2, 0x01
+puth r2, 0x00
+write r1, r2
+
+; r0 is always toggle
+putl r0, toggle/lo
+puth r0, toggle/hi
 
 main:
     putl r2, dot/lo
@@ -36,9 +44,9 @@ dot:
     putl r4, delay/lo
     puth r4, delay/hi
     
-    not r0
+    call r0
     call r4
-    not r0
+    call r0
     call r4
 
     movsi rp, r5
@@ -51,11 +59,11 @@ dash:
     putl r4, delay/lo
     puth r4, delay/hi
     
-    not r0
+    call r0
     call r4
     call r4
     call r4
-    not r0
+    call r0
     call r4
     call r4
     call r4
@@ -74,4 +82,15 @@ delay:
         eqz r6
         inv
         cjmpoff loop/offset
+    ret
+
+; toggles the LED
+; trashes r6 and r7
+toggle:
+    putl r6, 0x12
+    puth r6, 0xF0
+    read r7, r6
+    not r7
+    write r6, r7
+    
     ret

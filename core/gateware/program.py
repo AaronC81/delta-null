@@ -12,7 +12,7 @@ match sys.argv:
         print(f"Usage: {name} program/build")
         sys.exit(1)
 
-ASM_FILE = os.path.join(os.path.dirname(__file__), "..", "examples", "blink.dna")
+ASM_FILE = os.path.join(os.path.dirname(__file__), "..", "examples", "sos_blink.dna")
 
 # Assemble code from file
 with open(ASM_FILE) as f:
