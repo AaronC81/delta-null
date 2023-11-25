@@ -1,6 +1,6 @@
 use std::{iter::Peekable, str::Chars};
 
-use delta_null_core_instructions::InstructionOpcode;
+use delta_null_core_instructions::{InstructionOpcode, GPR, AnyRegister};
 
 use crate::{AssemblyOperand, ParseError};
 
@@ -15,6 +15,7 @@ pub struct AssemblyItem {
 pub enum AssemblyItemKind {
     Instruction(InstructionOpcode, Vec<AssemblyOperand>),
     WordConstant(u16),
+    WordPut(GPR, u16),
 }
 
 impl AssemblyItem {
@@ -146,14 +147,9 @@ impl<'a> Parser<'a> {
                             self.skip_same_line_whitespace();
 
                             // Take an operand
-                            // TODO: deduplicate
-                            let operand_atom = match self.parse_atom() {
-                                Ok(a) => a,
-                                Err(e) => { errors.push(e); continue; }
-                            };
-                            let operand = match AssemblyOperand::parse(&operand_atom) {
-                                Ok(o) => o,
-                                Err(e) => { errors.push(e); continue; }
+                            let operand = match self.parse_operand() {
+                                Ok(operand) => operand,
+                                Err(e) => { errors.push(e); continue },
                             };
 
                             // Operand for `word` must always be an immediate
@@ -172,6 +168,53 @@ impl<'a> Parser<'a> {
                             if let Some(c) = self.chars.next() {
                                 if c != '\n' {
                                     errors.push(ParseError::new(".word takes one operand".to_string()));
+                                }
+                            }
+
+                            continue 'top;
+                        },
+
+                        "put" => {
+                            self.skip_same_line_whitespace();
+
+                            // Take two operands, separated with a comma
+                            let gpr = match self.parse_operand() {
+                                Ok(operand) => operand,
+                                Err(e) => { errors.push(e); continue },
+                            };
+                            self.skip_same_line_whitespace();
+                            let Some(',') = self.chars.next() else {
+                                errors.push(ParseError::new("expected ,".to_string()));
+                                continue;
+                            };
+                            self.skip_same_line_whitespace();
+                            let value = match self.parse_operand() {
+                                Ok(operand) => operand,
+                                Err(e) => { errors.push(e); continue },
+                            };
+                            
+                            // Interpret operands
+                            let AssemblyOperand::Register(AnyRegister::G(gpr)) = gpr else {
+                                errors.push(ParseError::new(".put first operand must be a GPR".to_string()));
+                                continue 'top;
+                            };
+                            let AssemblyOperand::Immediate(value) = value else {
+                                errors.push(ParseError::new(".put second operand must be immediate".to_string()));
+                                continue 'top;
+                            };
+
+                            // Create item
+                            items.push(AssemblyItem {
+                                labels,
+                                kind: AssemblyItemKind::WordPut(gpr, value),
+                            });
+
+                            // This should be the end of the line
+                            self.skip_same_line_whitespace();
+
+                            if let Some(c) = self.chars.next() {
+                                if c != '\n' {
+                                    errors.push(ParseError::new(".put takes two operands".to_string()));
                                 }
                             }
 
@@ -217,15 +260,10 @@ impl<'a> Parser<'a> {
                 }
 
                 // Take and parse operand
-                let operand_atom = match self.parse_atom() {
-                    Ok(a) => a,
-                    Err(e) => { errors.push(e); continue; }
-                };
-                let operand = match AssemblyOperand::parse(&operand_atom) {
-                    Ok(o) => o,
-                    Err(e) => { errors.push(e); continue; }
-                };
-                operands.push(operand);
+                match self.parse_operand() {
+                    Ok(operand) => operands.push(operand),
+                    Err(e) => errors.push(e),
+                }
             }
 
             // Construct instruction
@@ -243,6 +281,17 @@ impl<'a> Parser<'a> {
             Ok(items)
         } else {
             Err(errors)
+        }
+    }
+
+    fn parse_operand(&mut self) -> Result<AssemblyOperand, ParseError> {
+        let operand_atom = match self.parse_atom() {
+            Ok(a) => a,
+            Err(e) => return Err(e),
+        };
+        match AssemblyOperand::parse(&operand_atom) {
+            Ok(o) => Ok(o),
+            Err(e) => Err(e),
         }
     }
 }
@@ -416,6 +465,31 @@ mod test {
 
                 hlt ; and that's the end.
                 ; there's nothing more here!
+            ").parse()
+        );
+    }
+
+    #[test]
+    fn test_put_directive() {
+        assert_eq!(
+            Ok(vec![
+                AssemblyItem {
+                    labels: vec![],
+                    kind: AssemblyItemKind::WordPut(GPR::R5, 0xABCD),
+                },
+                AssemblyItem {
+                    labels: vec![],
+                    kind: AssemblyItemKind::Instruction(InstructionOpcode::Nop, vec![]),
+                },
+                AssemblyItem {
+                    labels: vec![],
+                    kind: AssemblyItemKind::WordPut(GPR::R1, 0x1234),
+                },
+            ]),
+            Parser::from_str("
+                .put r5, 0xABCD
+                nop 
+                .put r1, 0x1234
             ").parse()
         );
     }

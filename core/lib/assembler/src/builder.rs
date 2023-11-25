@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Display};
 
-use delta_null_core_instructions::{AnyOperand, Encodable, InstructionOpcode};
+use delta_null_core_instructions::{AnyOperand, Encodable, InstructionOpcode, Instruction};
 
 use crate::{AssemblyItem, AssemblyItemKind, AssemblyOperand, LabelAccess};
 
@@ -91,7 +91,19 @@ impl Builder {
                         }
                     }
                 },
+
                 AssemblyItemKind::WordConstant(word) => word_stream.push(*word),
+
+                AssemblyItemKind::WordPut(gpr, value) => {
+                    // Implement as `putl` followed by `puth`
+                    let instrs = [
+                        Instruction::Putl { reg: *gpr, imm: (value & 0xFF) as u8 },
+                        Instruction::Puth { reg: *gpr, imm: (value >> 8) as u8 },
+                    ];
+                    for instr in instrs {
+                        word_stream.push(instr.encode());
+                    }
+                },
             }
             current_address += item.word_size();
         }
@@ -201,6 +213,31 @@ mod test {
                     nop
                     nop
                     dest: hlt
+                ").parse().unwrap(),
+                0x4000
+            )
+        )
+    }
+
+    #[test]
+    fn test_builder_put_directive() {
+        assert_eq!(
+            Builder::build_once(
+                &Parser::from_str("
+                    putl r1, 0x34
+                    puth r1, 0x12
+                    nop
+                    putl r5, 0xCD
+                    puth r5, 0xAB
+                ").parse().unwrap(),
+                0x4000
+            ),
+
+            Builder::build_once(
+                &Parser::from_str("
+                    .put r1, 0x1234
+                    nop
+                    .put r5, 0xABCD
                 ").parse().unwrap(),
                 0x4000
             )
