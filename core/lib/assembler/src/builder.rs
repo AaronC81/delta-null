@@ -63,9 +63,9 @@ impl Builder {
                                     };
 
                                 let imm = match access {
-                                    LabelAccess::High => ((address & 0xFF00) >> 8) as u8,
-                                    LabelAccess::Low => (address & 0x00FF) as u8,
-                                    LabelAccess::Offset => {
+                                    Some(LabelAccess::High) => ((address & 0xFF00) >> 8) as u8,
+                                    Some(LabelAccess::Low) => (address & 0x00FF) as u8,
+                                    Some(LabelAccess::Offset) => {
                                         // IP is one ahead of the instruction address
                                         let current_ip = current_address + 1;
                                         let big_offset = address as i32 - current_ip as i32;
@@ -76,6 +76,11 @@ impl Builder {
                                             errors.push(BuildError::OffsetOutOfRange { from: current_ip, to: address });
                                             continue 'item;
                                         }
+                                    }
+
+                                    None => {
+                                        errors.push(BuildError::MissingAccess(name.clone()));
+                                        continue 'item;
                                     }
                                 };
                                 AnyOperand::I(imm)
@@ -95,6 +100,19 @@ impl Builder {
                 AssemblyItemKind::WordConstant(word) => word_stream.push(*word),
 
                 AssemblyItemKind::WordPut(gpr, value) => {
+                    let value = match value {
+                        AssemblyOperand::Immediate(x) => *x,
+                        AssemblyOperand::Label { name, access: None } =>
+                            match self.label_addresses.get(name) {
+                                Some(a) => *a,
+                                None => {
+                                    errors.push(BuildError::UndefinedLabel(name.clone()));
+                                    continue 'item;
+                                }
+                            },
+                        _ => unreachable!()
+                    };
+                    
                     // Implement as `putl` followed by `puth`
                     let instrs = [
                         Instruction::Putl { reg: *gpr, imm: (value & 0xFF) as u8 },
@@ -122,6 +140,7 @@ pub enum BuildError {
     ImmediateOutOfRange(u16),
     OffsetOutOfRange { from: u16, to: u16 },
     UndefinedLabel(String),
+    MissingAccess(String),
 }
 
 impl Display for BuildError {
@@ -131,6 +150,7 @@ impl Display for BuildError {
             BuildError::ImmediateOutOfRange(imm) => write!(f, "immediate {imm} is out-of-range"),
             BuildError::OffsetOutOfRange { from, to } => write!(f, "offset operand cannot reach from {from} to {to}"),
             BuildError::UndefinedLabel(label) => write!(f, "undefined label {label}"),
+            BuildError::MissingAccess(label) => write!(f, "missing access specifier for operand usage of {label}"),
         }
     }
 }
@@ -221,6 +241,7 @@ mod test {
 
     #[test]
     fn test_builder_put_directive() {
+        // Immediates
         assert_eq!(
             Builder::build_once(
                 &Parser::from_str("
@@ -241,6 +262,28 @@ mod test {
                 ").parse().unwrap(),
                 0x4000
             )
-        )
+        );
+
+        // Labels without access modifiers
+        assert_eq!(
+            Builder::build_once(
+                &Parser::from_str("
+                    putl r1, label/lo
+                    puth r1, label/hi
+                    nop
+                    label: hlt
+                ").parse().unwrap(),
+                0x4000
+            ),
+
+            Builder::build_once(
+                &Parser::from_str("
+                    .put r1, label
+                    nop
+                    label: hlt
+                ").parse().unwrap(),
+                0x4000
+            )
+        );
     }
 }

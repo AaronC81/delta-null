@@ -15,13 +15,16 @@ pub struct AssemblyItem {
 pub enum AssemblyItemKind {
     Instruction(InstructionOpcode, Vec<AssemblyOperand>),
     WordConstant(u16),
-    WordPut(GPR, u16),
+    WordPut(GPR, AssemblyOperand),
 }
 
 impl AssemblyItem {
     /// The size of the item, in words (not bytes).
     pub fn word_size(&self) -> u16 {
-        1
+        match self.kind {
+            AssemblyItemKind::WordPut(_, _) => 2,
+            _ => 1,
+        }
     }
 }
 
@@ -207,8 +210,8 @@ impl<'a> Parser<'a> {
                                 errors.push(ParseError::new(".put first operand must be a GPR".to_string()));
                                 continue 'top;
                             };
-                            let AssemblyOperand::Immediate(value) = value else {
-                                errors.push(ParseError::new(".put second operand must be immediate".to_string()));
+                            let (AssemblyOperand::Immediate(_) | AssemblyOperand::Label { access: None, .. }) = value else {
+                                errors.push(ParseError::new(".put second operand must be either: immediate, or label without access specifier".to_string()));
                                 continue 'top;
                             };
 
@@ -392,14 +395,14 @@ mod test {
                     labels: vec![],
                     kind: AssemblyItemKind::Instruction(InstructionOpcode::Putl, vec![
                         AssemblyOperand::Register(AnyRegister::G(GPR::R2)),
-                        AssemblyOperand::Label { name: "loop".to_string(), access: LabelAccess::Low },
+                        AssemblyOperand::Label { name: "loop".to_string(), access: Some(LabelAccess::Low) },
                     ]),
                 },
                 AssemblyItem {
                     labels: vec![],
                     kind: AssemblyItemKind::Instruction(InstructionOpcode::Puth, vec![
                         AssemblyOperand::Register(AnyRegister::G(GPR::R2)),
-                        AssemblyOperand::Label { name: "loop".to_string(), access: LabelAccess::High },
+                        AssemblyOperand::Label { name: "loop".to_string(), access: Some(LabelAccess::High) },
                     ]),
                 },
 
@@ -484,7 +487,7 @@ mod test {
             Ok(vec![
                 AssemblyItem {
                     labels: vec![],
-                    kind: AssemblyItemKind::WordPut(GPR::R5, 0xABCD),
+                    kind: AssemblyItemKind::WordPut(GPR::R5, AssemblyOperand::Immediate(0xABCD)),
                 },
                 AssemblyItem {
                     labels: vec![],
@@ -492,7 +495,7 @@ mod test {
                 },
                 AssemblyItem {
                     labels: vec![],
-                    kind: AssemblyItemKind::WordPut(GPR::R1, 0x1234),
+                    kind: AssemblyItemKind::WordPut(GPR::R1, AssemblyOperand::Immediate(0x1234)),
                 },
             ]),
             Parser::from_str("

@@ -25,7 +25,7 @@ pub enum AssemblyOperand {
     Immediate(u16),
     Label {
         name: String,
-        access: LabelAccess,
+        access: Option<LabelAccess>,
     }
 }
 
@@ -80,19 +80,21 @@ impl AssemblyOperand {
 
                 // Label usages must follow the format:
                 //   - Name: numbers, letters, or underscores
-                //   - Forward slash
-                //   - Access: one of [hi]gh, [lo]w, [[off]s]et
-                let Some((name, access)) = op.split_once('/') else {
-                    return Err(ParseError::new(format!("use of label has no access specifier")))
-                };
+                //   - Optional:
+                //     - Forward slash
+                //     - Access: one of [hi]gh, [lo]w, [[off]s]et
+                let (name, access) = op.split_once('/')
+                    .map(|(n, a)| (n, Some(a)))
+                    .unwrap_or_else(|| (op, None));
                 if let Some(invalid) = name.chars().find(|c| !(c.is_alphanumeric() || *c == '_')) {
                     return Err(ParseError::new(format!("label name contains invalid character: {invalid}")))
                 }
                 let access = match access {
-                    "hi" | "high" => LabelAccess::High,
-                    "lo" | "low" => LabelAccess::Low,
-                    "off" | "offs" | "offset" => LabelAccess::Offset,
-                    _ => return Err(ParseError::new(format!("invalid access specifier: {access}"))),
+                    Some("hi" | "high") => Some(LabelAccess::High),
+                    Some("lo" | "low") => Some(LabelAccess::Low),
+                    Some("off" | "offs" | "offset") => Some(LabelAccess::Offset),
+                    Some(access) => return Err(ParseError::new(format!("invalid access specifier: {access}"))),
+                    None => None,
                 };
 
                 Ok(Self::Label { name: name.to_string(), access })
@@ -160,19 +162,22 @@ mod test {
     #[test]
     fn test_label_parse() {
         assert_eq!(
-            Ok(AssemblyOperand::Label { name: "abc".to_string(), access: LabelAccess::High }),
+            Ok(AssemblyOperand::Label { name: "abc".to_string(), access: Some(LabelAccess::High) }),
             AssemblyOperand::parse("abc/hi"),
         );
         assert_eq!(
-            Ok(AssemblyOperand::Label { name: "my_name".to_string(), access: LabelAccess::Low }),
+            Ok(AssemblyOperand::Label { name: "my_name".to_string(), access: Some(LabelAccess::Low) }),
             AssemblyOperand::parse("my_name/low"),
         );
         assert_eq!(
-            Ok(AssemblyOperand::Label { name: "foo123".to_string(), access: LabelAccess::Offset }),
+            Ok(AssemblyOperand::Label { name: "foo123".to_string(), access: Some(LabelAccess::Offset) }),
             AssemblyOperand::parse("foo123/offset"),
         );
+        assert_eq!(
+            Ok(AssemblyOperand::Label { name: "foo".to_string(), access: None }),
+            AssemblyOperand::parse("foo"),
+        );
 
-        assert!(AssemblyOperand::parse("missing_access").is_err());
         assert!(AssemblyOperand::parse("invalid_access/woah").is_err());
         assert!(AssemblyOperand::parse("has spaces/offset").is_err());
     }
