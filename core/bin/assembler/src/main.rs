@@ -30,7 +30,7 @@ struct Args {
     output_file: Option<String>,
 
     /// Start address to assemble from
-    #[arg(short = 's', long, default_value = "0")]
+    #[arg(short = 's', long, default_value = "0", value_parser = clap_num::maybe_hex::<u16>)]
     start_address: u16,
 }
 

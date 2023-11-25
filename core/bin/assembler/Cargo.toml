@@ -7,5 +7,6 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.4.8", features = ["derive"] }
+clap-num = "1.0.2"
 clap-stdin = "0.2.1"
 delta-null-core-assembler = { path = "../../lib/assembler" }
