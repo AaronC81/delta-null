@@ -1,6 +1,10 @@
-from ..src.modules.harness import CoreSimHarness
+# Required for import of `src.modules.harness` from `program.py`
+import sys
+sys.path.append("..")
+
+from src.modules.harness import CoreSimHarness
 from amaranth.sim import Simulator
-from typing import List, Union, Callable
+from typing import List, Optional, Union, Callable
 import subprocess, os
     
 
@@ -36,14 +40,18 @@ ASSEMBLER_PATH = os.path.abspath(os.path.join(
     os.path.dirname(__file__), "..", "..", "..", "target", "debug", "delta-null-core-assembler-bin"
 ))
 
-def assemble(code: str) -> List[int]:
+def assemble(code: str, start_address: Optional[int] = None) -> List[int]:
     """Assembles code into a list of words."""
 
     if not os.path.exists(ASSEMBLER_PATH):
         raise RuntimeError(f"assembler does not exist, have you run `cargo build`? (at {ASSEMBLER_PATH})")
 
+    args = [ASSEMBLER_PATH, "-", "--output-format", "ascii-hex"]
+    if start_address is not None:
+        args.extend(["--start-address", str(start_address)])
+
     process = subprocess.run(
-        [ASSEMBLER_PATH, "-", "--output-format", "ascii-hex"],
+        args,
         input=code.encode(),
         capture_output=True,
         check=True,

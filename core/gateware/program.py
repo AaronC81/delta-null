@@ -1,5 +1,6 @@
-from src.platform.tinyfpga_bx import TinyFPGABXSerialProgPlatform, TinyFPGABXTop
-import sys
+from src.platform.tinyfpga_bx import TinyFPGABXSerialProgPlatform, TinyFPGABXTop, TinyFPGABXMemoryMap
+import sys, os
+from tests.helpers import assemble
 
 match sys.argv:
     case [_, "program"]:
@@ -11,8 +12,12 @@ match sys.argv:
         print(f"Usage: {name} program/build")
         sys.exit(1)
 
-INSTRUCTIONS = [int(x, 16) for x in """
-4300 1217 1A10 1320 1B10 6212 6212 6212 6213 6213 6213 6212 6212 6212 142D 1C10 6214 6214 6214 6214 6214 6214 60EA 2195 142D 1C10 4000 6214 4000 6214 21D5 6218 2195 142D 1C10 4000 6214 6214 6214 4000 6214 6214 6214 21D5 6218 16FF 1EFF 4826 5016 5000 61FC 6218
-""".split()]
+ASM_FILE = os.path.join(os.path.dirname(__file__), "..", "examples", "blink.dna")
 
-TinyFPGABXSerialProgPlatform().build(TinyFPGABXTop(instructions=INSTRUCTIONS), do_program=program)
+# Assemble code from file
+with open(ASM_FILE) as f:
+    code = f.read()
+instructions = assemble(code, start_address=TinyFPGABXMemoryMap.RAM_START)
+
+# Build/program
+TinyFPGABXSerialProgPlatform().build(TinyFPGABXTop(instructions=instructions), do_program=program)
