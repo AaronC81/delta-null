@@ -1,9 +1,9 @@
-; r0 lowest bit is linked to LED in gateware
-xor r0, r0
-
-; r1 = constant 1
-putl r1, 1
-puth r1, 0
+; set built-in LED to output
+putl r1, 0x10
+puth r1, 0xF0
+putl r2, 0x01
+puth r2, 0x00
+write r1, r2
 
 blink:
 
@@ -11,13 +11,17 @@ blink:
     putl r2, 0xFF ; r2 = counter
     puth r2, 0xFF
     loop:
-        sub r2, r1
+        dec r2
         eqz r2
         inv
         cjmpoff loop/offset
 
     ; toggle LED
-    not r0
+    putl r1, 0x12
+    puth r1, 0xF0
+    read r2, r1
+    not r2
+    write r1, r2
 
     ; repeat
     jmpoff blink/offset
