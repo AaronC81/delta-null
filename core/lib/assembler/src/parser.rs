@@ -61,6 +61,15 @@ impl<'a> Parser<'a> {
         while let Some(c) = self.chars.peek() {
             if c.is_whitespace() && *c != '\n' {
                 self.chars.next();
+            } else if *c == ';' {
+                // It's a comment - chuck everything out until we reach a newline, but don't gobble
+                // it since we're trying to stay on the same line here
+                loop {
+                    match self.chars.peek() {
+                        Some('\n') | None => break,
+                        _ => { self.chars.next(); },
+                    }
+                }
             } else {
                 break
             }
@@ -489,7 +498,7 @@ mod test {
             Parser::from_str("
                 .put r5, 0xABCD
                 nop 
-                .put r1, 0x1234
+                .put r1, 0x1234 ; great number
             ").parse()
         );
     }
