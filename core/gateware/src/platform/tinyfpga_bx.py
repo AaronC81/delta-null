@@ -87,38 +87,44 @@ class TinyFPGABXMemoryMap(Elaboratable):
         with m.If(self.addr.matches("1111 ---- ---- ----")):
             # Handled by HCR (0xF---)
             hcr_rel_addr = self.addr - TinyFPGABXMemoryMap.HCR_START
-            with m.If(self.read_en):
-                # === Metadata ===
-                with m.If(hcr_rel_addr == 0x0): # Magic number
-                    m.d.comb += self.read_data.eq(0xF90A)
-                with m.Elif(hcr_rel_addr == 0x1): # Harness indicator
-                    m.d.comb += self.read_data.eq(0)
 
-                # === GPIO ===
-                with m.Elif(hcr_rel_addr == 0x10): # Mode configuration (low)
-                    m.d.comb += self.read_data.eq(self.hcr_gpio_oe[0:16])
-                with m.Elif(hcr_rel_addr == 0x11): # Mode configuration (high)
-                    m.d.comb += self.read_data.eq(self.hcr_gpio_oe[16:32])
-                with m.Elif(hcr_rel_addr == 0x12): # Output (low)
-                    m.d.comb += self.read_data.eq(self.hcr_gpio_o[0:16])
-                with m.Elif(hcr_rel_addr == 0x13): # Output (high)
-                    m.d.comb += self.read_data.eq(self.hcr_gpio_o[16:32])
-                # TODO: input
+            # Check write first, that takes "priority"
+            # (Also, read_en is fixed high on some platforms)
+            with m.If(self.write_en):
+                with m.Switch(hcr_rel_addr):
+                    # === GPIO ===
+                    with m.Case(0x10): # Mode configuration (low)
+                        m.d.sync += self.hcr_gpio_oe[0:16].eq(self.write_data)
+                    with m.Case(0x11): # Mode configuration (high)
+                        m.d.sync += self.hcr_gpio_oe[16:32].eq(self.write_data)
+                    with m.Case(0x12): # Output (low)
+                        m.d.sync += self.hcr_gpio_o[0:16].eq(self.write_data)
+                    with m.Case(0x13): # Output (high)
+                        m.d.sync += self.hcr_gpio_o[16:32].eq(self.write_data)
+                    # TODO: input
 
-                # Something we don't know!
-                with m.Else():
-                    m.d.comb += self.read_data.eq(0x0BAD)
-            with m.Elif(self.write_en):
-                # === GPIO ===
-                with m.If(hcr_rel_addr == 0x10): # Mode configuration (low)
-                    m.d.sync += self.hcr_gpio_oe[0:16].eq(self.write_data)
-                with m.Elif(hcr_rel_addr == 0x11): # Mode configuration (high)
-                    m.d.sync += self.hcr_gpio_oe[16:32].eq(self.write_data)
-                with m.Elif(hcr_rel_addr == 0x12): # Output (low)
-                    m.d.sync += self.hcr_gpio_o[0:16].eq(self.write_data)
-                with m.Elif(hcr_rel_addr == 0x13): # Output (high)
-                    m.d.sync += self.hcr_gpio_o[16:32].eq(self.write_data)
-                # TODO: input
+            with m.Elif(self.read_en):
+                with m.Switch(hcr_rel_addr):
+                    # === Metadata ===
+                    with m.Case(0x0): # Magic number
+                        m.d.comb += self.read_data.eq(0xF90A)
+                    with m.Case(0x1): # Harness indicator
+                        m.d.comb += self.read_data.eq(0)
+
+                    # === GPIO ===
+                    with m.Case(0x10): # Mode configuration (low)
+                        m.d.comb += self.read_data.eq(self.hcr_gpio_oe[0:16])
+                    with m.Case(0x11): # Mode configuration (high)
+                        m.d.comb += self.read_data.eq(self.hcr_gpio_oe[16:32])
+                    with m.Case(0x12): # Output (low)
+                        m.d.comb += self.read_data.eq(self.hcr_gpio_o[0:16])
+                    with m.Case(0x13): # Output (high)
+                        m.d.comb += self.read_data.eq(self.hcr_gpio_o[16:32])
+                    # TODO: input
+
+                    # Something we don't know!
+                    with m.Default():
+                        m.d.comb += self.read_data.eq(0x0BAD)
         
         with m.Else():
             # Forward to RAM
