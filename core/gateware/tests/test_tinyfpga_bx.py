@@ -1,5 +1,5 @@
 from amaranth.sim import Simulator, Settle
-from ..src.platform.tinyfpga_bx import TinyFPGABXMemoryMap
+from ..src.platform.tinyfpga_bx import TinyFPGABXMemoryMap, TinyFPGABXTop
 
 def test_ram():
     """Tests reading and writing with RAM."""
@@ -89,3 +89,25 @@ def test_hcr_output():
 
     sim.add_sync_process(proc)
     sim.run()
+
+def test_core_controlled_hcr():
+    top = TinyFPGABXTop(
+        instructions=[
+            0x1110, 0x19F0, 0x1201, 0x1A00, 0x2092, 0x1112, 0x19F0, 0x2092, 0xFFFF
+        ],
+        depth=0x100,
+    )
+    sim = Simulator(top)
+    sim.add_clock(1e-6) # 1 MHz
+
+    def proc():
+        # Run to end
+        while (yield top.core.ef[0]) == 0:
+            yield
+
+        assert (yield top.mem.hcr_gpio_oe) == 0x1
+        assert (yield top.mem.hcr_gpio_o) == 0x1
+
+    sim.add_sync_process(proc)
+    with sim.write_vcd("out.vcd"):
+        sim.run()
