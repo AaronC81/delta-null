@@ -1,11 +1,11 @@
 # Required for import of `src.modules.harness` from `program.py`
-import sys
-sys.path.append("..")
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.modules.harness import CoreSimHarness
 from amaranth.sim import Simulator
 from typing import List, Optional, Union, Callable
-import subprocess, os
+import subprocess
     
 
 def run_sim(instructions: Union[List[int], str], after: Callable[[CoreSimHarness], None]):
