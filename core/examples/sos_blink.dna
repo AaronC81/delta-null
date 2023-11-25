@@ -1,20 +1,14 @@
 ; set built-in LED to output
-putl r1, 0x10
-puth r1, 0xF0
-putl r2, 0x01
-puth r2, 0x00
+.put r1, 0xF010
+.put r2, 0x0001
 write r1, r2
 
 ; r0 is always toggle
-putl r0, toggle/lo
-puth r0, toggle/hi
+.put r0, toggle
 
 main:
-    putl r2, dot/lo
-    puth r2, dot/hi
-
-    putl r3, dash/lo
-    puth r3, dash/hi
+    .put r2, dot
+    .put r3, dash
 
     call r2
     call r2
@@ -26,8 +20,7 @@ main:
     call r2
     call r2
 
-    putl r4, delay/lo
-    puth r4, delay/hi
+    .put r4, delay
     call r4
     call r4
     call r4
@@ -41,8 +34,7 @@ main:
 ; trashes r4, r5, r6, r7
 dot:
     movso r5, rp
-    putl r4, delay/lo
-    puth r4, delay/hi
+    .put r4, delay
     
     call r0
     call r4
@@ -56,8 +48,7 @@ dot:
 ; trashes r4, r5, r6, r7
 dash:
     movso r5, rp
-    putl r4, delay/lo
-    puth r4, delay/hi
+    .put r4, delay
     
     call r0
     call r4
@@ -75,8 +66,7 @@ dash:
 ; trashes r6 and r7
 delay:
     ; busy-waits for 0xFFFF cycles
-    putl r6, 0xFF ; r6 = counter
-    puth r6, 0xFF
+    .put r6, 0xFFFF ; r6 = counter
     loop:
         dec r6
         eqz r6
@@ -87,8 +77,7 @@ delay:
 ; toggles the LED
 ; trashes r6 and r7
 toggle:
-    putl r6, 0x12
-    puth r6, 0xF0
+    .put r6, 0xF012
     read r7, r6
     not r7
     write r6, r7
