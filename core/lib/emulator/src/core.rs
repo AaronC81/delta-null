@@ -76,6 +76,14 @@ impl<M: Memory> Core<M> {
                 => self.memory.write(self.sp.overflowing_add(offset as u16).0, self.read_gpr(val))?,
             DRead { .. } => todo!(),
             DWrite { .. } => todo!(),
+            Push { val } => {
+                self.write_spr(SPR::SP, self.read_spr(SPR::SP).overflowing_sub(1).0);
+                self.memory.write(self.sp, self.read_gpr(val))?
+            },
+            Pop { val } => {
+                self.write_gpr(val, self.memory.read(self.sp)?);
+                self.write_spr(SPR::SP, self.read_spr(SPR::SP).overflowing_add(1).0);
+            },
 
             // Special-Purpose Registers
             Movso { dest, src }
