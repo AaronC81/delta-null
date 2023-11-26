@@ -3,10 +3,10 @@
 
 use std::{process::exit, fs::OpenOptions, io::{stdout, Write}, error::Error};
 
-use clap::{Parser as ClapParser, ValueEnum, CommandFactory, error::ErrorKind};
+use clap::{Parser as ClapParser, ValueEnum};
 use clap_stdin::FileOrStdin;
 use delta_null_core_assembler::{Parser, Builder, Tokenizer};
-use delta_null_core_instructions::{InstructionOpcode, Instruction};
+use delta_null_core_instructions::InstructionOpcode;
 use serde_json::{Value, json};
 use strum::IntoEnumIterator;
 
