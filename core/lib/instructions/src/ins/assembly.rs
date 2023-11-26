@@ -41,6 +41,8 @@ fn operands_for_assembly(ins: &Instruction) -> Vec<&dyn ToAssembly> {
         Spwrite { offset, val }  => vec![offset, val],
         DRead { addr, val }  => vec![addr, val],
         DWrite { addr, val }  => vec![addr, val],
+        Push { val } => vec![val],
+        Pop { val } => vec![val],
 
         // Special-Purpose Registers
         Movso { dest, src } => vec![dest, src],

@@ -34,6 +34,10 @@ impl Encodable for Instruction {
                 => 0b_0010_0000_0000_1000 | addr.encode() << 4 | val.encode(),
             DWrite { addr, val }
                 => 0b_0010_0000_1000_1000 | addr.encode() << 4 | val.encode(),
+            Push { val }
+                => 0b_0010_0011_1101_0000 | val.encode(),
+            Pop { val }
+                => 0b_0010_0011_1101_1000 | val.encode(),
 
             // Special-Purpose Registers
             Movso { dest, src }
@@ -123,6 +127,8 @@ impl Encodable for Instruction {
                 "0011_0000_1rrr_iiii" => Spwrite { offset: i as u8, val: GPR::decode(r)? },
                 "0010_0000_0aaa_10dd" => DRead { addr: GPR::decode(a)?, val: DR::decode(d)? },
                 "0010_0000_1aaa_10dd" => DWrite { addr: GPR::decode(a)?, val: DR::decode(d)? },
+                "0010_0011_1101_0rrr" => Push { val: GPR::decode(r)? },
+                "0010_0011_1101_1rrr" => Pop { val: GPR::decode(r)? },
 
                 // Special-Purpose Registers
                 "0010_0001_10ss_0ddd" => Movso { src: SPR::decode(s)?, dest: GPR::decode(d)? },

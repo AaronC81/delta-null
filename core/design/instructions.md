@@ -51,6 +51,10 @@ instructions which perform any kind of memory access are those listed here.
 - `0011 0000 1rrr iiii` - `spwrite` - Write word to `SP + i` from general-purpose register `r`
 - `0010 0000 0aaa 10dd` - `d_read` - Read word from memory `a` into decimal register `d`
 - `0010 0000 1aaa 10dd` - `d_write` - Write word from memory `a` from decimal register `r`
+- `0010 0011 1101 0rrr` - `push` - Decrement SP by 1, then write value from general-purpose register
+  `r` into memory pointed to by SP
+- `0010 0011 1101 1rrr` - `pop` - Read value from memory pointed to by SP into general-purpose
+  register `r`, then increment SP by 1
 
 ## Special-Purpose Registers
 
@@ -60,7 +64,7 @@ register `d`
 register `d`
 - `0010 0001 1101 1ooo` - `spadd` - Add value from general-purpose register `o` onto SP
 - `0010 0010 1101 0000` - `spinc` - Increment SP by 1
-- `0010 0010 1101 0001` - `spdec` - Increment SP by 1
+- `0010 0010 1101 0001` - `spdec` - Decrement SP by 1
 
 ## Bit Manipulation
 
@@ -104,6 +108,8 @@ This is a relatively limited set of arithmetic. Potential future improvements in
   into `IP`
 - `0110 0010 0001 0rrr` - `call` - Copy address of next instruction into `RP`, then copy value from
   general-purpose register `r` into `IP`
+- `0110 0100 bbbb bbbb` - `calloff` - Copy address of next instruction into `RP`, then sign-extend
+  immediate `b` to 16-bits, and add to `IP`
 - `0110 0010 0001 1000` - `ret` - Copy `RP` into `IP`
 
 ### Decimal Arithmetic

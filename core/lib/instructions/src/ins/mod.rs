@@ -39,6 +39,8 @@ pub enum Instruction {
     Spwrite { offset: u8, val: GPR },
     DRead { val: DR, addr: GPR },
     DWrite { addr: GPR, val: DR },
+    Push { val: GPR },
+    Pop { val: GPR },
 
     // Special-purpose Registers
     Movso { dest: GPR, src: SPR },
