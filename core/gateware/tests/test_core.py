@@ -470,7 +470,7 @@ def test_call():
             ret
     """, after)
 
-def test_stack():
+def test_stack_manual():
     """Tests behaviour of stack instructions like `spread`, `spwrite`, `spinc`, and `spdec`."""
 
     def after(core):
@@ -514,6 +514,35 @@ def test_stack():
         spread r2, 1
         spread r3, 2
         spread r4, 3
+            
+        hlt
+    """, after)
+
+def test_stack_auto():
+    """Tests behaviour of easier stack instructions: `push` and `pop`."""
+
+    def after(core):
+        assert (yield core.r1) == 0x5678
+        assert (yield core.r2) == 0x1234
+        assert (yield core.r3) == 0xABCD
+
+    run_sim("""
+        ; sp = 0xFFFF
+        .put r0, 0xFFFF
+        movsi sp, r0
+            
+        ; Push some stuff
+        .put r0, 0xABCD
+        push r0
+        .put r0, 0x1234
+        push r0
+        .put r0, 0x5678
+        push r0
+            
+        ; Pop into registers for validation
+        pop r1
+        pop r2
+        pop r3
             
         hlt
     """, after)
