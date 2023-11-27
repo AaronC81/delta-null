@@ -10,4 +10,6 @@ members = [
     "core/bin/assembler",
     "core/bin/emulator-backend",
     "core/bin/emulator-frontend",
+
+    "lang/lib/backend"
 ]
