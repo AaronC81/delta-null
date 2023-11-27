@@ -9,11 +9,14 @@ pub struct TerminatorInstruction {
 /// All possible [StatementInstruction] operations.
 #[derive(Debug, Clone)]
 pub enum TerminatorInstructionKind {
-    // TODO
+    /// Returns from the enclosing function, with a value if it is non-void.
+    Return(Option<VariableId>),
 }
 
 impl Instruction for TerminatorInstruction {
     fn referenced_variables(&self) -> Vec<VariableId> {
-        todo!() // TODO
+        match self.kind {
+            TerminatorInstructionKind::Return(v) => v.into_iter().collect(),
+        }
     }
 }

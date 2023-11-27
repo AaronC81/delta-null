@@ -38,11 +38,29 @@ pub struct VariableId(usize);
 #[derive(Debug, Clone)]
 pub struct Variable {
     pub id: VariableId,
+    pub ty: Type,
 }
 
 /// Breaks out shared functionality between [StatementInstruction] and [TerminatorInstruction].
 pub trait Instruction {
-    /// Returns the IDs of any variables which are referenced by this instruction. Used to implement
+    /// Returns the IDs of any variables which are read by this instruction. Used to implement
     /// liveness analysis.
+    /// 
+    /// Should not include the result, if the instruction is a statement - only variables which are
+    /// read as part of the instruction itself.
     fn referenced_variables(&self) -> Vec<VariableId>;
 }
+
+/// Describes the type of an IR [Variable].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Type {
+    UnsignedInteger(IntegerSize),
+    SignedInteger(IntegerSize),
+}
+
+/// The supported sizes of [Type::UnsignedInteger] and [Type::SignedInteger].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum IntegerSize {
+    Bits16,
+}
+
