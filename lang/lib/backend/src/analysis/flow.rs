@@ -63,28 +63,22 @@ mod test {
     fn test_simple_flow() {
         let mut func = FunctionBuilder::new("foo");
 
-        // 1 -> 2 -> 3
-        let (id1, mut block1) = func.new_basic_block();
-        let (id2, mut block2) = func.new_basic_block();
-        let (id3, mut block3) = func.new_basic_block();
-        block1.add_terminator(Instruction::new(InstructionKind::Branch(id2)));
-        block2.add_terminator(Instruction::new(InstructionKind::Branch(id3)));
-        block3.add_terminator(Instruction::new(InstructionKind::Return(None)));
-
-        block1.finalize();
-        block2.finalize();
-        block3.finalize();
-
+        // 0 -> 1 -> 2
+        let (ids, mut blocks) = func.new_basic_blocks(3);
+        blocks[0].add_terminator(Instruction::new(InstructionKind::Branch(ids[1])));
+        blocks[1].add_terminator(Instruction::new(InstructionKind::Branch(ids[2])));
+        blocks[2].add_terminator(Instruction::new(InstructionKind::Return(None)));
+        func.finalize_blocks(blocks);
         let func = func.finalize();
-
+        
         let cfg = ControlFlowGraph::generate(&func);
 
-        assert_eq!(cfg.outgoing_branches(id1), &hashset!{ id2 });
-        assert_eq!(cfg.outgoing_branches(id2), &hashset!{ id3 });
-        assert_eq!(cfg.outgoing_branches(id3), &hashset!{ });
+        assert_eq!(cfg.outgoing_branches(ids[0]), &hashset!{ ids[1] });
+        assert_eq!(cfg.outgoing_branches(ids[1]), &hashset!{ ids[2] });
+        assert_eq!(cfg.outgoing_branches(ids[2]), &hashset!{ });
         
-        assert_eq!(cfg.incoming_branches(id1), &hashset!{ });
-        assert_eq!(cfg.incoming_branches(id2), &hashset!{ id1 });
-        assert_eq!(cfg.incoming_branches(id3), &hashset!{ id2 });
+        assert_eq!(cfg.incoming_branches(ids[0]), &hashset!{ });
+        assert_eq!(cfg.incoming_branches(ids[1]), &hashset!{ ids[0] });
+        assert_eq!(cfg.incoming_branches(ids[2]), &hashset!{ ids[1] });
     }
 }

@@ -65,6 +65,19 @@ impl FunctionBuilder {
         })
     }
 
+    pub fn new_basic_blocks(&mut self, n: usize) -> (Vec<BasicBlockId>, Vec<BasicBlockBuilder>) {
+        let mut indexes = vec![];
+        let mut builders = vec![];
+
+        for _ in 0..n {
+            let (i, b) = self.new_basic_block();
+            indexes.push(i);
+            builders.push(b);
+        }
+
+        (indexes, builders)
+    }
+
     pub fn finalize(self) -> Function {
         let state = self.state.borrow_mut().take().unwrap();
 
@@ -76,6 +89,12 @@ impl FunctionBuilder {
                 )
                 .collect(),
             variables: state.variables,
+        }
+    }
+
+    pub fn finalize_blocks(&self, blocks: impl IntoIterator<Item = BasicBlockBuilder>) {
+        for block in blocks {
+            block.finalize()
         }
     }
 }
