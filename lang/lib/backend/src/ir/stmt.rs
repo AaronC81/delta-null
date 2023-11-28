@@ -1,4 +1,4 @@
-use super::{Variable, VariableId, Type, IntegerSize};
+use super::{Variable, VariableId, Type, IntegerSize, BasicBlockId};
 
 /// Wraps an [Instruction] and the [Variable] which it assigns to.
 #[derive(Debug, Clone)]
@@ -25,6 +25,17 @@ pub enum InstructionKind {
 
     /// Returns from the enclosing function, with a value if it is non-void.
     Return(Option<VariableId>),
+
+    /// Branches unconditionally to another basic block.
+    Branch(BasicBlockId),
+
+    /// Branches to one basic block if the given boolean [VariableId] is true, or another if it is
+    /// false.
+    ConditionalBranch {
+        condition: VariableId,
+        true_block: BasicBlockId,
+        false_block: BasicBlockId,
+    },
 }
 
 impl Instruction {
@@ -34,9 +45,24 @@ impl Instruction {
     /// the end of basic blocks.
     pub fn is_terminator(&self) -> bool {
         match self.kind {
-            InstructionKind::Return(_) => true,
+            InstructionKind::Return(_)
+            | InstructionKind::Branch(_)
+            | InstructionKind::ConditionalBranch { .. }
+                => true,
 
             _ => false,
+        }
+    }
+
+    /// Returns the IDs of any basic blocks which this instruction could branch to.
+    /// 
+    /// Only ever returns items for terminators - non-terminators always return no items.
+    pub fn branch_destinations(&self) -> Vec<BasicBlockId> {
+        match self.kind {
+            InstructionKind::Branch(b) => vec![b],
+            InstructionKind::ConditionalBranch { true_block, false_block, .. } => vec![true_block, false_block],
+            
+            _ => vec![],
         }
     }
 
@@ -50,6 +76,8 @@ impl Instruction {
             InstructionKind::Constant(_) => vec![],
             InstructionKind::Add(l, r) => vec![l, r],
             InstructionKind::Return(r) => r.into_iter().collect(),
+            InstructionKind::Branch(_) => vec![],
+            InstructionKind::ConditionalBranch { condition, .. } => vec![condition]
         }
     }
 }

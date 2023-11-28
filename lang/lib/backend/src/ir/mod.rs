@@ -37,6 +37,15 @@ pub struct BasicBlock {
     pub statements: Vec<Statement>,
 }
 
+impl BasicBlock {
+    /// Returns this block's final statement, which must always be a terminator instruction.
+    pub fn terminator(&self) -> &Statement {
+        let term = self.statements.last().expect("block is empty");
+        assert!(term.instruction.is_terminator(), "last statement of block must be a terminator");
+        term
+    }
+}
+
 /// Uniquely identifies a [Statement] within a [Function].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StatementId(BasicBlockId, usize);

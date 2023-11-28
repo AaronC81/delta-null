@@ -3,3 +3,4 @@
 //! Other crates shall exist to implement specific backends.
 
 pub mod ir;
+pub mod analysis;
