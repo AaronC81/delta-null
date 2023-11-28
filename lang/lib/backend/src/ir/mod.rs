@@ -1,10 +1,13 @@
 //! Encodes an intermediate representation for code, expressed in
 //! [SSA form](https://en.wikipedia.org/wiki/Static_single-assignment_form).
 
-mod stmt;
 use std::collections::HashMap;
 
+mod stmt;
 pub use stmt::*;
+
+mod builder;
+pub use builder::*;
 
 #[derive(Debug, Clone)]
 pub struct Function {
@@ -75,3 +78,13 @@ pub enum IntegerSize {
     Bits16,
 }
 
+/// Models some variable container.
+pub trait VariableRepository {
+    fn get_variable(&self, id: VariableId) -> &Variable;
+}
+
+impl VariableRepository for Function {
+    fn get_variable(&self, id: VariableId) -> &Variable {
+        self.variables.get(&id).unwrap()
+    }
+}

@@ -1,9 +1,11 @@
-use super::{Variable, VariableId, Type, IntegerSize, BasicBlockId};
+use std::{fmt::Display, error::Error, ops::Deref};
 
-/// Wraps an [Instruction] and the [Variable] which it assigns to.
+use super::{VariableId, Type, IntegerSize, BasicBlockId, VariableRepository};
+
+/// Wraps an [Instruction], and the [VariableId] which it assigns to, if any.
 #[derive(Debug, Clone)]
 pub struct Statement {
-    pub result: Variable,
+    pub result: Option<VariableId>,
     pub instruction: Instruction,
 }
 
@@ -12,6 +14,12 @@ pub struct Statement {
 #[derive(Debug, Clone)]
 pub struct Instruction {
     pub kind: InstructionKind,
+}
+
+impl Instruction {
+    pub fn new(kind: InstructionKind) -> Self {
+        Self { kind }
+    }
 }
 
 /// All possible [Instruction] operations.
@@ -80,6 +88,34 @@ impl Instruction {
             InstructionKind::ConditionalBranch { condition, .. } => vec![condition]
         }
     }
+
+    /// Determines the type of the resulting variable for this instruction.
+    /// 
+    /// This type may be dependent on the types of other declared variables, so this takes a
+    /// reference to a [VariableRepository] so that it can look up types.
+    /// 
+    /// - If the result type can be deduced to a specific type, returns `Ok(Some(ty))`.
+    /// - If the result type was deduced as void (typically for a terminator), returns `Ok(None)`.
+    /// - If the result type could not be deduced due to an invalid instruction, returns a
+    ///   [TypeError].
+    pub fn result_type(&self, vars: impl Deref<Target = impl VariableRepository>) -> Result<Option<Type>, TypeError> {
+        match self.kind {
+            InstructionKind::Constant(v) => Ok(Some(v.ty())),
+            InstructionKind::Add(a, b) => {
+                let a_ty = vars.get_variable(a).ty;
+                let b_ty = vars.get_variable(b).ty;
+                if a_ty != b_ty {
+                    return Err(TypeError::new("both sides of `Add` must have the same type"));
+                }
+                
+                Ok(Some(a_ty))
+            },
+
+            InstructionKind::Return(_)
+            | InstructionKind::Branch(_)
+            | InstructionKind::ConditionalBranch { .. } => Ok(None),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -96,3 +132,17 @@ impl ConstantValue {
         }
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct TypeError(String);
+impl TypeError {
+    pub fn new(s: &str) -> Self {
+        Self(s.to_string())
+    }
+}
+impl Display for TypeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+impl Error for TypeError {}
