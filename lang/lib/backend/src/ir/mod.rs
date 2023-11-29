@@ -70,6 +70,7 @@ pub struct Variable {
 pub enum Type {
     UnsignedInteger(IntegerSize),
     SignedInteger(IntegerSize),
+    Boolean,
 }
 
 /// The supported sizes of [Type::UnsignedInteger] and [Type::SignedInteger].

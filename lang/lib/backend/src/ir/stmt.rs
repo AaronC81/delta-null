@@ -122,6 +122,7 @@ impl Instruction {
 pub enum ConstantValue {
     U16(u16),
     I16(i16),
+    Boolean(bool),
 }
 
 impl ConstantValue {
@@ -129,6 +130,7 @@ impl ConstantValue {
         match self {
             ConstantValue::U16(_) => Type::UnsignedInteger(IntegerSize::Bits16),
             ConstantValue::I16(_) => Type::SignedInteger(IntegerSize::Bits16),
+            ConstantValue::Boolean(_) => Type::Boolean,
         }
     }
 }
