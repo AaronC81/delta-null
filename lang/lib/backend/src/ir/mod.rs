@@ -9,6 +9,8 @@ pub use stmt::*;
 mod builder;
 pub use builder::*;
 
+mod util;
+
 /// A single function, which is composed of many basic blocks.
 #[derive(Debug, Clone)]
 pub struct Function {

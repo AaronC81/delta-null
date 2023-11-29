@@ -1,6 +1,6 @@
-use std::{cell::RefCell, rc::Rc, collections::HashMap};
+use std::collections::HashMap;
 
-use super::{Statement, BasicBlockId, VariableId, Variable, Type, BasicBlock, Instruction, VariableRepository, Function, StatementId, ConstantValue, InstructionKind};
+use super::{Statement, BasicBlockId, VariableId, Variable, Type, BasicBlock, Instruction, VariableRepository, Function, StatementId, ConstantValue, InstructionKind, util::ShareCell};
 
 struct FunctionBuilderState {
     next_variable_id: usize,
@@ -38,20 +38,19 @@ impl VariableRepository for FunctionBuilderState {
 
 pub struct FunctionBuilder {
     name: String,
-    state: Rc<RefCell<Option<FunctionBuilderState>>>,
+    state: ShareCell<FunctionBuilderState>,
 }
 
 impl FunctionBuilder {
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
-            state: Rc::new(RefCell::new(Some(FunctionBuilderState::new()))),
+            state: ShareCell::new(FunctionBuilderState::new()),
         }
     }
 
     pub fn new_basic_block(&mut self) -> (BasicBlockId, BasicBlockBuilder) {
-        let mut state_ref = self.state.borrow_mut();
-        let mut state = state_ref.as_mut().unwrap();
+        let mut state = self.state.borrow_mut();
 
         let id = BasicBlockId(state.next_block_id);
         state.next_block_id += 1;
@@ -79,7 +78,7 @@ impl FunctionBuilder {
     }
 
     pub fn finalize(self) -> Function {
-        let state = self.state.borrow_mut().take().unwrap();
+        let state = self.state.take();
 
         Function {
             name: self.name,
@@ -101,9 +100,9 @@ impl FunctionBuilder {
 
 pub struct BasicBlockBuilder {
     id: BasicBlockId,
-    statements: Vec<Rc<RefCell<Option<Statement>>>>, // never `None`, only used so we can use `Option::take`
+    statements: Vec<ShareCell<Statement>>,
 
-    state: Rc<RefCell<Option<FunctionBuilderState>>>,
+    state: ShareCell<FunctionBuilderState>,
 }
 
 impl BasicBlockBuilder {
@@ -112,17 +111,17 @@ impl BasicBlockBuilder {
     }
 
     fn add_instruction_internal(&mut self, instruction: Instruction) -> Option<VariableId> {
-        let result_ty = instruction.result_type(self.state.borrow_mut().as_mut().unwrap()).unwrap();
+        let result_ty = instruction.result_type(self.state.borrow_mut()).unwrap();
         let result = match result_ty {
-            Some(ty) => Some(self.state.borrow_mut().as_mut().unwrap().new_variable(ty)),
+            Some(ty) => Some(self.state.borrow_mut().new_variable(ty)),
             None => None,
         };
         let id = StatementId(self.id, self.statements.len());
-        self.statements.push(Rc::new(RefCell::new(Some(Statement {
+        self.statements.push(ShareCell::new(Statement {
             id,
             result,
             instruction,
-        }))));
+        }));
         result
     }
 
@@ -147,13 +146,12 @@ impl BasicBlockBuilder {
     }
 
     pub fn finalize(self) {
-        let mut state_ref = self.state.borrow_mut();
-        let state = state_ref.as_mut().unwrap();
+        let mut state = self.state.borrow_mut();
 
         let block = BasicBlock {
             id: self.id,
             statements: self.statements.into_iter()
-                .map(|s| s.borrow_mut().take().unwrap())
+                .map(|s| s.take())
                 .collect(),
         };
         *state.blocks.get_mut(&self.id).unwrap() = Some(block);
