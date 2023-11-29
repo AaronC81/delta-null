@@ -65,11 +65,9 @@ impl ControlFlowGraph {
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashSet;
-
     use maplit::hashset;
 
-    use crate::ir::{FunctionBuilder, Instruction, InstructionKind};
+    use crate::ir::{FunctionBuilder, Instruction, InstructionKind, ConstantValue};
 
     use super::ControlFlowGraph;
 
@@ -96,5 +94,46 @@ mod test {
         assert_eq!(cfg.incoming_branches(ids[2]), &hashset!{ ids[1] });
 
         assert_eq!(cfg.leaf_blocks(), hashset!{ ids[2] });
+    }
+
+    #[test]
+    fn test_looping_flow() {
+        let mut func = FunctionBuilder::new("foo");
+
+        // 0 -> 1 -> 2 -> 4 -> 6
+        //      ^    v    v    ^
+        //      '--- 3 <- 5 ---'
+        let (ids, mut blocks) = func.new_basic_blocks(7);
+
+        let condition = blocks[0].add_instruction(Instruction::new(InstructionKind::Constant(ConstantValue::Boolean(true))));
+        blocks[0].add_terminator(Instruction::new(InstructionKind::Branch(ids[1])));
+        blocks[1].add_terminator(Instruction::new(InstructionKind::Branch(ids[2])));
+        blocks[2].add_terminator(Instruction::new(InstructionKind::ConditionalBranch { condition, true_block: ids[3], false_block: ids[4] }));
+        blocks[3].add_terminator(Instruction::new(InstructionKind::Branch(ids[1])));
+        blocks[4].add_terminator(Instruction::new(InstructionKind::ConditionalBranch { condition, true_block: ids[5], false_block: ids[6] }));
+        blocks[5].add_terminator(Instruction::new(InstructionKind::ConditionalBranch { condition, true_block: ids[6], false_block: ids[3] }));
+        blocks[6].add_terminator(Instruction::new(InstructionKind::Return(None)));
+        func.finalize_blocks(blocks);
+        let func = func.finalize();
+
+        let cfg = ControlFlowGraph::generate(&func);
+
+        assert_eq!(cfg.outgoing_branches(ids[0]), &hashset!{ ids[1] });
+        assert_eq!(cfg.outgoing_branches(ids[1]), &hashset!{ ids[2] });
+        assert_eq!(cfg.outgoing_branches(ids[2]), &hashset!{ ids[3], ids[4] });
+        assert_eq!(cfg.outgoing_branches(ids[3]), &hashset!{ ids[1] });
+        assert_eq!(cfg.outgoing_branches(ids[4]), &hashset!{ ids[5], ids[6] });
+        assert_eq!(cfg.outgoing_branches(ids[5]), &hashset!{ ids[3], ids[6] });
+        assert_eq!(cfg.outgoing_branches(ids[6]), &hashset!{ });
+        
+        assert_eq!(cfg.incoming_branches(ids[0]), &hashset!{ });
+        assert_eq!(cfg.incoming_branches(ids[1]), &hashset!{ ids[0], ids[3] });
+        assert_eq!(cfg.incoming_branches(ids[2]), &hashset!{ ids[1] });
+        assert_eq!(cfg.incoming_branches(ids[3]), &hashset!{ ids[2], ids[5] });
+        assert_eq!(cfg.incoming_branches(ids[4]), &hashset!{ ids[2] });
+        assert_eq!(cfg.incoming_branches(ids[5]), &hashset!{ ids[4] });
+        assert_eq!(cfg.incoming_branches(ids[6]), &hashset!{ ids[4], ids[5] });
+
+        assert_eq!(cfg.leaf_blocks(), hashset!{ ids[6] });
     }
 }
