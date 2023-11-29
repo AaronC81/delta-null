@@ -47,6 +47,20 @@ impl ControlFlowGraph {
     pub fn incoming_branches(&self, block: BasicBlockId) -> &HashSet<BasicBlockId> {
         self.incoming.get(&block).unwrap()
     }
+
+    /// Returns the set of the blocks which don't branch to another block, instead terminating in
+    /// some way external to the function.
+    pub fn leaf_blocks(&self) -> HashSet<BasicBlockId> {
+        self.outgoing.iter()
+            .filter_map(|(id, blk)|
+                if blk.is_empty() {
+                    Some(*id)
+                } else {
+                    None
+                }
+            )
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -70,7 +84,7 @@ mod test {
         blocks[2].add_terminator(Instruction::new(InstructionKind::Return(None)));
         func.finalize_blocks(blocks);
         let func = func.finalize();
-        
+
         let cfg = ControlFlowGraph::generate(&func);
 
         assert_eq!(cfg.outgoing_branches(ids[0]), &hashset!{ ids[1] });
@@ -80,5 +94,7 @@ mod test {
         assert_eq!(cfg.incoming_branches(ids[0]), &hashset!{ });
         assert_eq!(cfg.incoming_branches(ids[1]), &hashset!{ ids[0] });
         assert_eq!(cfg.incoming_branches(ids[2]), &hashset!{ ids[1] });
+
+        assert_eq!(cfg.leaf_blocks(), hashset!{ ids[2] });
     }
 }
