@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc, collections::HashMap};
 
-use super::{Statement, BasicBlockId, VariableId, Variable, Type, BasicBlock, Instruction, VariableRepository, Function};
+use super::{Statement, BasicBlockId, VariableId, Variable, Type, BasicBlock, Instruction, VariableRepository, Function, StatementId, ConstantValue, InstructionKind};
 
 struct FunctionBuilderState {
     next_variable_id: usize,
@@ -117,7 +117,9 @@ impl BasicBlockBuilder {
             Some(ty) => Some(self.state.borrow_mut().as_mut().unwrap().new_variable(ty)),
             None => None,
         };
+        let id = StatementId(self.id, self.statements.len());
         self.statements.push(Rc::new(RefCell::new(Some(Statement {
+            id,
             result,
             instruction,
         }))));
@@ -138,6 +140,10 @@ impl BasicBlockBuilder {
         }
 
         self.add_instruction_internal(instruction);
+    }
+
+    pub fn add_constant(&mut self, constant: ConstantValue) -> VariableId {
+        self.add_instruction(Instruction::new(InstructionKind::Constant(constant)))
     }
 
     pub fn finalize(self) {

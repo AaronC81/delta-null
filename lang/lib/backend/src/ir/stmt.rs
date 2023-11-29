@@ -1,10 +1,13 @@
-use std::{fmt::Display, error::Error, ops::Deref};
+use std::{fmt::Display, error::Error, ops::Deref, collections::HashSet};
 
-use super::{VariableId, Type, IntegerSize, BasicBlockId, VariableRepository};
+use maplit::hashset;
+
+use super::{VariableId, Type, IntegerSize, BasicBlockId, VariableRepository, StatementId};
 
 /// Wraps an [Instruction], and the [VariableId] which it assigns to, if any.
 #[derive(Debug, Clone)]
 pub struct Statement {
+    pub id: StatementId,
     pub result: Option<VariableId>,
     pub instruction: Instruction,
 }
@@ -79,13 +82,13 @@ impl Instruction {
     /// 
     /// Should not include the result, if the instruction is a statement - only variables which are
     /// read as part of the instruction itself.
-    pub fn referenced_variables(&self) -> Vec<VariableId> {
+    pub fn referenced_variables(&self) -> HashSet<VariableId> {
         match self.kind {
-            InstructionKind::Constant(_) => vec![],
-            InstructionKind::Add(l, r) => vec![l, r],
+            InstructionKind::Constant(_) => hashset!{},
+            InstructionKind::Add(l, r) => hashset!{ l, r },
             InstructionKind::Return(r) => r.into_iter().collect(),
-            InstructionKind::Branch(_) => vec![],
-            InstructionKind::ConditionalBranch { condition, .. } => vec![condition]
+            InstructionKind::Branch(_) => hashset!{},
+            InstructionKind::ConditionalBranch { condition, .. } => hashset!{ condition },
         }
     }
 

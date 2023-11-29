@@ -17,6 +17,11 @@ pub struct Function {
 }
 
 impl Function {
+    pub fn statements(&self) -> impl Iterator<Item = &Statement> {
+        self.blocks.iter()
+            .flat_map(|(_, block)| &block.statements)
+    }
+
     pub fn get_statement(&self, id: StatementId) -> &Statement {
         let StatementId(block_id, index) = id;
         let block = self.get_basic_block(block_id);
@@ -26,11 +31,43 @@ impl Function {
     pub fn get_basic_block(&self, id: BasicBlockId) -> &BasicBlock {
         self.blocks.get(&id).expect("missing basic block")
     }
+
+    pub fn statement_successors(&self, stmt: StatementId) -> Vec<StatementId> {
+        let instr = &self.get_statement(stmt).instruction;
+
+        // If the instruction is a terminator, its successors are the destinations
+        if instr.is_terminator() {
+            return instr.branch_destinations()
+                .iter()
+                .map(|bbid| bbid.first_statement_id())
+                .collect();
+        }
+
+        // Otherwise, it's just the next instruction in the block
+        vec![self.get_statement(StatementId(stmt.0, stmt.1 + 1)).id]
+    }
+
+    /// Finds the statement which assigns to the given variable.
+    pub fn statement_assigning_to(&self, var: VariableId) -> &Statement {
+        for block in self.blocks.values() {
+            if let Some(stmt) = block.statement_assigning_to(var) {
+                return stmt;
+            }
+        }
+
+        unreachable!()
+    }
 }
 
 /// Uniquely identifies a [BasicBlock] within a [Function].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BasicBlockId(usize);
+
+impl BasicBlockId {
+    pub fn first_statement_id(self) -> StatementId {
+        StatementId(self, 0)
+    }
+}
 
 /// A block of [Statement]s which execute sequentially, where the last is a terminator which will
 /// branch to another [BasicBlock] or leave the enclosing [Function].
@@ -46,6 +83,17 @@ impl BasicBlock {
         let term = self.statements.last().expect("block is empty");
         assert!(term.instruction.is_terminator(), "last statement of block must be a terminator");
         term
+    }
+
+    // Returns the first statement in the block.
+    pub fn first_statement(&self) -> &Statement {
+        &self.statements.first().unwrap()
+    }
+
+    /// Tries to find the statement in the block which assigns to the given variable ID, else
+    /// returns `None` if it's not here.
+    pub fn statement_assigning_to(&self, var: VariableId) -> Option<&Statement> {
+        self.statements.iter().find(|stmt| stmt.result == Some(var))
     }
 }
 
