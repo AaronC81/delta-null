@@ -9,6 +9,7 @@ pub use stmt::*;
 mod builder;
 pub use builder::*;
 
+/// A single function, which is composed of many basic blocks.
 #[derive(Debug, Clone)]
 pub struct Function {
     pub name: String,
@@ -17,21 +18,31 @@ pub struct Function {
 }
 
 impl Function {
+    /// All statements across all basic blocks of the function.
     pub fn statements(&self) -> impl Iterator<Item = &Statement> {
         self.blocks.iter()
             .flat_map(|(_, block)| &block.statements)
     }
 
+    /// Gets a single statement by its ID.
     pub fn get_statement(&self, id: StatementId) -> &Statement {
         let StatementId(block_id, index) = id;
         let block = self.get_basic_block(block_id);
         &block.statements[index]
     }
 
+    /// Gets a single basic block by its ID.
     pub fn get_basic_block(&self, id: BasicBlockId) -> &BasicBlock {
         self.blocks.get(&id).expect("missing basic block")
     }
 
+    /// Gets the successor statements which could be executed after the given statement.
+    /// 
+    /// If the statement is not a terminator, then this is the statement immediately following it
+    /// inside its block.
+    /// 
+    /// If the statement is a terminator, then this is the set of first statements from the blocks
+    /// which it could branch to, if any.
     pub fn statement_successors(&self, stmt: StatementId) -> Vec<StatementId> {
         let instr = &self.get_statement(stmt).instruction;
 
