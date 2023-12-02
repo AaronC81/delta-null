@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use maplit::hashset;
 
-use crate::ir::{Function, BasicBlockId};
+use crate::ir::{Function, BasicBlockId, StatementId};
 
 #[derive(Debug, Clone)]
 pub struct ControlFlowGraph {
@@ -14,6 +14,9 @@ pub struct ControlFlowGraph {
 
     /// Maps a block to the other blocks which it could be reached from.
     incoming: HashMap<BasicBlockId, HashSet<BasicBlockId>>,
+
+    /// See the `statement_ordering` function.
+    statement_ordering: HashMap<StatementId, usize>,
 }
 
 /// Describes which basic blocks may branch to each other.
@@ -28,6 +31,7 @@ impl ControlFlowGraph {
             entry_point: *func.blocks.keys().next().unwrap(),
             incoming: initial_map.clone(),
             outgoing: initial_map,
+            statement_ordering: HashMap::new(),
         };
 
         // Populate maps
@@ -38,6 +42,15 @@ impl ControlFlowGraph {
                 // Insert both ways around
                 cfg.incoming.get_mut(&dest).unwrap().insert(*id);
                 cfg.outgoing.get_mut(id).unwrap().insert(dest);
+            }
+        }
+
+        // Calculate ordering
+        let mut next_index = 0;
+        for block_id in cfg.ordering() {
+            for stmt_id in func.blocks[&block_id].statements.iter().map(|s| s.id) {
+                cfg.statement_ordering.insert(stmt_id, next_index);
+                next_index += 1;
             }
         }
 
@@ -121,6 +134,19 @@ impl ControlFlowGraph {
     pub fn ordering(&self) -> Vec<BasicBlockId> {
         // I think a depth-first search naturally has the required properties?
         self.depth_first()
+    }
+
+    /// Uses a topological-style ordering of the function's basic blocks to provide numeric
+    /// indexes for every statement in the function.
+    /// 
+    /// The indexes don't mean much on their own, but the ordering provides the guarantee that, if
+    /// two statements execute for the first time as part of a control-flow path, then the first one
+    /// to execute shall have a lower index than the second one.
+    /// 
+    /// This makes this ordering useful to implement the intervals required by the linear scanning
+    /// register allocation algorithm, and probably for other kinds of crude analysis too.
+    pub fn statement_ordering(&self) -> &HashMap<StatementId, usize> {
+        &self.statement_ordering
     }
 
     /// Returns the set of the blocks which don't branch to another block, instead terminating in
