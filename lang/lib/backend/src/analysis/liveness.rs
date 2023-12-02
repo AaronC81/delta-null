@@ -2,6 +2,8 @@ use std::collections::{HashMap, HashSet};
 
 use crate::ir::{StatementId, VariableId, Function};
 
+use super::flow::ControlFlowGraph;
+
 #[derive(Debug, Clone)]
 pub struct LivenessAnalysis {
     live_in: HashMap<StatementId, HashSet<VariableId>>,
@@ -24,6 +26,62 @@ impl LivenessAnalysis {
     /// Shortcut for `live_in` and `live_out`, in that order.
     pub fn live_in_out(&self, stmt: StatementId) -> (&HashSet<VariableId>, &HashSet<VariableId>) {
         (self.live_in(stmt), self.live_out(stmt))
+    }
+
+    /// Converts the results of this liveness into a list of live intervals for each variables,
+    /// using the provided [ControlFlowGraph] to provide an ordering for statements.
+    /// 
+    /// Each value in the returned mapping is of the form `(start, end)` - both are inclusive.
+    /// `start` is the statement where a variable is defined, and `end` is the last statement it is
+    /// used in.
+    /// 
+    /// The results are suitable for linear scanning register allocation.
+    pub fn live_intervals(&self, cfg: &ControlFlowGraph) -> HashMap<VariableId, (StatementId, StatementId)> {
+        let statement_ordering = cfg.statement_ordering();
+
+        // Calculate intervals by keeping track of highest `in` index, and lowest `out` index, for
+        // each variable
+        let mut ends = HashMap::new();
+        for (stmt_id, vars) in &self.live_in {
+            for var in vars {
+                if let Some(existing) = ends.get(var) {
+                    if statement_ordering[existing] < statement_ordering[stmt_id] {
+                        ends.insert(*var, *stmt_id);    
+                    }
+                } else {
+                    ends.insert(*var, *stmt_id);
+                }
+            }
+        }
+
+        let mut starts = HashMap::new();
+        for (stmt_id, vars) in &self.live_out {
+            for var in vars {
+                if let Some(existing) = starts.get(var) {
+                    if statement_ordering[existing] > statement_ordering[stmt_id] {
+                        starts.insert(*var, *stmt_id);    
+                    }
+                } else {
+                    starts.insert(*var, *stmt_id);
+                }
+            }
+        }
+
+        // Sanity check...
+        // We expect the `starts` and `ends` sets to have exactly the same sets of keys, as 
+        // every variable which starts existing should also stop existing at some point!
+        let starts_keys = starts.keys().collect::<HashSet<_>>();
+        let ends_keys = ends.keys().collect::<HashSet<_>>();
+        if starts_keys != ends_keys {
+            unreachable!("start and end sets do not match: {starts_keys:?}, {ends_keys:?}");
+        }
+
+        // Merge the two sets into the resulting map
+        let mut map = HashMap::new();
+        for var in starts.keys() {
+            map.insert(*var, (starts[var], ends[var]));
+        }
+        map
     }
 }
 
