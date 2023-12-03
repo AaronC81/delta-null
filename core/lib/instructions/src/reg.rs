@@ -1,11 +1,8 @@
 use crate::{ToAssembly, Encodable};
 
-// NOTE: Placeholders exist to help implement a register allocator later
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum GeneralPurposeRegister {
     R0, R1, R2, R3, R4, R5, R6, R7,
-    Placeholder(usize),
 }
 pub type GPR = GeneralPurposeRegister;
 
@@ -27,8 +24,6 @@ impl Encodable for GeneralPurposeRegister {
             Self::R5 => 5,
             Self::R6 => 6,
             Self::R7 => 7,
-
-            Self::Placeholder(_) => panic!(),
         }
     }
 
