@@ -1,7 +1,7 @@
 //! Encodes an intermediate representation for code, expressed in
 //! [SSA form](https://en.wikipedia.org/wiki/Static_single-assignment_form).
 
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::format};
 
 mod stmt;
 pub use stmt::*;
@@ -10,6 +10,9 @@ mod builder;
 pub use builder::*;
 
 mod util;
+
+mod printer;
+pub use printer::*;
 
 /// A single function, which is composed of many basic blocks.
 #[derive(Debug, Clone)]
@@ -72,6 +75,18 @@ impl Function {
     }
 }
 
+impl PrintIR for Function {
+    fn print_ir(&self, options: &PrintOptions) -> String {
+        format!("=== FUNC: {}\n\n{}",
+            self.name,
+            self.blocks.iter()
+                .map(|(_, b)| b.print_ir(options))
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    }
+}
+
 /// Uniquely identifies a [BasicBlock] within a [Function].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BasicBlockId(usize);
@@ -79,6 +94,12 @@ pub struct BasicBlockId(usize);
 impl BasicBlockId {
     pub fn first_statement_id(self) -> StatementId {
         StatementId(self, 0)
+    }
+}
+
+impl PrintIR for BasicBlockId {
+    fn print_ir(&self, options: &PrintOptions) -> String {
+        format!("%{}", self.0)
     }
 }
 
@@ -110,6 +131,18 @@ impl BasicBlock {
     }
 }
 
+impl PrintIR for BasicBlock {
+    fn print_ir(&self, options: &PrintOptions) -> String {
+        format!("{}:\n{}",
+            self.id.print_ir(options),
+            self.statements.iter()
+                .map(|s| format!("  {}", s.print_ir(options)))
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    }
+}
+
 /// Uniquely identifies a [Statement] within a [Function].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StatementId(BasicBlockId, usize);
@@ -118,12 +151,24 @@ pub struct StatementId(BasicBlockId, usize);
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VariableId(usize);
 
+impl PrintIR for VariableId {
+    fn print_ir(&self, options: &PrintOptions) -> String {
+        format!("${}", self.0)
+    }
+}
+
 /// Contains the value produced by an [Instruction]. As this IR is in SSA form, any variable is
 /// assigned to exactly once.
 #[derive(Debug, Clone)]
 pub struct Variable {
     pub id: VariableId,
     pub ty: Type,
+}
+
+impl PrintIR for Variable {
+    fn print_ir(&self, options: &PrintOptions) -> String {
+        format!("${}", self.id.0)
+    }
 }
 
 /// Describes the type of an IR [Variable].

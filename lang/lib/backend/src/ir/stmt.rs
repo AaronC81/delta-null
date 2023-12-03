@@ -2,7 +2,7 @@ use std::{fmt::Display, error::Error, ops::Deref, collections::HashSet};
 
 use maplit::hashset;
 
-use super::{VariableId, Type, IntegerSize, BasicBlockId, VariableRepository, StatementId};
+use super::{VariableId, Type, IntegerSize, BasicBlockId, VariableRepository, StatementId, PrintIR};
 
 /// Wraps an [Instruction], and the [VariableId] which it assigns to, if any.
 #[derive(Debug, Clone)]
@@ -10,6 +10,16 @@ pub struct Statement {
     pub id: StatementId,
     pub result: Option<VariableId>,
     pub instruction: Instruction,
+}
+
+impl PrintIR for Statement {
+    fn print_ir(&self, options: &super::PrintOptions) -> String {
+        if let Some(result) = self.result {
+            format!("{} = {}", result.print_ir(options), self.instruction.print_ir(options))
+        } else {
+            self.instruction.print_ir(options)
+        }
+    }
 }
 
 /// An instruction which performs some computation and produces a result, which the enclosing
@@ -121,6 +131,24 @@ impl Instruction {
     }
 }
 
+impl PrintIR for Instruction {
+    fn print_ir(&self, options: &super::PrintOptions) -> String {
+        match self.kind {
+            InstructionKind::Constant(c) => c.print_ir(options),
+            InstructionKind::Add(a, b) => format!("{} + {}", a.print_ir(options), b.print_ir(options)),
+            InstructionKind::Return(r) =>
+                if let Some(r) = r {
+                    format!("return {}", r.print_ir(options))
+                } else {
+                    "return".to_string()
+                },
+            InstructionKind::Branch(b) => format!("branch {}", b.print_ir(options)),
+            InstructionKind::ConditionalBranch { condition, true_block, false_block } =>
+                format!("condbranch {} ? {} : {}", condition.print_ir(options), true_block.print_ir(options), false_block.print_ir(options))
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConstantValue {
     U16(u16),
@@ -134,6 +162,16 @@ impl ConstantValue {
             ConstantValue::U16(_) => Type::UnsignedInteger(IntegerSize::Bits16),
             ConstantValue::I16(_) => Type::SignedInteger(IntegerSize::Bits16),
             ConstantValue::Boolean(_) => Type::Boolean,
+        }
+    }
+}
+
+impl PrintIR for ConstantValue {
+    fn print_ir(&self, options: &super::PrintOptions) -> String {
+        match self {
+            ConstantValue::U16(u) => u.to_string(),
+            ConstantValue::I16(v) => v.to_string(),
+            ConstantValue::Boolean(b) => b.to_string(),
         }
     }
 }
