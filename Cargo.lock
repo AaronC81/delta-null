@@ -383,6 +383,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "delta-null-lang-backend-core"
+version = "0.1.0"
+dependencies = [
+ "delta-null-core-instructions",
+ "delta-null-lang-backend",
+]
+
+[[package]]
 name = "dircpy"
 version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"

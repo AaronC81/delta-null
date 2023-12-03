@@ -11,5 +11,6 @@ members = [
     "core/bin/emulator-backend",
     "core/bin/emulator-frontend",
 
-    "lang/lib/backend"
+    "lang/lib/backend",
+    "lang/lib/backend-core",
 ]

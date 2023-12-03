@@ -9,6 +9,13 @@ pub enum GeneralPurposeRegister {
 }
 pub type GPR = GeneralPurposeRegister;
 
+impl GeneralPurposeRegister {
+    /// All GPRs, from R0 to R7 in order.
+    pub fn all() -> impl DoubleEndedIterator<Item = Self> {
+        [Self::R0, Self::R1, Self::R2, Self::R3, Self::R4, Self::R5, Self::R6, Self::R7].into_iter()
+    }
+}
+
 impl Encodable for GeneralPurposeRegister {
     fn encode(self) -> u16 {
         match self {

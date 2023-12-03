@@ -1,0 +1,10 @@
+[package]
+name = "delta-null-lang-backend-core"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+delta-null-lang-backend = { path = "../backend" }
+delta-null-core-instructions = { path = "../../../core/lib/instructions" }
