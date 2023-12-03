@@ -81,7 +81,10 @@ pub fn allocate(func: &Function, cfg: &ControlFlowGraph, liveness: &LivenessAnal
 
 #[cfg(test)]
 mod test {
-    use delta_null_lang_backend::{ir::{FunctionBuilder, ConstantValue, Instruction, InstructionKind}, analysis::{liveness::liveness_analysis, flow::ControlFlowGraph}};
+    use delta_null_core_instructions::ToAssembly;
+    use delta_null_lang_backend::{ir::{FunctionBuilder, ConstantValue, Instruction, InstructionKind, PrintIR, PrintOptions}, analysis::{liveness::liveness_analysis, flow::ControlFlowGraph}};
+
+    use crate::reg_alloc::Allocation;
 
     use super::allocate;
 
@@ -102,6 +105,14 @@ mod test {
         let analysis = liveness_analysis(&func);
         let cfg = ControlFlowGraph::generate(&func);
 
-        panic!("{:?}", allocate(&func, &cfg, &analysis));
+        let allocation = allocate(&func, &cfg, &analysis);
+        
+        let additional_variable_info = Some(allocation.iter()
+            .map(|(v, a)| (*v, match a {
+                Allocation::Register(r) => r.to_assembly(),
+                Allocation::Spill(id) => format!("spill {id}"),
+            }))
+            .collect());
+        panic!("{}", func.print_ir(&PrintOptions { additional_variable_info }));
     }
 }

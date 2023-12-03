@@ -4,15 +4,16 @@ use super::VariableId;
 
 /// Contains options about how printed IR should look, or any info it should contain.
 pub struct PrintOptions {
-    // TODO
     // Additional information alongside variables (such as naming or allocation), which is output
     // alongside its definition.
-    // additional_variable_info: HashMap<VariableId, String>,
+    pub additional_variable_info: Option<HashMap<VariableId, String>>,
 }
 
 impl PrintOptions {
     pub fn new() -> Self {
-        PrintOptions {  }
+        PrintOptions {
+            additional_variable_info: None,
+        }
     }
 }
 

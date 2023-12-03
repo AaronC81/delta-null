@@ -15,7 +15,12 @@ pub struct Statement {
 impl PrintIR for Statement {
     fn print_ir(&self, options: &super::PrintOptions) -> String {
         if let Some(result) = self.result {
-            format!("{} = {}", result.print_ir(options), self.instruction.print_ir(options))
+            // Check if we're given any additional info, and if so, if it contains this variable
+            if let Some(info) = options.additional_variable_info.as_ref().map(|m| m.get(&result)).flatten() {
+                format!("{} ({}) = {}", result.print_ir(options), info, self.instruction.print_ir(options))
+            } else {
+                format!("{} = {}", result.print_ir(options), self.instruction.print_ir(options))
+            }
         } else {
             self.instruction.print_ir(options)
         }
