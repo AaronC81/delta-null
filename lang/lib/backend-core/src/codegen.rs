@@ -16,6 +16,14 @@ impl<'f> FunctionGenerator<'f> {
         Self { func, allocations }
     }
 
+    pub fn to_dna_instructions(&self) -> Vec<Instruction> {
+        if self.func.blocks.len() != 1 {
+            todo!("more than 1 block nyi");
+        }
+
+        self.ir_block_to_dna_instructions(self.func.blocks.iter().next().unwrap().1)
+    }
+
     /// Generates and returns the DNA instructions to implement an entire basic block.
     pub fn ir_block_to_dna_instructions(&self, block: &ir::BasicBlock) -> Vec<Instruction> {
         let mut buffer = vec![];
@@ -98,15 +106,14 @@ impl<'f> FunctionGenerator<'f> {
 
 #[cfg(test)]
 mod test {
-    use delta_null_core_instructions::ToAssembly;
-    use delta_null_lang_backend::{ir::{FunctionBuilder, ConstantValue, Instruction, InstructionKind, PrintOptions, PrintIR}, analysis::{liveness::liveness_analysis, flow::ControlFlowGraph}};
+    use delta_null_lang_backend::ir::{FunctionBuilder, ConstantValue, Instruction, InstructionKind};
 
-    use crate::{reg_alloc::allocate, codegen};
+    use crate::test_utils::*;
 
     #[test]
-    fn TEMP() {
+    fn test_add() {
         let mut func = FunctionBuilder::new("foo");
-        let (id, mut block) = func.new_basic_block();
+        let (_, mut block) = func.new_basic_block();
         let a = block.add_constant(ConstantValue::U16(0xAB));
         let b = block.add_constant(ConstantValue::U16(0x20));
         let c = block.add_constant(ConstantValue::U16(0x1));
@@ -116,14 +123,8 @@ mod test {
         block.finalize();
         let func = func.finalize();
 
-        let analysis = liveness_analysis(&func);
-        let cfg = ControlFlowGraph::generate(&func);
+        let core = execute_function(&compile_function(&func));
 
-        let allocation = allocate(&func, &cfg, &analysis);
-
-        let code = codegen::FunctionGenerator::new(&func, allocation);
-        let buffer = code.ir_block_to_dna_instructions(&func.blocks[&id]);
-
-        panic!("{}\n\n---\n\n{}", func.print_ir(&PrintOptions::default()), buffer.iter().map(|i| i.to_assembly()).collect::<Vec<_>>().join("\n"))
+        assert_eq!(0xAB + 0x20 + 0x1, core.gprs[0]);
     }
 }

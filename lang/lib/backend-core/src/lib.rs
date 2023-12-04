@@ -2,3 +2,6 @@
 
 mod reg_alloc;
 mod codegen;
+
+#[cfg(test)]
+mod test_utils;

@@ -1,3 +1,5 @@
+use delta_null_core_instructions::{Instruction, Encodable};
+
 use super::{Memory, MemoryError};
 
 pub struct SimpleMemory {
@@ -18,5 +20,17 @@ impl Memory for SimpleMemory {
 impl SimpleMemory {
     pub fn new() -> Self {
         Self { data: [0; 0x10000] }
+    }
+
+    pub fn with_content(words: &[u16]) -> Self {
+        let mut memory = Self::new();
+        for (i, word) in words.iter().enumerate() {
+            memory.write(i as u16, *word).unwrap();
+        }
+        memory
+    }
+
+    pub fn with_instructions(instructions: &[Instruction]) -> Self {
+        Self::with_content(&instructions.iter().map(|i| i.encode()).collect::<Vec<_>>())
     }
 }

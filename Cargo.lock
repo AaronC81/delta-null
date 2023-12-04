@@ -386,6 +386,7 @@ dependencies = [
 name = "delta-null-lang-backend-core"
 version = "0.1.0"
 dependencies = [
+ "delta-null-core-emulator",
  "delta-null-core-instructions",
  "delta-null-lang-backend",
 ]
