@@ -162,7 +162,7 @@ class TinyFPGABXTop(Elaboratable):
             mem_write_data=mem.write_data,
             mem_write_en=mem.write_en,
 
-            initial_sp=0x1E00,
+            initial_sp=0x2E00,
             initial_ip=0x1000,
         )
 

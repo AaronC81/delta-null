@@ -2,7 +2,7 @@
 
 ## Memory Map
 
-`0x1000 ..= 0x1DFF` is RAM - readable and writable.
+`0x1000 ..= 0x2DFF` is RAM - readable and writable.
 
 `0xF000 ..= 0xFFFF` is the hardware control region, which provides access to hardware state.
 
@@ -13,7 +13,7 @@ At boot, all RAM is zeroed except for the program which was uploaded.
 Registers are initialised as follows:
 
 - `ip` is `0x1000`, pointing to the beginning of RAM.
-- `sp` is `0x1E00`, pointing one word after the end of RAM.
+- `sp` is `0x2E00`, pointing one word after the end of RAM.
 - All other registers are zeroed.
 
 ## Hardware Control Region (HCR)
