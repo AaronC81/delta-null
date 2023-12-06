@@ -6,6 +6,9 @@ use crate::ir::{Function, BasicBlockId, StatementId};
 
 #[derive(Debug, Clone)]
 pub struct ControlFlowGraph {
+    /// All basic block IDs.
+    blocks: Vec<BasicBlockId>,
+
     /// The entry point of the function represented by this CFG.
     entry_point: BasicBlockId,
 
@@ -28,6 +31,7 @@ impl ControlFlowGraph {
             .map(|id| (*id, HashSet::new()))
             .collect::<HashMap<_, _>>();
         let mut cfg = ControlFlowGraph {
+            blocks: func.blocks.keys().copied().collect(),
             entry_point: *func.blocks.keys().next().unwrap(),
             incoming: initial_map.clone(),
             outgoing: initial_map,
@@ -132,8 +136,22 @@ impl ControlFlowGraph {
     /// When a block appears in this ordering, all blocks which *forward*-branch to it have appeared
     /// before. The ordering in which "equivalent" branches appear is not defined.
     pub fn ordering(&self) -> Vec<BasicBlockId> {
-        // I think a depth-first search naturally has the required properties?
-        self.depth_first()
+        // A depth-first search has most of the required properties
+        let mut result = self.depth_first();
+
+        // If any blocks are unreachable, the ordering will be missing them completely. This causes
+        // lookup problems later down the line.
+        // This isn't something we'd probably generate in normal cases, but it makes sense not to
+        // blow up when this happens!
+        // So, check for any missing blocks, and append them to the end. Because they're
+        // unreachable, the order in which we access them doesn't matter.
+        for block in &self.blocks {
+            if !result.contains(block) {
+                result.push(*block);
+            }
+        }
+
+        result
     }
 
     /// Uses a topological-style ordering of the function's basic blocks to provide numeric
