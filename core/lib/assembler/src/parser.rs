@@ -19,6 +19,22 @@ pub enum AssemblyItemKind {
 }
 
 impl AssemblyItem {
+    pub fn new(kind: AssemblyItemKind) -> Self {
+        Self { kind, labels: vec![] }
+    }
+
+    pub fn new_instruction(opcode: InstructionOpcode, operands: &[AssemblyOperand]) -> Self {
+        Self::new(AssemblyItemKind::Instruction(opcode, operands.to_vec()))
+    }
+
+    pub fn new_word_constant(value: u16) -> Self {
+        Self::new(AssemblyItemKind::WordConstant(value))
+    }
+
+    pub fn new_word_put(target: GPR, value: AssemblyOperand) -> Self {
+        Self::new(AssemblyItemKind::WordPut(target, value))
+    }
+
     /// The size of the item, in words (not bytes).
     pub fn word_size(&self) -> u16 {
         match self.kind {

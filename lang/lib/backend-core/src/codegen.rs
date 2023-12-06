@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use delta_null_core_instructions::{GeneralPurposeRegister, Instruction, GPR};
+use delta_null_core_assembler::{AssemblyItem, AssemblyOperand};
+use delta_null_core_instructions::{GeneralPurposeRegister, Instruction, GPR, InstructionOpcode, AnyRegister};
 use delta_null_lang_backend::ir::{Function, VariableId, self};
 
 use crate::reg_alloc::Allocation;
@@ -16,37 +17,39 @@ impl<'f> FunctionGenerator<'f> {
         Self { func, allocations }
     }
 
-    pub fn to_dna_instructions(&self) -> Vec<Instruction> {
+    pub fn to_assembly(&self) -> Vec<AssemblyItem> {
         if self.func.blocks.len() != 1 {
             todo!("more than 1 block nyi");
         }
 
-        self.ir_block_to_dna_instructions(self.func.blocks.iter().next().unwrap().1)
+        self.ir_block_to_assembly(self.func.blocks.iter().next().unwrap().1)
     }
 
-    /// Generates and returns the DNA instructions to implement an entire basic block.
-    pub fn ir_block_to_dna_instructions(&self, block: &ir::BasicBlock) -> Vec<Instruction> {
+    /// Generates and returns the Assembly instructions to implement an entire basic block.
+    pub fn ir_block_to_assembly(&self, block: &ir::BasicBlock) -> Vec<AssemblyItem> {
         let mut buffer = vec![];
         for stmt in &block.statements {
-            self.ir_statement_to_dna_instructions(&mut buffer, stmt);
+            self.ir_statement_to_assembly(&mut buffer, stmt);
         }
         buffer
     }
 
-    /// Generates the DNA instructions to implement a single IR statement.
-    pub fn ir_statement_to_dna_instructions(&self, buffer: &mut Vec<Instruction>, stmt: &ir::Statement) {
+    /// Generates the Assembly instructions to implement a single IR statement.
+    pub fn ir_statement_to_assembly(&self, buffer: &mut Vec<AssemblyItem>, stmt: &ir::Statement) {
         match stmt.instruction.kind {
             ir::InstructionKind::Constant(c) => {
                 let reg = self.variable_reg(stmt.result.unwrap());
                 
-                let (low_imm, high_imm) = match c {
-                    ir::ConstantValue::U16(v) => ((v & 0xFF) as u8, (v << 8) as u8),
-                    ir::ConstantValue::I16(v) => ((v & 0xFF) as u8, (v << 8) as u8),
-                    ir::ConstantValue::Boolean(b) => if b { (1, 0) } else { (0, 0) },
+                let imm = match c {
+                    ir::ConstantValue::U16(v) => v,
+                    ir::ConstantValue::I16(v) => v as u16,
+                    ir::ConstantValue::Boolean(b) => if b { 1 } else { 0 },
                 };
 
-                buffer.push(Instruction::Putl { reg, imm: low_imm });
-                buffer.push(Instruction::Puth { reg, imm: high_imm });
+                buffer.push(AssemblyItem::new_word_put(
+                    reg,
+                    AssemblyOperand::Immediate(imm)
+                ));
             },
 
             ir::InstructionKind::Add(l, r) => {
@@ -55,18 +58,38 @@ impl<'f> FunctionGenerator<'f> {
 
                 let result = self.variable_reg(stmt.result.unwrap());
 
-                buffer.push(Instruction::Mov { dest: result, src: l });
-                buffer.push(Instruction::Add { reg: result, val: r });
+                // Our `add` instruction is "mutating" - it acts like a `+=`.
+                // So copy one of the values into the result register, then add onto that
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Mov,
+                    &[
+                        AssemblyOperand::Register(AnyRegister::G(result)),
+                        AssemblyOperand::Register(AnyRegister::G(l)),
+                    ]
+                ));
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Add,
+                    &[
+                        AssemblyOperand::Register(AnyRegister::G(result)),
+                        AssemblyOperand::Register(AnyRegister::G(r)),
+                    ]
+                ));
             },
 
             ir::InstructionKind::Return(ret) => {
                 if let Some(ret) = ret {
                     // EABI says to use r0-r1 to pass return value
                     let ret = self.generate_read(buffer, ret);
-                    buffer.push(Instruction::Mov { dest: GPR::R0, src: ret });
+                    buffer.push(AssemblyItem::new_instruction(
+                        InstructionOpcode::Mov,
+                        &[
+                            AssemblyOperand::Register(AnyRegister::G(GPR::R0)),
+                            AssemblyOperand::Register(AnyRegister::G(ret)),
+                        ]
+                    ));
                 }
 
-                buffer.push(Instruction::Ret);
+                buffer.push(AssemblyItem::new_instruction(InstructionOpcode::Ret, &[]));
             }
 
             ir::InstructionKind::Branch(_) => todo!(),
@@ -86,7 +109,7 @@ impl<'f> FunctionGenerator<'f> {
     /// spill, so that it can be operated on.
     /// 
     /// Then, returns the general purpose register which contains the value.
-    fn generate_read(&self, buffer: &mut Vec<Instruction>, var: VariableId) -> GeneralPurposeRegister {
+    fn generate_read(&self, buffer: &mut Vec<AssemblyItem>, var: VariableId) -> GeneralPurposeRegister {
         match &self.allocations[&var] {
             Allocation::Register(r) => *r,
             Allocation::Spill(_) => todo!("spilling not yet supported"),
@@ -96,7 +119,7 @@ impl<'f> FunctionGenerator<'f> {
     /// Returns the instructions, if any, required to write a spilled variable's calculated value
     /// back onto the stack, so that it is preserved when the register it is temporarily using is
     /// trashed agian.
-    fn generate_write(&self, buffer: &mut Vec<Instruction>, var: VariableId) {
+    fn generate_write(&self, buffer: &mut Vec<AssemblyItem>, var: VariableId) {
         match &self.allocations[&var] {
             Allocation::Register(_) => (),
             Allocation::Spill(_) => todo!("spilling not yet supported"),

@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 delta-null-lang-backend = { path = "../backend" }
 delta-null-core-instructions = { path = "../../../core/lib/instructions" }
+delta-null-core-assembler = { path = "../../../core/lib/assembler" }
 
 [dev-dependencies]
 delta-null-core-emulator = { path = "../../../core/lib/emulator" }
