@@ -103,6 +103,22 @@ impl AssemblyOperand {
     }
 }
 
+impl From<GPR> for AssemblyOperand {
+    fn from(value: GPR) -> Self { AssemblyOperand::Register(AnyRegister::G(value)) }
+}
+
+impl From<SPR> for AssemblyOperand {
+    fn from(value: SPR) -> Self { AssemblyOperand::Register(AnyRegister::S(value)) }
+}
+
+impl From<DR> for AssemblyOperand {
+    fn from(value: DR) -> Self { AssemblyOperand::Register(AnyRegister::D(value)) }
+}
+
+impl From<u16> for AssemblyOperand {
+    fn from(value: u16) -> Self { AssemblyOperand::Immediate(value) }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ParseError {
     description: String,

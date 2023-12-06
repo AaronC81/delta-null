@@ -46,10 +46,7 @@ impl<'f> FunctionGenerator<'f> {
                     ir::ConstantValue::Boolean(b) => if b { 1 } else { 0 },
                 };
 
-                buffer.push(AssemblyItem::new_word_put(
-                    reg,
-                    AssemblyOperand::Immediate(imm)
-                ));
+                buffer.push(AssemblyItem::new_word_put(reg, imm.into()));
             },
 
             ir::InstructionKind::Add(l, r) => {
@@ -62,17 +59,11 @@ impl<'f> FunctionGenerator<'f> {
                 // So copy one of the values into the result register, then add onto that
                 buffer.push(AssemblyItem::new_instruction(
                     InstructionOpcode::Mov,
-                    &[
-                        AssemblyOperand::Register(AnyRegister::G(result)),
-                        AssemblyOperand::Register(AnyRegister::G(l)),
-                    ]
+                    &[result.into(), l.into()]
                 ));
                 buffer.push(AssemblyItem::new_instruction(
                     InstructionOpcode::Add,
-                    &[
-                        AssemblyOperand::Register(AnyRegister::G(result)),
-                        AssemblyOperand::Register(AnyRegister::G(r)),
-                    ]
+                    &[result.into(), r.into()]
                 ));
             },
 
@@ -82,10 +73,7 @@ impl<'f> FunctionGenerator<'f> {
                     let ret = self.generate_read(buffer, ret);
                     buffer.push(AssemblyItem::new_instruction(
                         InstructionOpcode::Mov,
-                        &[
-                            AssemblyOperand::Register(AnyRegister::G(GPR::R0)),
-                            AssemblyOperand::Register(AnyRegister::G(ret)),
-                        ]
+                        &[GPR::R0.into(), ret.into()]
                     ));
                 }
 
