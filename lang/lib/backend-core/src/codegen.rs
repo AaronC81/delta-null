@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use delta_null_core_assembler::{AssemblyItem, AssemblyOperand};
+use delta_null_core_assembler::{AssemblyItem, AssemblyOperand, LabelAccess};
 use delta_null_core_instructions::{GeneralPurposeRegister, Instruction, GPR, InstructionOpcode, AnyRegister};
-use delta_null_lang_backend::ir::{Function, VariableId, self};
+use delta_null_lang_backend::ir::{Function, VariableId, self, BasicBlockId};
 
 use crate::reg_alloc::Allocation;
 
@@ -18,11 +18,16 @@ impl<'f> FunctionGenerator<'f> {
     }
 
     pub fn to_assembly(&self) -> Vec<AssemblyItem> {
-        if self.func.blocks.len() != 1 {
-            todo!("more than 1 block nyi");
+        let mut buffer = vec![];
+
+        // Assumes that first ID'd block is the entry point of the function
+        let mut sorted_block_ids = self.func.blocks.keys().collect::<Vec<_>>();
+        sorted_block_ids.sort();
+        for id in sorted_block_ids {
+            buffer.extend(self.ir_block_to_assembly(&self.func.blocks[id]));
         }
 
-        self.ir_block_to_assembly(self.func.blocks.iter().next().unwrap().1)
+        buffer
     }
 
     /// Generates and returns the Assembly instructions to implement an entire basic block.
@@ -31,6 +36,10 @@ impl<'f> FunctionGenerator<'f> {
         for stmt in &block.statements {
             self.ir_statement_to_assembly(&mut buffer, stmt);
         }
+
+        // Add label to first instruction of the block
+        buffer[0].labels.push(self.basic_block_label(&block.id));
+
         buffer
     }
 
@@ -80,8 +89,43 @@ impl<'f> FunctionGenerator<'f> {
                 buffer.push(AssemblyItem::new_instruction(InstructionOpcode::Ret, &[]));
             }
 
-            ir::InstructionKind::Branch(_) => todo!(),
-            ir::InstructionKind::ConditionalBranch { condition, true_block, false_block } => todo!(),
+            ir::InstructionKind::Branch(dest) => {
+                // TODO: offset-branch might not always reach sufficiently far, but dealing with
+                // register allocation for this is complicated!
+                // This is probably fine for most trivial stuff, for now.
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Jmpoff,
+                    &[AssemblyOperand::Label {
+                        name: self.basic_block_label(&dest),
+                        access: Some(LabelAccess::Offset),
+                    }]
+                ));
+            },
+
+            ir::InstructionKind::ConditionalBranch { condition, true_block, false_block } => {
+                let condition = self.generate_read(buffer, condition);
+
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Eqz,
+                    &[condition.into()]
+                ));
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Cjmpoff,
+                    &[AssemblyOperand::Label {
+                        // We used `eqz`, so conditional-jump to the false block if that condition
+                        // was met, because 0 is false
+                        name: self.basic_block_label(&false_block), 
+                        access: Some(LabelAccess::Offset),
+                    }]
+                ));
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Jmpoff,
+                    &[AssemblyOperand::Label {
+                        name: self.basic_block_label(&true_block), 
+                        access: Some(LabelAccess::Offset),
+                    }]
+                ));
+            }
         }
     }
 
@@ -113,11 +157,16 @@ impl<'f> FunctionGenerator<'f> {
             Allocation::Spill(_) => todo!("spilling not yet supported"),
         }
     }
+
+    /// Returns a unique name for a basic block, used as an Assembly label to refer to its start.
+    fn basic_block_label(&self, id: &BasicBlockId) -> String {
+        format!("{}___block_{}", self.func.name, id.0)
+    }
 }
 
 #[cfg(test)]
 mod test {
-    use delta_null_lang_backend::ir::{FunctionBuilder, ConstantValue, Instruction, InstructionKind};
+    use delta_null_lang_backend::ir::{FunctionBuilder, ConstantValue, Instruction, InstructionKind, PrintIR, PrintOptions};
 
     use crate::test_utils::*;
 
@@ -137,5 +186,25 @@ mod test {
         let core = execute_function(&compile_function(&func));
 
         assert_eq!(0xAB + 0x20 + 0x1, core.gprs[0]);
+    }
+
+    #[test]
+    fn test_unconditional_branch() {
+        let mut func = FunctionBuilder::new("foo");
+        let (ids, mut blocks) = func.new_basic_blocks(6);
+
+        // Each of the blocks (after the first) has a return statement, with a different value
+        // Check that we jump to the correct one!
+        blocks[0].add_terminator(Instruction::new(InstructionKind::Branch(ids[2])));
+        for i in 1..=5 {
+            let c = blocks[i].add_constant(ConstantValue::U16(i as u16 * 0x10));
+            blocks[i].add_terminator(Instruction::new(InstructionKind::Return(Some(c))));
+        }
+        func.finalize_blocks(blocks);
+        let func = func.finalize();
+
+        let core = execute_function(&compile_function(&func));
+
+        assert_eq!(0x20, core.gprs[0]);
     }
 }

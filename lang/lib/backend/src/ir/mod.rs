@@ -89,7 +89,7 @@ impl PrintIR for Function {
 
 /// Uniquely identifies a [BasicBlock] within a [Function].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct BasicBlockId(usize);
+pub struct BasicBlockId(pub usize);
 
 impl BasicBlockId {
     pub fn first_statement_id(self) -> StatementId {
