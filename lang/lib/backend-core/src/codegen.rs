@@ -168,6 +168,7 @@ impl<'f> FunctionGenerator<'f> {
 
 #[cfg(test)]
 mod test {
+    use delta_null_core_emulator::{Core, memory::Memory};
     use delta_null_lang_backend::ir::{FunctionBuilder, ConstantValue, Instruction, InstructionKind, PrintIR, PrintOptions};
 
     use crate::test_utils::*;
@@ -208,5 +209,38 @@ mod test {
         let core = execute_function(&compile_function(&func));
 
         assert_eq!(0x20, core.gprs[0]);
+    }
+
+    #[test]
+    fn test_conditional_branch() {
+        fn make_test_with_value(b: bool) -> Core<impl Memory> {
+            let mut func = FunctionBuilder::new("foo");
+            let (ids, mut blocks) = func.new_basic_blocks(3);
+
+            // Conditional jump
+            let condition = blocks[0].add_constant(ConstantValue::Boolean(b));
+            blocks[0].add_terminator(Instruction::new(InstructionKind::ConditionalBranch {
+                condition,
+                true_block: ids[1],
+                false_block: ids[2],
+            }));
+            
+            // True block
+            let true_constant = blocks[1].add_constant(ConstantValue::U16(0x10));
+            blocks[1].add_terminator(Instruction::new(InstructionKind::Return(Some(true_constant))));
+
+            // False block
+            let false_constant = blocks[2].add_constant(ConstantValue::U16(0xAB));
+            blocks[2].add_terminator(Instruction::new(InstructionKind::Return(Some(false_constant))));
+
+
+            func.finalize_blocks(blocks);
+            let func = func.finalize();
+
+            execute_function(&compile_function(&func))
+        }
+
+        assert_eq!(0x10, make_test_with_value(true).gprs[0]);
+        assert_eq!(0xAB, make_test_with_value(false).gprs[0]);
     }
 }
