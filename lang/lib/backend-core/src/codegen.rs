@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use delta_null_core_assembler::{AssemblyItem, AssemblyOperand, LabelAccess};
 use delta_null_core_instructions::{GeneralPurposeRegister, Instruction, GPR, InstructionOpcode, AnyRegister};
-use delta_null_lang_backend::ir::{Function, VariableId, self, BasicBlockId};
+use delta_null_lang_backend::ir::{Function, VariableId, self, BasicBlockId, InstructionKind};
 
 use crate::reg_alloc::Allocation;
 
@@ -17,20 +17,33 @@ impl<'f> FunctionGenerator<'f> {
         Self { func, allocations }
     }
 
+    /// Converts this entire function to a complete list of Assembly instructions.
     pub fn to_assembly(&self) -> Vec<AssemblyItem> {
-        let mut buffer = vec![];
-
         // Assumes that first ID'd block is the entry point of the function
         let mut sorted_block_ids = self.func.blocks.keys().collect::<Vec<_>>();
         sorted_block_ids.sort();
-        for id in sorted_block_ids {
-            buffer.extend(self.ir_block_to_assembly(&self.func.blocks[id]));
+
+        // Generate code for each block
+        let mut blocks = HashMap::new();
+        for id in &sorted_block_ids {
+            blocks.insert(**id, self.ir_block_to_assembly(&self.func.blocks[id]));
         }
 
+        // Run phi step
+        self.insert_phi_instructions(&mut blocks);
+
+        // Concatenate into a final buffer
+        let mut buffer = vec![];
+        for id in &sorted_block_ids {
+            buffer.extend(blocks.remove(&id).unwrap());
+        }
         buffer
     }
 
     /// Generates and returns the Assembly instructions to implement an entire basic block.
+    /// 
+    /// If the block contains phi nodes, they are not considered here - these are handled by a
+    /// second pass after initial generation.
     pub fn ir_block_to_assembly(&self, block: &ir::BasicBlock) -> Vec<AssemblyItem> {
         let mut buffer = vec![];
         for stmt in &block.statements {
@@ -127,7 +140,43 @@ impl<'f> FunctionGenerator<'f> {
                 ));
             }
 
-            ir::InstructionKind::Phi { choices } => todo!(),
+            ir::InstructionKind::Phi { choices } => {
+                // There's nothing to do here - `Phi` is generated on the blocks which call into
+                // this, not in the beginning of the block where the node is placed.
+            },
+        }
+    }
+
+    /// Inserts instructions at the end of each basic block to fulfill phi instructions in other
+    /// blocks.
+    /// 
+    /// Intended to execute as a post-processing step, after other block code has been generated.
+    fn insert_phi_instructions(&self, buffers: &mut HashMap<BasicBlockId, Vec<AssemblyItem>>) {
+        // Iterate over each basic block, and check if it starts with a phi
+        for (_, block) in &self.func.blocks {
+            let first_stmt = block.first_statement();
+            if let InstructionKind::Phi { choices } = &first_stmt.instruction.kind {
+                let phi_result = self.variable_reg(first_stmt.result.unwrap());
+
+                // It does contain a phi. Iterate over the possible incoming blocks, and insert a
+                // move instruction to populate the phi's result from that block.
+                // The phi instruction implementation must come _before_ the terminator - which
+                // we'll assume is the last instruction (as it should be!).
+                for (incoming_block_id, var) in choices {
+                    let buffer = buffers.get_mut(&incoming_block_id).unwrap();
+                    let source = self.generate_read(buffer, *var);
+                    buffer.insert(
+                        buffer.len() - 1,
+                        AssemblyItem::new_instruction(
+                            InstructionOpcode::Mov,
+                            &[
+                                phi_result.into(),
+                                source.into(),
+                            ]
+                        ),
+                    );
+                }
+            }
         }
     }
 
@@ -233,7 +282,6 @@ mod test {
             let false_constant = blocks[2].add_constant(ConstantValue::U16(0xAB));
             blocks[2].add_terminator(Instruction::new(InstructionKind::Return(Some(false_constant))));
 
-
             func.finalize_blocks(blocks);
             let func = func.finalize();
 
@@ -242,5 +290,48 @@ mod test {
 
         assert_eq!(0x10, make_test_with_value(true).gprs[0]);
         assert_eq!(0xAB, make_test_with_value(false).gprs[0]);
+    }
+
+    #[test]
+    fn test_phi() {
+        fn make_test_with_value(b: bool) -> Core<impl Memory> {
+            let mut func = FunctionBuilder::new("foo");
+            let (ids, mut blocks) = func.new_basic_blocks(4);
+
+            // Conditional jump
+            let condition = blocks[0].add_constant(ConstantValue::Boolean(b));
+            blocks[0].add_terminator(Instruction::new(InstructionKind::ConditionalBranch {
+                condition,
+                true_block: ids[1],
+                false_block: ids[2],
+            }));
+            
+            // True block
+            let true_constant = blocks[1].add_constant(ConstantValue::U16(0x10));
+            blocks[1].add_terminator(Instruction::new(InstructionKind::Branch(ids[3])));
+
+            // False block
+            let false_constant = blocks[2].add_constant(ConstantValue::U16(0xAB));
+            blocks[2].add_terminator(Instruction::new(InstructionKind::Branch(ids[3])));
+
+            // Convergence block with a phi node
+            // We do an addition to make sure we're definitely going through this node, not just
+            // returning directly from the true/false blocks
+            let phi = blocks[3].add_instruction(Instruction::new(InstructionKind::Phi { choices: vec![
+                (ids[1], true_constant),
+                (ids[2], false_constant),
+            ]}));
+            let add_constant = blocks[3].add_constant(ConstantValue::U16(0x10));
+            let phi_added = blocks[3].add_instruction(Instruction::new(InstructionKind::Add(phi, add_constant)));
+            blocks[3].add_terminator(Instruction::new(InstructionKind::Return(Some(phi_added))));
+
+            func.finalize_blocks(blocks);
+            let func = func.finalize();
+
+            execute_function(&compile_function(&func))
+        }
+
+        assert_eq!(0x10 + 0x10, make_test_with_value(true).gprs[0]);
+        assert_eq!(0xAB + 0x10, make_test_with_value(false).gprs[0]);
     }
 }
