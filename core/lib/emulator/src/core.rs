@@ -1,6 +1,6 @@
 use std::{fmt::Display, error::Error};
 
-use delta_null_core_instructions::{Instruction, Encodable, GPR, SPR};
+use delta_null_core_instructions::{Instruction, Encodable, GPR, SPR, ToAssembly};
 
 use crate::memory::{Memory, MemoryError};
 
@@ -14,6 +14,9 @@ pub struct Core<M: Memory> {
     pub ef: u16,
 
     pub memory: M,
+
+    /// If true, prints each instruction to stdout as it is executed.
+    pub trace_execution: bool,
 }
 
 impl<M: Memory> Core<M> {
@@ -25,6 +28,7 @@ impl<M: Memory> Core<M> {
             sp: 0xFFFF,
             ef: 0,
             memory,
+            trace_execution: false,
         }
     }
 
@@ -41,6 +45,7 @@ impl<M: Memory> Core<M> {
         }
 
         // Read instruction and advance IP
+        let ip_before_increment = self.ip;
         let instr_bits = self.memory.read(self.ip)?;
         self.ip = self.ip.overflowing_add(1).0;
 
@@ -48,6 +53,10 @@ impl<M: Memory> Core<M> {
         let Some(instr) = Instruction::decode(instr_bits) else {
             return Err(ExecutionError::DecodeError(instr_bits))
         };
+
+        if self.trace_execution {
+            println!("TRACE: Executing at ip={:04x}: {}", ip_before_increment, instr.to_assembly())
+        }
 
         // Execute instruction
         use Instruction::*;
