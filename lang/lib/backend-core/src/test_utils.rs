@@ -22,6 +22,7 @@ pub fn step_until_return(core: &mut Core<impl Memory>) -> Result<(), ExecutionEr
 /// Panics if the core encounters an execution error.
 pub fn execute_function(instructions: &[u16]) -> Core<impl Memory> {
     let mut core = Core::new(SimpleMemory::with_content(instructions));
+    core.trace_execution = true;
     step_until_return(&mut core).unwrap();
     core
 }
