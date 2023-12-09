@@ -32,11 +32,15 @@ impl<'f> FunctionGenerator<'f> {
         // Run phi step
         self.insert_phi_instructions(&mut blocks);
 
-        // Concatenate into a final buffer
+        // Concatenate blocks into a buffer
         let mut buffer = vec![];
         for id in &sorted_block_ids {
             buffer.extend(blocks.remove(&id).unwrap());
         }
+
+        // Prepend stack allocation stuff
+        self.insert_stack_allocation_instructions(&mut buffer);
+
         buffer
     }
 
@@ -99,6 +103,10 @@ impl<'f> FunctionGenerator<'f> {
                     ));
                 }
 
+                // This is going to exit this function, so we need to deallocate our stack
+                self.insert_stack_deallocation_instructions(buffer);
+
+                // Actually return
                 buffer.push(AssemblyItem::new_instruction(InstructionOpcode::Ret, &[]));
             }
 
@@ -178,6 +186,47 @@ impl<'f> FunctionGenerator<'f> {
                 }
             }
         }
+    }
+
+    /// Inserts instructions at the beginning of an instruction buffer to allocate stack space for
+    /// usage throughout the function, such as locals.
+    fn insert_stack_allocation_instructions(&self, buffer: &mut Vec<AssemblyItem>) {
+        // Insert stack allocation instructions
+        // TODO: very crap way of doing it. consider preserving a register and using `spadd`
+        for _ in 0..self.stack_space() {
+            buffer.insert(
+                0,
+                AssemblyItem::new_instruction(InstructionOpcode::Spdec, &[])
+            );
+        }
+    }
+
+    /// Inserts instructions at the end of the instruction buffer to deallocate stack space, before
+    /// a function returns.
+    fn insert_stack_deallocation_instructions(&self, buffer: &mut Vec<AssemblyItem>) {
+        // Insert stack deallocation instructions
+        // TODO: very crap way of doing it. consider trashing a register and using `spadd`
+        for _ in 0..self.stack_space() {
+            buffer.insert(
+                0,
+                AssemblyItem::new_instruction(InstructionOpcode::Spinc, &[])
+            );
+        }
+    }
+
+    /// Calculates the amount of stack space required throughout this function.
+    /// 
+    /// Due to the lack of a base pointer, code generation allocates all stack space required for
+    /// a function upfront.
+    /// 
+    /// At the borders between any two IR instructions within the same function, the stack pointer
+    /// will not move. The stack pointer may change within the same instruction to implement
+    /// register preservation or other actions, but the changes must not carry over to the next IR
+    /// instruction.
+    fn stack_space(&self) -> usize {
+        self.func.locals.iter()
+            .map(|(_, local)| local.ty.word_size())
+            .sum()
     }
 
     /// Gets the register to use for a variable.

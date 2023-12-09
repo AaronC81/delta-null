@@ -20,6 +20,7 @@ pub struct Function {
     pub name: String,
     pub blocks: HashMap<BasicBlockId, BasicBlock>,
     pub variables: HashMap<VariableId, Variable>,
+    pub locals: HashMap<LocalId, Local>,
 }
 
 impl Function {
@@ -151,6 +152,10 @@ pub struct StatementId(BasicBlockId, usize);
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VariableId(usize);
 
+/// Uniquely identifies a [Local] within a [Function].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct LocalId(usize);
+
 impl PrintIR for VariableId {
     fn print_ir(&self, options: &PrintOptions) -> String {
         format!("${}", self.0)
@@ -171,12 +176,38 @@ impl PrintIR for Variable {
     }
 }
 
+/// A local variable, always stored on the stack. Unlike a [Variable], which refers to the SSA form
+/// definition of a variable, a local can be reassigned.
+#[derive(Debug, Clone)]
+pub struct Local {
+    pub id: LocalId,
+    pub ty: Type,
+    pub name: String,
+}
+
+impl PrintIR for Local {
+    fn print_ir(&self, options: &PrintOptions) -> String {
+        format!("<local {} ({})>", self.id.0, self.name)
+    }
+}
+
 /// Describes the type of an IR [Variable].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Type {
     UnsignedInteger(IntegerSize),
     SignedInteger(IntegerSize),
     Boolean,
+}
+
+impl Type {
+    /// The number of words this type occupies.
+    pub fn word_size(&self) -> usize {
+        match self {
+            Type::UnsignedInteger(_) => 1,
+            Type::SignedInteger(_) => 1,
+            Type::Boolean => 1,
+        }
+    }
 }
 
 /// The supported sizes of [Type::UnsignedInteger] and [Type::SignedInteger].

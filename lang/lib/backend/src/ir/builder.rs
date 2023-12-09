@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 
-use super::{Statement, BasicBlockId, VariableId, Variable, Type, BasicBlock, Instruction, VariableRepository, Function, StatementId, ConstantValue, InstructionKind, util::ShareCell};
+use super::{Statement, BasicBlockId, VariableId, Variable, Type, BasicBlock, Instruction, VariableRepository, Function, StatementId, ConstantValue, InstructionKind, util::ShareCell, Local, LocalId};
 
 struct FunctionBuilderState {
     next_variable_id: usize,
     next_block_id: usize,
+    next_local_id: usize,
     variables: HashMap<VariableId, Variable>,
-    blocks: HashMap<BasicBlockId, Option<BasicBlock>>
+    blocks: HashMap<BasicBlockId, Option<BasicBlock>>,
+    locals: HashMap<LocalId, Local>,
 }
 
 impl FunctionBuilderState {
@@ -14,9 +16,11 @@ impl FunctionBuilderState {
         Self {
             next_variable_id: 0,
             next_block_id: 0,
+            next_local_id: 0,
 
             variables: HashMap::new(),
             blocks: HashMap::new(),
+            locals: HashMap::new(),
         }
     }
 }
@@ -47,6 +51,17 @@ impl FunctionBuilder {
             name: name.to_string(),
             state: ShareCell::new(FunctionBuilderState::new()),
         }
+    }
+
+    pub fn new_local(&mut self, name: &str, ty: Type) -> LocalId {
+        let mut state = self.state.borrow_mut();
+
+        let id = LocalId(state.next_local_id);
+        state.next_local_id += 1;
+
+        state.locals.insert(id, Local { id, ty, name: name.to_owned() });
+
+        id
     }
 
     pub fn new_basic_block(&mut self) -> (BasicBlockId, BasicBlockBuilder) {
@@ -88,6 +103,7 @@ impl FunctionBuilder {
                 )
                 .collect(),
             variables: state.variables,
+            locals: state.locals,
         }
     }
 
