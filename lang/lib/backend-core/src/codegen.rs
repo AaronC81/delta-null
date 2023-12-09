@@ -45,22 +45,22 @@ impl<'f> FunctionGenerator<'f> {
 
     /// Generates the Assembly instructions to implement a single IR statement.
     pub fn ir_statement_to_assembly(&self, buffer: &mut Vec<AssemblyItem>, stmt: &ir::Statement) {
-        match stmt.instruction.kind {
+        match &stmt.instruction.kind {
             ir::InstructionKind::Constant(c) => {
                 let reg = self.variable_reg(stmt.result.unwrap());
                 
                 let imm = match c {
-                    ir::ConstantValue::U16(v) => v,
-                    ir::ConstantValue::I16(v) => v as u16,
-                    ir::ConstantValue::Boolean(b) => if b { 1 } else { 0 },
+                    ir::ConstantValue::U16(v) => *v,
+                    ir::ConstantValue::I16(v) => *v as u16,
+                    ir::ConstantValue::Boolean(b) => if *b { 1 } else { 0 },
                 };
 
                 buffer.push(AssemblyItem::new_word_put(reg, imm.into()));
             },
 
             ir::InstructionKind::Add(l, r) => {
-                let l = self.generate_read(buffer, l);
-                let r = self.generate_read(buffer, r);
+                let l = self.generate_read(buffer, *l);
+                let r = self.generate_read(buffer, *r);
 
                 let result = self.variable_reg(stmt.result.unwrap());
 
@@ -77,7 +77,7 @@ impl<'f> FunctionGenerator<'f> {
             },
 
             ir::InstructionKind::Return(ret) => {
-                if let Some(ret) = ret {
+                if let Some(ret) = *ret {
                     // EABI says to use r0-r1 to pass return value
                     let ret = self.generate_read(buffer, ret);
                     buffer.push(AssemblyItem::new_instruction(
@@ -103,7 +103,7 @@ impl<'f> FunctionGenerator<'f> {
             },
 
             ir::InstructionKind::ConditionalBranch { condition, true_block, false_block } => {
-                let condition = self.generate_read(buffer, condition);
+                let condition = self.generate_read(buffer, *condition);
 
                 buffer.push(AssemblyItem::new_instruction(
                     InstructionOpcode::Eqz,
@@ -126,6 +126,8 @@ impl<'f> FunctionGenerator<'f> {
                     }]
                 ));
             }
+
+            ir::InstructionKind::Phi { choices } => todo!(),
         }
     }
 

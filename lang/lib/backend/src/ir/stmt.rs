@@ -62,6 +62,15 @@ pub enum InstructionKind {
         true_block: BasicBlockId,
         false_block: BasicBlockId,
     },
+
+    /// Chooses between multiple different variables, based on the block which branched to the
+    /// current block.
+    /// 
+    /// Must appear as the first instruction of a block. Results in undefined behaviour if the block
+    /// which branched to this block is not covered.
+    Phi {
+        choices: Vec<(BasicBlockId, VariableId)>,
+    }
 }
 
 impl Instruction {
@@ -98,12 +107,13 @@ impl Instruction {
     /// Should not include the result, if the instruction is a statement - only variables which are
     /// read as part of the instruction itself.
     pub fn referenced_variables(&self) -> HashSet<VariableId> {
-        match self.kind {
+        match &self.kind {
             InstructionKind::Constant(_) => hashset!{},
-            InstructionKind::Add(l, r) => hashset!{ l, r },
-            InstructionKind::Return(r) => r.into_iter().collect(),
+            InstructionKind::Add(l, r) => hashset!{ *l, *r },
+            InstructionKind::Return(r) => r.into_iter().copied().collect(),
             InstructionKind::Branch(_) => hashset!{},
-            InstructionKind::ConditionalBranch { condition, .. } => hashset!{ condition },
+            InstructionKind::ConditionalBranch { condition, .. } => hashset!{ *condition },
+            InstructionKind::Phi { choices } => choices.iter().map(|(_, var)| *var).collect(),
         }
     }
 
@@ -117,11 +127,11 @@ impl Instruction {
     /// - If the result type could not be deduced due to an invalid instruction, returns a
     ///   [TypeError].
     pub fn result_type(&self, vars: impl Deref<Target = impl VariableRepository>) -> Result<Option<Type>, TypeError> {
-        match self.kind {
+        match &self.kind {
             InstructionKind::Constant(v) => Ok(Some(v.ty())),
             InstructionKind::Add(a, b) => {
-                let a_ty = vars.get_variable(a).ty;
-                let b_ty = vars.get_variable(b).ty;
+                let a_ty = vars.get_variable(*a).ty;
+                let b_ty = vars.get_variable(*b).ty;
                 if a_ty != b_ty {
                     return Err(TypeError::new("both sides of `Add` must have the same type"));
                 }
@@ -132,13 +142,31 @@ impl Instruction {
             InstructionKind::Return(_)
             | InstructionKind::Branch(_)
             | InstructionKind::ConditionalBranch { .. } => Ok(None),
+
+            InstructionKind::Phi { choices } => {
+                let choice_tys = choices.iter()
+                    .map(|(_, var)| vars.get_variable(*var).ty)
+                    .collect::<Vec<_>>();
+
+                // Check all types are the same
+                let Some(first_ty) = choice_tys.first() else {
+                    return Err(TypeError::new("`Phi` must have at least one choice"));
+                };
+                for other_ty in choice_tys.iter().skip(1) {
+                    if other_ty != first_ty {
+                        return Err(TypeError::new("mismatching types in `Phi`"));
+                    }
+                }
+
+                Ok(Some(*first_ty))
+            }
         }
     }
 }
 
 impl PrintIR for Instruction {
     fn print_ir(&self, options: &super::PrintOptions) -> String {
-        match self.kind {
+        match &self.kind {
             InstructionKind::Constant(c) => c.print_ir(options),
             InstructionKind::Add(a, b) => format!("{} + {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::Return(r) =>
@@ -149,7 +177,15 @@ impl PrintIR for Instruction {
                 },
             InstructionKind::Branch(b) => format!("branch {}", b.print_ir(options)),
             InstructionKind::ConditionalBranch { condition, true_block, false_block } =>
-                format!("condbranch {} ? {} : {}", condition.print_ir(options), true_block.print_ir(options), false_block.print_ir(options))
+                format!("condbranch {} ? {} : {}", condition.print_ir(options), true_block.print_ir(options), false_block.print_ir(options)),
+            InstructionKind::Phi { choices } =>
+                format!(
+                    "phi {}",
+                    choices.iter()
+                        .map(|(b, v)| format!("{} -> {}", b.print_ir(options), v.print_ir(options)))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
         }
     }
 }
