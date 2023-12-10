@@ -51,12 +51,8 @@ pub fn tokenize(input: &str) -> (Vec<Token>, Vec<TokenizeError>) {
             // Identifier
             c if c.is_alphabetic() || c == '_' => {
                 let mut buffer = String::new();
-                while let Some(next) = chars.peek() {
-                    if next.is_alphanumeric() || c == '_' {
-                        buffer.push(chars.next().unwrap());
-                    } else {
-                        break
-                    }
+                while let Some(next) = chars.next_if(|c| c.is_alphanumeric() || *c == '_') {
+                    buffer.push(next);
                 }
 
                 // Check if this identifier is actually a keyword
