@@ -41,6 +41,9 @@ impl<'f> FunctionGenerator<'f> {
         // Prepend stack allocation stuff
         self.insert_stack_allocation_instructions(&mut buffer);
 
+        // Add label to very beginning, so other functions can call this
+        buffer[0].labels.push(self.func.name.clone());
+
         buffer
     }
 
