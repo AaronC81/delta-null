@@ -134,6 +134,8 @@ impl Encodable for Instruction {
                 "0010_0001_10ss_0ddd" => Movso { src: SPR::decode(s)?, dest: GPR::decode(d)? },
                 "0010_0001_11dd_0sss" => Movsi { src: GPR::decode(s)?, dest: SPR::decode(d)? },
                 "0010_0001_1101_1ooo" => Spadd { val: GPR::decode(o)? },
+                "0010_0010_1101_0000" => Spinc,
+                "0010_0010_1101_0001" => Spdec,
 
                 // Bit Manipulation
                 "0100_0000_0000_0rrr" => Not { reg: GPR::decode(r)? },
