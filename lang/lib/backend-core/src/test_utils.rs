@@ -1,9 +1,9 @@
 use delta_null_core_assembler::{AssemblyItem, Builder};
 use delta_null_core_emulator::{Core, memory::{Memory, SimpleMemory}, ExecutionError};
 use delta_null_core_instructions::Instruction;
-use delta_null_lang_backend::{ir::Function, analysis::{flow::ControlFlowGraph, liveness::liveness_analysis}};
+use delta_null_lang_backend::{ir::{Function, Module}, analysis::{flow::ControlFlowGraph, liveness::liveness_analysis}};
 
-use crate::{reg_alloc::allocate, codegen::FunctionGenerator};
+use crate::{reg_alloc::allocate, codegen::FunctionGenerator, compile_module};
 
 /// Steps a core until it executes a `ret` instruction.
 /// 
@@ -29,13 +29,9 @@ pub fn execute_function(instructions: &[u16]) -> Core<impl Memory> {
 
 /// Performs all necessary analysis on a function and then compiles it into DNA instructions.
 pub fn compile_function(func: &Function) -> Vec<u16> {
-    let analysis = liveness_analysis(&func);
-    let cfg = ControlFlowGraph::generate(&func);
-
-    let allocation = allocate(&func, &cfg, &analysis);
-
-    let code = FunctionGenerator::new(&func, allocation);
-    let asm = code.to_assembly();
-
-    Builder::new().build(&asm, 0).unwrap()
+    let mut module = Module::new();
+    module.functions.push(func.clone());
+    module.entry = Some(func.name.clone());
+    
+    compile_module(&module).unwrap()
 }

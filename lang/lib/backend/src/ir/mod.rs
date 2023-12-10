@@ -14,6 +14,21 @@ mod util;
 mod printer;
 pub use printer::*;
 
+/// A collection of functions which is compiled as a unit.
+#[derive(Debug, Clone)]
+pub struct Module {
+    pub functions: Vec<Function>,
+
+    /// If this module is executable, the name of the function which acts as an entry point.
+    pub entry: Option<String>,
+}
+
+impl Module {
+    pub fn new() -> Self {
+        Module { functions: vec![], entry: None }
+    }
+}
+
 /// A single function, which is composed of many basic blocks.
 #[derive(Debug, Clone)]
 pub struct Function {
