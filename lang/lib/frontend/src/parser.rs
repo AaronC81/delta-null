@@ -1,42 +1,31 @@
 use std::{iter::Peekable, fmt::Display, error::Error};
 
-use crate::{node::TopLevelItem, tokenizer::{Token, TokenKind}};
+use crate::{node::TopLevelItem, tokenizer::{Token, TokenKind}, fallible::Fallible};
 
 struct Parser<I: Iterator<Item = Token>> {
     tokens: Peekable<I>,
 }
 
 impl<I: Iterator<Item = Token>> Parser<I> {
-    pub fn parse_module(&mut self) -> (Vec<TopLevelItem>, Vec<ParseError>) {
-        let mut items = vec![];
-        let mut errors = vec![];
+    pub fn parse_module(&mut self) -> Fallible<Vec<TopLevelItem>, ParseError> {
+        let mut result = Fallible::new(vec![]);
     
         while let Some(peeked) = self.tokens.peek() {
             match peeked.kind {
-                TokenKind::KwFn => propagate_single(self.parse_function_definition(), &mut items, &mut errors),
+                TokenKind::KwFn => self.parse_function_definition()
+                    .integrate(&mut result, |l, i| l.push(i)),
 
-                _ => errors.push(ParseError::new(&format!("unexpected token at top-level: {:?}", peeked)))
+                _ => result.push_error(ParseError::new(&format!("unexpected token at top-level: {:?}", peeked)))
             }
         }
     
-        (items, errors)
+        result
     }
 
-    pub fn parse_function_definition(&mut self) -> (TopLevelItem, Vec<ParseError>) {
+    pub fn parse_function_definition(&mut self) -> Fallible<TopLevelItem, ParseError> {
         todo!()
     }
 }
-
-fn propagate<I, E>(result: (Vec<I>, Vec<E>), items: &mut Vec<I>, errors: &mut Vec<E>) {
-    items.extend(result.0);
-    errors.extend(result.1);
-}
-
-fn propagate_single<I, E>(result: (I, Vec<E>), items: &mut Vec<I>, errors: &mut Vec<E>) {
-    items.push(result.0);
-    errors.extend(result.1);
-}
-
 
 #[derive(Debug, Clone)]
 pub struct ParseError {
