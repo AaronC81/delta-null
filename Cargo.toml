@@ -13,4 +13,5 @@ members = [
 
     "lang/lib/backend",
     "lang/lib/backend-core",
+    "lang/lib/frontend",
 ]
