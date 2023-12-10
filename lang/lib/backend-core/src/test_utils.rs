@@ -1,9 +1,7 @@
-use delta_null_core_assembler::{AssemblyItem, Builder};
 use delta_null_core_emulator::{Core, memory::{Memory, SimpleMemory}, ExecutionError};
-use delta_null_core_instructions::Instruction;
-use delta_null_lang_backend::{ir::{Function, Module}, analysis::{flow::ControlFlowGraph, liveness::liveness_analysis}};
+use delta_null_lang_backend::ir::{Function, Module};
 
-use crate::{reg_alloc::allocate, codegen::FunctionGenerator, compile_module};
+use crate::compile_module;
 
 /// Steps a core until it executes a `ret` instruction.
 /// 
@@ -32,6 +30,6 @@ pub fn compile_function(func: &Function) -> Vec<u16> {
     let mut module = Module::new();
     module.functions.push(func.clone());
     module.entry = Some(func.name.clone());
-    
+
     compile_module(&module).unwrap()
 }

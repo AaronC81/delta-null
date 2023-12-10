@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use delta_null_core_instructions::GPR;
-use delta_null_lang_backend::{ir::{VariableId, Function, StatementId}, analysis::{liveness::LivenessAnalysis, flow::ControlFlowGraph}};
+use delta_null_lang_backend::{ir::{VariableId, Function}, analysis::{liveness::LivenessAnalysis, flow::ControlFlowGraph}};
 
 /// Describes how an IR variable was allocated onto the core during a function's execution.
 #[derive(Debug, Clone)]
@@ -23,7 +23,7 @@ pub enum Allocation {
 /// This is an implementation of linear scanning, as described by this journal article:
 ///   http://web.cs.ucla.edu/~palsberg/course/cs132/linearscan.pdf
 /// Specifically following the pseudocode in §4.1.
-pub fn allocate(func: &Function, cfg: &ControlFlowGraph, liveness: &LivenessAnalysis) -> HashMap<VariableId, Allocation> {
+pub fn allocate(_func: &Function, cfg: &ControlFlowGraph, liveness: &LivenessAnalysis) -> HashMap<VariableId, Allocation> {
     let intervals = liveness.live_intervals(&cfg);
     let indexes = cfg.statement_ordering();
 

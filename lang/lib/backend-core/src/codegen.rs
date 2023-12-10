@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use delta_null_core_assembler::{AssemblyItem, AssemblyOperand, LabelAccess};
-use delta_null_core_instructions::{GeneralPurposeRegister, Instruction, GPR, InstructionOpcode, AnyRegister};
+use delta_null_core_instructions::{GeneralPurposeRegister, GPR, InstructionOpcode};
 use delta_null_lang_backend::ir::{Function, VariableId, self, BasicBlockId, InstructionKind, LocalId};
 
 use crate::reg_alloc::Allocation;
@@ -171,7 +171,7 @@ impl<'f> FunctionGenerator<'f> {
                 ));
             }
 
-            ir::InstructionKind::Phi { choices } => {
+            ir::InstructionKind::Phi { .. } => {
                 // There's nothing to do here - `Phi` is generated on the blocks which call into
                 // this, not in the beginning of the block where the node is placed.
             },
@@ -283,7 +283,7 @@ impl<'f> FunctionGenerator<'f> {
     /// spill, so that it can be operated on.
     /// 
     /// Then, returns the general purpose register which contains the value.
-    fn generate_read(&self, buffer: &mut Vec<AssemblyItem>, var: VariableId) -> GeneralPurposeRegister {
+    fn generate_read(&self, _buffer: &mut Vec<AssemblyItem>, var: VariableId) -> GeneralPurposeRegister {
         match &self.allocations[&var] {
             Allocation::Register(r) => *r,
             Allocation::Spill(_) => todo!("spilling not yet supported"),
@@ -293,7 +293,7 @@ impl<'f> FunctionGenerator<'f> {
     /// Returns the instructions, if any, required to write a spilled variable's calculated value
     /// back onto the stack, so that it is preserved when the register it is temporarily using is
     /// trashed agian.
-    fn generate_write(&self, buffer: &mut Vec<AssemblyItem>, var: VariableId) {
+    fn generate_write(&self, _buffer: &mut Vec<AssemblyItem>, var: VariableId) {
         match &self.allocations[&var] {
             Allocation::Register(_) => (),
             Allocation::Spill(_) => todo!("spilling not yet supported"),
@@ -309,7 +309,7 @@ impl<'f> FunctionGenerator<'f> {
 #[cfg(test)]
 mod test {
     use delta_null_core_emulator::{Core, memory::Memory};
-    use delta_null_lang_backend::ir::{FunctionBuilder, ConstantValue, Instruction, InstructionKind, PrintIR, PrintOptions, Type, IntegerSize};
+    use delta_null_lang_backend::ir::{FunctionBuilder, ConstantValue, Instruction, InstructionKind, Type, IntegerSize};
 
     use crate::test_utils::*;
 
