@@ -2,7 +2,7 @@ use std::{fmt::Display, error::Error, ops::Deref, collections::HashSet};
 
 use maplit::hashset;
 
-use super::{VariableId, Type, IntegerSize, BasicBlockId, VariableRepository, StatementId, PrintIR};
+use super::{VariableId, Type, IntegerSize, BasicBlockId, VariableRepository, StatementId, PrintIR, LocalId, LocalRepository};
 
 /// Wraps an [Instruction], and the [VariableId] which it assigns to, if any.
 #[derive(Debug, Clone)]
@@ -45,6 +45,12 @@ impl Instruction {
 pub enum InstructionKind {
     /// Evaluates to a constant value.
     Constant(ConstantValue),
+
+    /// Reads the current value of a local.
+    ReadLocal(LocalId),
+
+    /// Writes a new value to a local.
+    WriteLocal(LocalId, VariableId),
 
     /// Adds together two integer values, of the same type.
     Add(VariableId, VariableId),
@@ -109,6 +115,8 @@ impl Instruction {
     pub fn referenced_variables(&self) -> HashSet<VariableId> {
         match &self.kind {
             InstructionKind::Constant(_) => hashset!{},
+            InstructionKind::ReadLocal(_) => hashset!{},
+            InstructionKind::WriteLocal(_, v) => hashset!{ *v },
             InstructionKind::Add(l, r) => hashset!{ *l, *r },
             InstructionKind::Return(r) => r.into_iter().copied().collect(),
             InstructionKind::Branch(_) => hashset!{},
@@ -126,9 +134,17 @@ impl Instruction {
     /// - If the result type was deduced as void (typically for a terminator), returns `Ok(None)`.
     /// - If the result type could not be deduced due to an invalid instruction, returns a
     ///   [TypeError].
-    pub fn result_type(&self, vars: impl Deref<Target = impl VariableRepository>) -> Result<Option<Type>, TypeError> {
+    pub fn result_type(
+        &self,
+        vars: impl Deref<Target = impl VariableRepository>,
+        locals: impl Deref<Target = impl LocalRepository>,
+    ) -> Result<Option<Type>, TypeError> {
         match &self.kind {
             InstructionKind::Constant(v) => Ok(Some(v.ty())),
+
+            InstructionKind::ReadLocal(l) => Ok(Some(locals.get_local(*l).ty)),
+            InstructionKind::WriteLocal(_, _) => Ok(None),
+
             InstructionKind::Add(a, b) => {
                 let a_ty = vars.get_variable(*a).ty;
                 let b_ty = vars.get_variable(*b).ty;
@@ -168,6 +184,8 @@ impl PrintIR for Instruction {
     fn print_ir(&self, options: &super::PrintOptions) -> String {
         match &self.kind {
             InstructionKind::Constant(c) => c.print_ir(options),
+            InstructionKind::ReadLocal(l) => format!("read {}", l.print_ir(options)),
+            InstructionKind::WriteLocal(l, v) => format!("write {} = {}", l.print_ir(options), v.print_ir(options)),
             InstructionKind::Add(a, b) => format!("{} + {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::Return(r) =>
                 if let Some(r) = r {

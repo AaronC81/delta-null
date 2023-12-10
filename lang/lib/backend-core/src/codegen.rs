@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use delta_null_core_assembler::{AssemblyItem, AssemblyOperand, LabelAccess};
 use delta_null_core_instructions::{GeneralPurposeRegister, Instruction, GPR, InstructionOpcode, AnyRegister};
-use delta_null_lang_backend::ir::{Function, VariableId, self, BasicBlockId, InstructionKind};
+use delta_null_lang_backend::ir::{Function, VariableId, self, BasicBlockId, InstructionKind, LocalId};
 
 use crate::reg_alloc::Allocation;
 
@@ -73,6 +73,26 @@ impl<'f> FunctionGenerator<'f> {
                 };
 
                 buffer.push(AssemblyItem::new_word_put(reg, imm.into()));
+            },
+
+            ir::InstructionKind::ReadLocal(l) => {
+                let local_offset = self.local_access_map()[l];
+                let result = self.variable_reg(stmt.result.unwrap());
+
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Spread,
+                    &[result.into(), local_offset.into()] // TODO: limits local offsets to 16
+                ));
+            },
+
+            ir::InstructionKind::WriteLocal(l, v) => {
+                let v = self.generate_read(buffer, *v);
+                let local_offset = self.local_access_map()[l];
+
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Spwrite,
+                    &[local_offset.into(), v.into()] // TODO: limits local offsets to 16
+                ));
             },
 
             ir::InstructionKind::Add(l, r) => {
@@ -207,8 +227,7 @@ impl<'f> FunctionGenerator<'f> {
         // Insert stack deallocation instructions
         // TODO: very crap way of doing it. consider trashing a register and using `spadd`
         for _ in 0..self.stack_space() {
-            buffer.insert(
-                0,
+            buffer.push(
                 AssemblyItem::new_instruction(InstructionOpcode::Spinc, &[])
             );
         }
@@ -227,6 +246,26 @@ impl<'f> FunctionGenerator<'f> {
         self.func.locals.iter()
             .map(|(_, local)| local.ty.word_size())
             .sum()
+    }
+
+    /// Builds a map describing the stack offsets used to access locals on the stack. An offset of
+    /// 0 means that a local resides at the stack pointer, 1 means stack pointer + 1, etc.
+    /// 
+    /// This relies on the guarantee the stack pointer within a function does not move between
+    /// IR instructions. 
+    fn local_access_map(&self) -> HashMap<LocalId, u16> {
+        // Create sorted list of IDs
+        let mut sorted_local_ids = self.func.locals.keys().copied().collect::<Vec<_>>();
+        sorted_local_ids.sort();
+
+        // Iterate in order, build map
+        let mut result = HashMap::new();
+        let mut current_offset = 0;
+        for id in sorted_local_ids {
+            result.insert(id, current_offset);
+            current_offset += self.func.locals[&id].ty.word_size() as u16;
+        }
+        result
     }
 
     /// Gets the register to use for a variable.
@@ -267,7 +306,7 @@ impl<'f> FunctionGenerator<'f> {
 #[cfg(test)]
 mod test {
     use delta_null_core_emulator::{Core, memory::Memory};
-    use delta_null_lang_backend::ir::{FunctionBuilder, ConstantValue, Instruction, InstructionKind, PrintIR, PrintOptions};
+    use delta_null_lang_backend::ir::{FunctionBuilder, ConstantValue, Instruction, InstructionKind, PrintIR, PrintOptions, Type, IntegerSize};
 
     use crate::test_utils::*;
 
@@ -382,5 +421,36 @@ mod test {
 
         assert_eq!(0x10 + 0x10, make_test_with_value(true).gprs[0]);
         assert_eq!(0xAB + 0x10, make_test_with_value(false).gprs[0]);
+    }
+
+    #[test]
+    fn test_locals() {
+        let mut func = FunctionBuilder::new("foo");
+        let local_a = func.new_local("a", Type::UnsignedInteger(IntegerSize::Bits16));
+        let local_b = func.new_local("b", Type::UnsignedInteger(IntegerSize::Bits16));
+
+        let (_, mut block) = func.new_basic_block();
+        
+        // Write both locals
+        let a_value = block.add_constant(ConstantValue::U16(123));
+        block.add_void_instruction(Instruction::new(InstructionKind::WriteLocal(local_a, a_value)));
+
+        let b_value = block.add_constant(ConstantValue::U16(456));
+        block.add_void_instruction(Instruction::new(InstructionKind::WriteLocal(local_b, b_value)));
+
+        // Read back
+        let a_read = block.add_instruction(Instruction::new(InstructionKind::ReadLocal(local_a)));
+        let b_read = block.add_instruction(Instruction::new(InstructionKind::ReadLocal(local_b)));
+
+        // Add and return
+        let added = block.add_instruction(Instruction::new(InstructionKind::Add(a_read, b_read)));
+        block.add_terminator(Instruction::new(InstructionKind::Return(Some(added))));
+
+        block.finalize();
+        let func = func.finalize();
+
+        let core = execute_function(&compile_function(&func));
+
+        assert_eq!(123 + 456, core.gprs[0]);
     }
 }

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::{Statement, BasicBlockId, VariableId, Variable, Type, BasicBlock, Instruction, VariableRepository, Function, StatementId, ConstantValue, InstructionKind, util::ShareCell, Local, LocalId};
+use super::{Statement, BasicBlockId, VariableId, Variable, Type, BasicBlock, Instruction, VariableRepository, Function, StatementId, ConstantValue, InstructionKind, util::ShareCell, Local, LocalId, LocalRepository};
 
 struct FunctionBuilderState {
     next_variable_id: usize,
@@ -37,6 +37,12 @@ impl FunctionBuilderState {
 impl VariableRepository for FunctionBuilderState {
     fn get_variable(&self, id: VariableId) -> &Variable {
         self.variables.get(&id).unwrap()
+    }
+}
+
+impl LocalRepository for FunctionBuilderState {
+    fn get_local(&self, id: LocalId) -> &Local {
+        self.locals.get(&id).unwrap()
     }
 }
 
@@ -127,7 +133,7 @@ impl BasicBlockBuilder {
     }
 
     fn add_instruction_internal(&mut self, instruction: Instruction) -> Option<VariableId> {
-        let result_ty = instruction.result_type(self.state.borrow_mut()).unwrap();
+        let result_ty = instruction.result_type(self.state.borrow(), self.state.borrow()).unwrap();
         let result = match result_ty {
             Some(ty) => Some(self.state.borrow_mut().new_variable(ty)),
             None => None,
@@ -147,6 +153,14 @@ impl BasicBlockBuilder {
         }
 
         self.add_instruction_internal(instruction).unwrap()
+    }
+
+    pub fn add_void_instruction(&mut self, instruction: Instruction) {
+        if instruction.is_terminator() {
+            panic!("tried to use `add_void_instruction` with terminator: {:?}", instruction)
+        }
+
+        self.add_instruction_internal(instruction);
     }
 
     pub fn add_terminator(&mut self, instruction: Instruction) {

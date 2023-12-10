@@ -162,6 +162,12 @@ impl PrintIR for VariableId {
     }
 }
 
+impl PrintIR for LocalId {
+    fn print_ir(&self, options: &PrintOptions) -> String {
+        format!("<local {}>", self.0)
+    }
+}
+
 /// Contains the value produced by an [Instruction]. As this IR is in SSA form, any variable is
 /// assigned to exactly once.
 #[derive(Debug, Clone)]
@@ -226,3 +232,15 @@ impl VariableRepository for Function {
         self.variables.get(&id).unwrap()
     }
 }
+
+/// Models some local container.
+pub trait LocalRepository {
+    fn get_local(&self, id: LocalId) -> &Local;
+}
+
+impl LocalRepository for Function {
+    fn get_local(&self, id: LocalId) -> &Local {
+        self.locals.get(&id).unwrap()
+    }
+}
+
