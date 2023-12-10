@@ -14,6 +14,7 @@ impl Token {
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum TokenKind {
     Identifier(String),
+    Integer(String),
 
     KwFn,
 
@@ -46,7 +47,7 @@ pub fn tokenize(input: &str) -> (Vec<Token>, Vec<TokenizeError>) {
             ')' => { chars.next(); tokens.push(Token::new(TokenKind::RParen)) },
             ':' => { chars.next(); tokens.push(Token::new(TokenKind::Colon)) },
             ';' => { chars.next(); tokens.push(Token::new(TokenKind::Semicolon)) },
-            '+' => { chars.next(); tokens.push(Token::new(TokenKind::Semicolon)) },
+            '+' => { chars.next(); tokens.push(Token::new(TokenKind::Plus)) },
 
             // Identifier
             c if c.is_alphabetic() || c == '_' => {
@@ -61,6 +62,16 @@ pub fn tokenize(input: &str) -> (Vec<Token>, Vec<TokenizeError>) {
                     _ => TokenKind::Identifier(buffer),
                 };
                 tokens.push(Token::new(kind));
+            },
+
+            // Integer
+            c if c.is_ascii_digit() || c == '-' => {
+                let mut buffer = String::new();
+                buffer.push(chars.next().unwrap()); // brought out to catch -
+                while let Some(next) = chars.next_if(|c| c.is_ascii_digit()) {
+                    buffer.push(next);
+                }
+                tokens.push(Token::new(TokenKind::Integer(buffer)))
             },
 
             // Don't know!
@@ -110,6 +121,20 @@ mod test {
                 TokenKind::RParen,
                 TokenKind::LBrace,
                 TokenKind::RBrace,
+            ],
+            tokens.into_iter().map(|t| t.kind).collect::<Vec<_>>()
+        )
+    }
+
+    #[test]
+    fn test_integer() {
+        let (tokens, errors) = tokenize("123 + -456");
+        assert!(errors.is_empty());
+        assert_eq!(
+            vec![
+                TokenKind::Integer("123".to_string()),
+                TokenKind::Plus,
+                TokenKind::Integer("-456".to_string()),
             ],
             tokens.into_iter().map(|t| t.kind).collect::<Vec<_>>()
         )
