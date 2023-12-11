@@ -17,6 +17,8 @@ pub enum TokenKind {
     Integer(String),
 
     KwFn,
+    KwVar,
+    KwReturn,
 
     LBrace,
     RBrace,
@@ -25,6 +27,7 @@ pub enum TokenKind {
     Colon,
     Semicolon,
     Plus,
+    Equals,
 }
 
 pub fn tokenize(input: &str) -> (Vec<Token>, Vec<TokenizeError>) {
@@ -48,6 +51,7 @@ pub fn tokenize(input: &str) -> (Vec<Token>, Vec<TokenizeError>) {
             ':' => { chars.next(); tokens.push(Token::new(TokenKind::Colon)) },
             ';' => { chars.next(); tokens.push(Token::new(TokenKind::Semicolon)) },
             '+' => { chars.next(); tokens.push(Token::new(TokenKind::Plus)) },
+            '=' => { chars.next(); tokens.push(Token::new(TokenKind::Equals)) },
 
             // Identifier
             c if c.is_alphabetic() || c == '_' => {
@@ -59,6 +63,8 @@ pub fn tokenize(input: &str) -> (Vec<Token>, Vec<TokenizeError>) {
                 // Check if this identifier is actually a keyword
                 let kind = match buffer.as_ref() {
                     "fn" => TokenKind::KwFn,
+                    "var" => TokenKind::KwVar,
+                    "return" => TokenKind::KwReturn,
                     _ => TokenKind::Identifier(buffer),
                 };
                 tokens.push(Token::new(kind));

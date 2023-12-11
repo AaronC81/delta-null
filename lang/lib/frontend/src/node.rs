@@ -35,10 +35,15 @@ impl Statement {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StatementKind {
     Block {
-        body: Vec<Expression>,
+        body: Vec<Statement>,
         trailing_return: bool,
     },
     Expression(Expression),
+    VariableDeclaration {
+        name: String,
+        ty: Type,
+        value: Option<Expression>,
+    },
     Return(Option<Expression>),
     Loop(Box<Statement>),
 }
@@ -61,4 +66,21 @@ pub enum ExpressionKind {
     Integer(String),
 
     Add(Box<Expression>, Box<Expression>),
+}
+
+/// A parsed type.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Type {
+    pub kind: TypeKind,
+}
+
+impl Type {
+    pub fn new(kind: TypeKind) -> Self {
+        Type { kind }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum TypeKind {
+    Name(String),
 }
