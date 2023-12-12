@@ -31,6 +31,8 @@ pub fn code_to_module(code: &str) -> Result<Module, Vec<Box<dyn Error>>> {
     for item in parsed_module {
         translator.translate_item(&item).box_errors().into_result()?;
     }
+    let mut module = translator.finalize();
+    module.entry = Some("main".to_owned()); // TODO
 
-    Ok(translator.finalize())
+    Ok(module)
 }

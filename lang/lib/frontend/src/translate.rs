@@ -107,7 +107,7 @@ impl FunctionTranslator {
                 if let Some(value) = value {
                     return self.translate_expression(value, target)?
                         .map(|v| {
-                            target.add_instruction(
+                            target.add_void_instruction(
                                 ir::Instruction::new(ir::InstructionKind::WriteLocal(local, v))
                             );
                             ().into()
