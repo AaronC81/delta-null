@@ -113,11 +113,33 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             }
 
             Some(_) => {
-                let t = self.tokens.next().unwrap().kind;
-                Fallible::new_fatal(vec![
-                    ParseError::new(&format!("expected statement, got {:?}", t))
-                ])
+                // Let's assume this is an expression
+                let expr = self.parse_expression()?;
+
+                // We want to do some further processing, but we need to be sure that parsing 
+                // actually succeeded first
+                if expr.has_errors() {
+                    return expr.map(|e| MaybeFatal::Ok(Statement::new(StatementKind::Expression(e))));
+                }
+                let expr = expr.unwrap();
+
+                // If the expression is an identifier, and our next token is `=`, then we have an
+                // assignment!
+                if let ExpressionKind::Identifier(id) = &expr.kind {
+                    if self.tokens.peek().map(|t| &t.kind) == Some(&TokenKind::Equals) {
+                        self.tokens.next();
+                        return self.parse_expression()?
+                            .combine(self.expect(TokenKind::Semicolon)?)
+                            .map(|(value, _)| Statement::new(StatementKind::Assignment {
+                                name: id.to_owned(),
+                                value,
+                            }).into());
+                    }
+                }
+
+                Fallible::new_ok(Statement::new(StatementKind::Expression(expr)))
             },
+
             None => Fallible::new_fatal(vec![
                 ParseError::new("expected statement, got end of file")
             ]),

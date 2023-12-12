@@ -80,7 +80,8 @@ impl FunctionTranslator {
 
             // Nothing to do
             node::StatementKind::Return(_)
-            | node::StatementKind::Expression(_) => (),
+            | node::StatementKind::Expression(_)
+            | node::StatementKind::Assignment { .. } => (),
         }
 
         result
@@ -112,6 +113,22 @@ impl FunctionTranslator {
                             );
                             ().into()
                         });
+                }
+            }
+
+            node::StatementKind::Assignment { name, value } => {
+                if let Some(local) = self.locals.get(name) {
+                    self.translate_expression(value, target)?
+                        .map(|v| {
+                            target.add_void_instruction(
+                                ir::Instruction::new(ir::InstructionKind::WriteLocal(*local, v))
+                            );
+                            ()
+                        });
+                } else {
+                    return Fallible::new_fatal(vec![
+                        TranslateError::new(&format!("unknown item `{name}`")),
+                    ])
                 }
             }
 

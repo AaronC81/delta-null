@@ -44,6 +44,10 @@ pub enum StatementKind {
         ty: Type,
         value: Option<Expression>,
     },
+    Assignment {
+        name: String,
+        value: Expression,
+    },
     Return(Option<Expression>),
     Loop(Box<Statement>),
 }
