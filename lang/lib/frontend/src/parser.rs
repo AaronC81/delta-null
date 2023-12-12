@@ -2,7 +2,7 @@ use std::{iter::Peekable, fmt::Display, error::Error};
 
 use crate::{node::{TopLevelItem, Statement, TopLevelItemKind, StatementKind, Expression, ExpressionKind, Type, TypeKind}, tokenizer::{Token, TokenKind}, fallible::{Fallible, MaybeFatal}};
 
-struct Parser<I: Iterator<Item = Token>> {
+pub struct Parser<I: Iterator<Item = Token>> {
     tokens: Peekable<I>,
 }
 

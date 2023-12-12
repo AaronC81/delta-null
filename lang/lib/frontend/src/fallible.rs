@@ -1,4 +1,4 @@
-use std::ops::{Try, FromResidual, ControlFlow};
+use std::{ops::{Try, FromResidual, ControlFlow}, error::Error};
 
 /// Represents the result of an operation which will always yield a value, but possibly with a
 /// collection of associated (non-fatal) errors too.
@@ -47,6 +47,20 @@ impl<T, E> Fallible<T, E> {
     /// Applies a function to the item inside this [Fallible]. Errors are unchanged.
     pub fn map<R>(self, func: impl FnOnce(T) -> R) -> Fallible<R, E> {
         Fallible::new_with_errors(func(self.item), self.errors)
+    }
+
+    /// Applies a function to each error inside this [Fallible]. The item is unchanged.
+    pub fn map_errors<R>(self, func: impl Fn(E) -> R) -> Fallible<T, R> {
+        Fallible::new_with_errors(self.item, self.errors.into_iter().map(func).collect())
+    }
+
+    /// Concatenates the items and errors from two different [Fallible] instances.
+    pub fn combine<OT>(self, other: Fallible<OT, E>) -> Fallible<(T, OT), E> {
+        let values = (self.item, other.item);
+        let mut errors = self.errors;
+        errors.extend(other.errors);
+
+        Fallible::new_with_errors(values, errors)
     }
 
     /// Adds an error to this existing [Fallible].
@@ -100,6 +114,21 @@ impl<T, E> Fallible<T, E> {
     pub fn has_errors(&self) -> bool {
         !self.errors.is_empty()
     }
+
+    /// Converts this [Fallible] into a [Result::Ok] if there are no errors, or [Result::Err] if
+    /// there are any.
+    /// 
+    /// [Fallible] also implements [From]/[Into], but this can be ambiguous around uses of the
+    /// [Try] trait, so this exists as an explicit form.
+    pub fn into_result(self) -> Result<T, Vec<E>> {
+        self.into()
+    }
+}
+
+impl<T, E: Error + 'static> Fallible<T, E> {
+    pub fn box_errors(self) -> Fallible<T, Box<dyn Error>> {
+        self.map_errors(|e| Box::new(e) as _)
+    }
 }
 
 impl<T, E> From<Fallible<T, E>> for Result<T, Vec<E>> {
@@ -112,11 +141,11 @@ impl<T, E> From<Fallible<T, E>> for Result<T, Vec<E>> {
     }
 }
 
-impl<T, E> From<Result<T, E>> for Fallible<Option<T>, E> {
+impl<T, E> From<Result<T, E>> for Fallible<MaybeFatal<T>, E> {
     fn from(value: Result<T, E>) -> Self {
         match value {
-            Ok(v) => Fallible::new(Some(v)),
-            Err(e) => Fallible::new_with_errors(None, vec![e]),
+            Ok(v) => Fallible::new(MaybeFatal::Ok(v)),
+            Err(e) => Fallible::new_with_errors(MaybeFatal::Fatal, vec![e]),
         }
     }
 }
