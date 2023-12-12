@@ -1,8 +1,8 @@
 use std::iter::Peekable;
 
-use delta_null_core_instructions::{InstructionOpcode, GPR, AnyRegister};
+use delta_null_core_instructions::{InstructionOpcode, GPR, AnyRegister, ToAssembly};
 
-use crate::{AssemblyOperand, ParseError, Token, TokenKind};
+use crate::{AssemblyOperand, ParseError, Token, TokenKind, LabelAccess};
 
 /// An item in parsed assembly, typically an instruction or a directive.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -40,6 +40,47 @@ impl AssemblyItem {
         match self.kind {
             AssemblyItemKind::WordPut(_, _) => 2,
             _ => 1,
+        }
+    }
+}
+
+impl ToAssembly for AssemblyItem {
+    fn to_assembly(&self) -> String {
+        let ins = match &self.kind {
+            AssemblyItemKind::Instruction(opcode, operands) =>
+                format!("{} {}", opcode.mnemonic(), operands.iter().map(|o| o.to_assembly()).collect::<Vec<_>>().join(", ")),
+            AssemblyItemKind::WordConstant(c) =>
+                format!(".word 0x{c:04x}"),
+            AssemblyItemKind::WordPut(reg, value) =>
+                format!(".put {}, {}", reg.to_assembly(), match value {
+                    AssemblyOperand::Immediate(i) => format!("0x{i:04x}"),
+                    AssemblyOperand::Label { name, .. } => name.to_owned(),
+                    _ => unreachable!(),
+                }),
+        };
+        let labels: String = self.labels.iter()
+            .map(|l| format!("{l}: "))
+            .collect();
+        format!("{labels}{ins}")
+    }
+}
+
+impl ToAssembly for AssemblyOperand {
+    fn to_assembly(&self) -> String {
+        match self {
+            AssemblyOperand::Register(r) => r.to_assembly(),
+            AssemblyOperand::Immediate(i) => i.to_string(),
+            AssemblyOperand::Label { name, access } => {
+                let access = access.map(|a| match a {
+                    LabelAccess::High => "high",
+                    LabelAccess::Low => "low",
+                    LabelAccess::Offset => "offset",
+                });
+                match access {
+                    Some(a) => format!("{name}/{a}"),
+                    None => name.to_owned(),
+                }
+            },
         }
     }
 }

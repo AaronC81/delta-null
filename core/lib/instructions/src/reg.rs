@@ -129,6 +129,16 @@ pub enum AnyRegister {
     S(SpecialPurposeRegister),
 }
 
+impl ToAssembly for AnyRegister {
+    fn to_assembly(&self) -> String {
+        match self {
+            AnyRegister::G(g) => g.to_assembly(),
+            AnyRegister::D(d) => d.to_assembly(),
+            AnyRegister::S(s) => s.to_assembly(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use crate::{*, Encodable};
