@@ -1,3 +1,4 @@
+use delta_null_core_assembler::Builder;
 use delta_null_core_emulator::{Core, memory::{Memory, SimpleMemory}, ExecutionError};
 use delta_null_lang_backend::ir::{Function, Module};
 
@@ -31,5 +32,6 @@ pub fn compile_function(func: &Function) -> Vec<u16> {
     module.functions.push(func.clone());
     module.entry = Some(func.name.clone());
 
-    compile_module(&module).unwrap()
+    let asm = compile_module(&module).unwrap();
+    Builder::new().build(&asm, 0).unwrap()
 }

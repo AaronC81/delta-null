@@ -1,7 +1,7 @@
 //! Language backend targeting the Delta Null's processor soft-core.
 
 use codegen::FunctionGenerator;
-use delta_null_core_assembler::{Builder, BuildError};
+use delta_null_core_assembler::{Builder, BuildError, AssemblyItem};
 use delta_null_lang_backend::{ir::Module, analysis::{liveness::liveness_analysis, flow::ControlFlowGraph}};
 use reg_alloc::allocate;
 
@@ -11,8 +11,8 @@ mod codegen;
 #[cfg(test)]
 mod test_utils;
 
-/// Compile a [Module] into Delta Null architecture instruction words.
-pub fn compile_module(module: &Module) -> Result<Vec<u16>, Vec<BuildError>> {
+/// Compile a [Module] into Assembly instructions.
+pub fn compile_module(module: &Module) -> Result<Vec<AssemblyItem>, Vec<BuildError>> {
     let Some(entry) = &module.entry else {
         todo!("modules without entry point are not yet supported");
     };
@@ -30,7 +30,5 @@ pub fn compile_module(module: &Module) -> Result<Vec<u16>, Vec<BuildError>> {
     let allocation = allocate(entry_func, &cfg, &analysis);
 
     let generator = FunctionGenerator::new(entry_func, allocation);
-    let asm = generator.to_assembly();
-
-    Builder::new().build(&asm, 0)
+    Ok(generator.to_assembly())
 }
