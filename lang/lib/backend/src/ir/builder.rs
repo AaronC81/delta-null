@@ -59,7 +59,7 @@ impl FunctionBuilder {
         }
     }
 
-    pub fn new_local(&mut self, name: &str, ty: Type) -> LocalId {
+    pub fn new_local(&self, name: &str, ty: Type) -> LocalId {
         let mut state = self.state.borrow_mut();
 
         let id = LocalId(state.next_local_id);
@@ -70,7 +70,7 @@ impl FunctionBuilder {
         id
     }
 
-    pub fn new_basic_block(&mut self) -> (BasicBlockId, BasicBlockBuilder) {
+    pub fn new_basic_block(&self) -> (BasicBlockId, BasicBlockBuilder) {
         let mut state = self.state.borrow_mut();
 
         let id = BasicBlockId(state.next_block_id);
@@ -85,7 +85,7 @@ impl FunctionBuilder {
         })
     }
 
-    pub fn new_basic_blocks(&mut self, n: usize) -> (Vec<BasicBlockId>, Vec<BasicBlockBuilder>) {
+    pub fn new_basic_blocks(&self, n: usize) -> (Vec<BasicBlockId>, Vec<BasicBlockBuilder>) {
         let mut indexes = vec![];
         let mut builders = vec![];
 
