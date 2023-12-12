@@ -13,6 +13,10 @@ alias a := assemble
 assemble *ARGS: build
     cd "{{invocation_directory()}}" && cargo run --bin delta-null-core-assembler-bin {{ARGS}}
 
+alias c := compile
+compile *ARGS: build
+    cd "{{invocation_directory()}}" && cargo run --bin delta-null-lang-compiler {{ARGS}}
+
 alias eb := emulator-backend
 emulator-backend: build
     cargo run --bin delta-null-core-emulator-backend
