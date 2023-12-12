@@ -393,8 +393,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "delta-null-lang-compiler"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "clap-stdin",
+ "delta-null-core-instructions",
+ "delta-null-lang-backend",
+ "delta-null-lang-backend-core",
+ "delta-null-lang-frontend",
+]
+
+[[package]]
 name = "delta-null-lang-frontend"
 version = "0.1.0"
+dependencies = [
+ "delta-null-lang-backend",
+]
 
 [[package]]
 name = "dircpy"
