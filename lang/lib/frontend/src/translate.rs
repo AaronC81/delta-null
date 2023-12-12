@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Display, error::Error};
 
-use delta_null_lang_backend::ir::{Module, FunctionBuilder, Local, LocalId, BasicBlockBuilder, VariableId, self};
+use delta_null_lang_backend::ir::{Module, FunctionBuilder, Local, LocalId, BasicBlockBuilder, VariableId, self, Instruction};
 
 use crate::{node::{TopLevelItem, TopLevelItemKind, self, Type}, fallible::{Fallible, MaybeFatal}};
 
@@ -91,12 +91,12 @@ impl FunctionTranslator {
         match &stmt.kind {
             node::StatementKind::Block { body, .. } => {
                 for s in body {
-                    self.translate_statement(s, target);
+                    self.translate_statement(s, target)?;
                 }
             },
             
             node::StatementKind::Expression(e) => {
-                self.translate_expression(e, target);
+                self.translate_expression(e, target)?;
             },
 
             node::StatementKind::VariableDeclaration { name, ty, value } => {
@@ -128,7 +128,17 @@ impl FunctionTranslator {
                 }
             },
 
-            node::StatementKind::Loop(_) => todo!(),
+            node::StatementKind::Loop(body) => {
+                let (new_id, mut new_block) = self.func.new_basic_block();
+                self.translate_statement(&body, &mut new_block)?;
+
+                // Add jump from previous block to our new one
+                target.add_terminator(ir::Instruction::new(ir::InstructionKind::Branch(new_id)));
+                
+                // Add infinite-looping terminator
+                new_block.add_terminator(ir::Instruction::new(ir::InstructionKind::Branch(new_id)));
+                new_block.finalize();
+            }
         }
 
         Fallible::new_ok(())

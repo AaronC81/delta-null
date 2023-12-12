@@ -39,26 +39,9 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         // No arguments currently supported!
         self.expect(TokenKind::LParen)?;
         self.expect(TokenKind::RParen)?;
-        self.expect(TokenKind::LBrace)?;
 
         // Body
-        let mut statements: Fallible<Vec<Statement>, ParseError> = Fallible::new(vec![]);
-        loop {
-            match self.tokens.peek().map(|t| &t.kind) {
-                Some(TokenKind::RBrace) => {
-                    self.tokens.next();
-                    break;
-                },
-                Some(_) =>
-                    self.parse_statement()
-                        .integrate_if_ok(&mut statements, |stmts, s| stmts.push(s)),
-                None => {
-                    statements.push_error(ParseError::new("expected } before end of file"));
-                    break;
-                },
-            }
-        };
-
+        let statements = self.parse_body();
         statements.map(|stmts| {
             TopLevelItem::new(TopLevelItemKind::FunctionDefinition {
                 name,
@@ -115,6 +98,18 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                         ty,
                         value: Some(value),
                     }).into())
+            }
+
+            Some(TokenKind::LBrace) => self.parse_body()
+                .map(|body| Statement::new(StatementKind::Block {
+                    body,
+                    trailing_return: false
+                }).into()),
+
+            Some(TokenKind::KwLoop) => {
+                self.tokens.next();
+                self.parse_statement()?
+                    .map(|s| Statement::new(StatementKind::Loop(Box::new(s))).into())
             }
 
             Some(_) => {
@@ -180,6 +175,35 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 ParseError::new("expected type, got end of file")
             ]),
         }
+    }
+
+    pub fn parse_body(&mut self) -> Fallible<Vec<Statement>, ParseError> {
+        if self.expect(TokenKind::LBrace).has_errors() {
+            return Fallible::new_with_errors(
+                vec![],
+                vec![
+                    ParseError::new("missing { for start of block"),
+                ]
+            )
+        }
+
+        let mut statements = Fallible::new(vec![]);
+        loop {
+            match self.tokens.peek().map(|t| &t.kind) {
+                Some(TokenKind::RBrace) => {
+                    self.tokens.next();
+                    break;
+                },
+                Some(_) =>
+                    self.parse_statement()
+                        .integrate_if_ok(&mut statements, |stmts, s| stmts.push(s)),
+                None => {
+                    statements.push_error(ParseError::new("expected } before end of file"));
+                    break;
+                },
+            }
+        };
+        statements
     }
 
     #[must_use]
