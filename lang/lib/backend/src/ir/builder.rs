@@ -167,12 +167,19 @@ impl BasicBlockBuilder {
         if !instruction.is_terminator() {
             panic!("tried to use `add_terminator` with non-terminator: {:?}", instruction)
         }
+        if self.has_terminator() {
+            panic!("block already has terminator, but tried to add another");
+        }
 
         self.add_instruction_internal(instruction);
     }
 
     pub fn add_constant(&mut self, constant: ConstantValue) -> VariableId {
         self.add_instruction(Instruction::new(InstructionKind::Constant(constant)))
+    }
+
+    pub fn has_terminator(&mut self) -> bool {
+        self.statements.iter().any(|s| s.borrow().instruction.is_terminator())
     }
 
     pub fn finalize(self) {
