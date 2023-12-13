@@ -25,9 +25,10 @@ impl ModuleTranslator {
                 func_trans.populate_locals(body)?;
 
                 // Translate
-                let (_, mut start_block) = func_trans.func.new_basic_block();
-                func_trans.translate_statement(body, &mut start_block)?;
-                start_block.finalize();
+                let (_, start_block) = func_trans.func.new_basic_block();
+                func_trans.target = Some(start_block);
+                func_trans.translate_statement(body)?;
+                func_trans.target.unwrap().finalize();
 
                 // Add to module
                 let func = func_trans.func.finalize();
@@ -46,6 +47,7 @@ impl ModuleTranslator {
 pub struct FunctionTranslator {
     func: FunctionBuilder,
     locals: HashMap<String, LocalId>,
+    target: Option<BasicBlockBuilder>,
 }
 
 impl FunctionTranslator {
@@ -53,6 +55,7 @@ impl FunctionTranslator {
         Self {
             func,
             locals: HashMap::new(),
+            target: None,
         }
     }
 
@@ -91,16 +94,16 @@ impl FunctionTranslator {
     }
 
     #[must_use]
-    pub fn translate_statement(&self, stmt: &node::Statement, target: &mut BasicBlockBuilder) -> Fallible<MaybeFatal<()>, TranslateError> {
+    pub fn translate_statement(&mut self, stmt: &node::Statement) -> Fallible<MaybeFatal<()>, TranslateError> {
         match &stmt.kind {
             node::StatementKind::Block { body, .. } => {
                 for s in body {
-                    self.translate_statement(s, target)?;
+                    self.translate_statement(s)?;
                 }
             },
             
             node::StatementKind::Expression(e) => {
-                self.translate_expression(e, target)?;
+                self.translate_expression(e)?;
             },
 
             node::StatementKind::VariableDeclaration { name, ty, value } => {
@@ -109,9 +112,9 @@ impl FunctionTranslator {
 
                 // If there's an initial value, generate its assignment here.
                 if let Some(value) = value {
-                    return self.translate_expression(value, target)?
+                    return self.translate_expression(value)?
                         .map(|v| {
-                            target.add_void_instruction(
+                            self.target.as_mut().unwrap().add_void_instruction(
                                 ir::Instruction::new(ir::InstructionKind::WriteLocal(local, v))
                             );
                             ().into()
@@ -120,11 +123,11 @@ impl FunctionTranslator {
             }
 
             node::StatementKind::Assignment { name, value } => {
-                if let Some(local) = self.locals.get(name) {
-                    self.translate_expression(value, target)?
+                if let Some(local) = self.locals.get(name).copied() {
+                    self.translate_expression(value)?
                         .map(|v| {
-                            target.add_void_instruction(
-                                ir::Instruction::new(ir::InstructionKind::WriteLocal(*local, v))
+                            self.target.as_mut().unwrap().add_void_instruction(
+                                ir::Instruction::new(ir::InstructionKind::WriteLocal(local, v))
                             );
                             ()
                         });
@@ -137,23 +140,23 @@ impl FunctionTranslator {
 
             node::StatementKind::Return(value) => {
                 if let Some(value) = value {
-                    return self.translate_expression(value, target)?
+                    return self.translate_expression(value)?
                         .map(|v| {
-                            target.add_terminator(
+                            self.target.as_mut().unwrap().add_terminator(
                                 ir::Instruction::new(ir::InstructionKind::Return(Some(v)))
                             ).into()
                         });
                 } else {
-                    target.add_terminator(ir::Instruction::new(ir::InstructionKind::Return(None)));
+                    self.target.as_mut().unwrap().add_terminator(ir::Instruction::new(ir::InstructionKind::Return(None)));
                 }
             },
 
             node::StatementKind::Loop(body) => {
                 let (new_id, mut new_block) = self.func.new_basic_block();
-                let errors = self.translate_statement(&body, &mut new_block)?;
+                let errors = self.translate_statement(&body)?;
 
                 // Add jump from previous block to our new one
-                target.add_terminator(ir::Instruction::new(ir::InstructionKind::Branch(new_id)));
+                self.target.as_mut().unwrap().add_terminator(ir::Instruction::new(ir::InstructionKind::Branch(new_id)));
                 
                 // Add infinite-looping terminator
                 new_block.add_terminator(ir::Instruction::new(ir::InstructionKind::Branch(new_id)));
@@ -165,18 +168,18 @@ impl FunctionTranslator {
             node::StatementKind::If { condition, body } => {
                 let mut errors = Fallible::new(());
 
-                let condition = self.translate_expression(condition, target)?
+                let condition = self.translate_expression(condition)?
                     .propagate(&mut errors);
                 
                 // Create block for truth
                 let (true_id, mut true_block) = self.func.new_basic_block();
-                self.translate_statement(&body, &mut true_block)?.propagate(&mut errors);
+                self.translate_statement(&body)?.propagate(&mut errors);
 
                 // Create block for following statements
                 let (cont_id, mut cont_block) = self.func.new_basic_block();
 
                 // Set up jump terminators
-                target.add_terminator(Instruction::new(ir::InstructionKind::ConditionalBranch {
+                self.target.as_mut().unwrap().add_terminator(Instruction::new(ir::InstructionKind::ConditionalBranch {
                     condition,
                     true_block: true_id,
                     false_block: cont_id,
@@ -191,13 +194,13 @@ impl FunctionTranslator {
     }
 
     #[must_use]
-    pub fn translate_expression(&self, expr: &node::Expression, target: &mut BasicBlockBuilder) -> Fallible<MaybeFatal<VariableId>, TranslateError> {
+    pub fn translate_expression(&mut self, expr: &node::Expression) -> Fallible<MaybeFatal<VariableId>, TranslateError> {
         match &expr.kind {
             node::ExpressionKind::Identifier(id) => {
-                if let Some(local) = self.locals.get(id) {
+                if let Some(local) = self.locals.get(id).copied() {
                     Fallible::new_ok(
-                        target.add_instruction(
-                            ir::Instruction::new(ir::InstructionKind::ReadLocal(*local))
+                        self.target_mut().add_instruction(
+                            ir::Instruction::new(ir::InstructionKind::ReadLocal(local))
                         )
                     )
                 } else {
@@ -209,14 +212,14 @@ impl FunctionTranslator {
 
             // TODO: what about other types?
             node::ExpressionKind::Integer(i) => Fallible::new_ok(
-                target.add_constant(ir::ConstantValue::U16(i.parse().unwrap()))
+                self.target_mut().add_constant(ir::ConstantValue::U16(i.parse().unwrap()))
             ),
 
             node::ExpressionKind::Add(l, r) =>
-                self.translate_expression(&l, target)?
-                    .combine(self.translate_expression(&r, target)?)
+                self.translate_expression(&l)?
+                    .combine(self.translate_expression(&r)?)
                     .map(|(l, r)|
-                        target.add_instruction(
+                        self.target_mut().add_instruction(
                             ir::Instruction::new(ir::InstructionKind::Add(l, r))
                         ).into())
         }
@@ -234,6 +237,11 @@ impl FunctionTranslator {
                 ]),
             }
         }
+    }
+
+    #[must_use]
+    pub fn target_mut(&mut self) -> &mut BasicBlockBuilder {
+        self.target.as_mut().unwrap()
     }
 }
 
