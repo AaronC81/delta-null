@@ -77,6 +77,9 @@ impl FunctionTranslator {
             node::StatementKind::Loop(body) => {
                 self.populate_locals(&body).propagate(&mut result);
             },
+            node::StatementKind::If { body, .. } => {
+                self.populate_locals(&body).propagate(&mut result);
+            }
 
             // Nothing to do
             node::StatementKind::Return(_)
@@ -147,7 +150,7 @@ impl FunctionTranslator {
 
             node::StatementKind::Loop(body) => {
                 let (new_id, mut new_block) = self.func.new_basic_block();
-                self.translate_statement(&body, &mut new_block)?;
+                let errors = self.translate_statement(&body, &mut new_block)?;
 
                 // Add jump from previous block to our new one
                 target.add_terminator(ir::Instruction::new(ir::InstructionKind::Branch(new_id)));
@@ -155,6 +158,32 @@ impl FunctionTranslator {
                 // Add infinite-looping terminator
                 new_block.add_terminator(ir::Instruction::new(ir::InstructionKind::Branch(new_id)));
                 new_block.finalize();
+
+                return errors.map(|f| f.into());
+            },
+
+            node::StatementKind::If { condition, body } => {
+                let mut errors = Fallible::new(());
+
+                let condition = self.translate_expression(condition, target)?
+                    .propagate(&mut errors);
+                
+                // Create block for truth
+                let (true_id, mut true_block) = self.func.new_basic_block();
+                self.translate_statement(&body, &mut true_block)?.propagate(&mut errors);
+
+                // Create block for following statements
+                let (cont_id, mut cont_block) = self.func.new_basic_block();
+
+                // Set up jump terminators
+                target.add_terminator(Instruction::new(ir::InstructionKind::ConditionalBranch {
+                    condition,
+                    true_block: true_id,
+                    false_block: cont_id,
+                }));
+                true_block.add_terminator(Instruction::new(ir::InstructionKind::Branch(cont_id)));
+
+                // TODO: this will break, because other blocks continue using the other as a target
             }
         }
 

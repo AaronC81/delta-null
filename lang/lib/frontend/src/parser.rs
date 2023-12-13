@@ -112,6 +112,16 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                     .map(|s| Statement::new(StatementKind::Loop(Box::new(s))).into())
             }
 
+            Some(TokenKind::KwIf) => {
+                self.tokens.next();
+                self.parse_expression()?
+                    .combine(self.parse_statement()?)
+                    .map(|(condition, body)| Statement::new(StatementKind::If {
+                        condition,
+                        body: Box::new(body),
+                    }).into())
+            }
+
             Some(_) => {
                 // Let's assume this is an expression
                 let expr = self.parse_expression()?;
@@ -263,19 +273,3 @@ impl Display for ParseError {
     }
 }
 impl Error for ParseError {}
-
-#[cfg(test)]
-mod test {
-    use crate::{tokenizer::tokenize, parser::Parser};
-
-    #[test]
-    fn TEMP() {
-        let input = "fn foo() { var x: u16 = 1; return x; }";
-
-        let (tokens, errors) = tokenize(input);
-        assert!(errors.is_empty());
-
-        let mut parser = Parser::new(tokens.into_iter().peekable());
-        println!("{:#?}", parser.parse_module());
-    }
-}

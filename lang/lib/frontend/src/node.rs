@@ -50,6 +50,10 @@ pub enum StatementKind {
     },
     Return(Option<Expression>),
     Loop(Box<Statement>),
+    If {
+        condition: Expression,
+        body: Box<Statement>,
+    }
 }
 
 /// An expression which calculates part of the value of a statement.

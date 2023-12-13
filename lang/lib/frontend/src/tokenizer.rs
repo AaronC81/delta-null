@@ -20,6 +20,7 @@ pub enum TokenKind {
     KwVar,
     KwReturn,
     KwLoop,
+    KwIf,
 
     LBrace,
     RBrace,
@@ -67,6 +68,7 @@ pub fn tokenize(input: &str) -> (Vec<Token>, Vec<TokenizeError>) {
                     "var" => TokenKind::KwVar,
                     "return" => TokenKind::KwReturn,
                     "loop" => TokenKind::KwLoop,
+                    "if" => TokenKind::KwIf,
                     _ => TokenKind::Identifier(buffer),
                 };
                 tokens.push(Token::new(kind));
