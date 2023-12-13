@@ -152,15 +152,20 @@ impl FunctionTranslator {
             },
 
             node::StatementKind::Loop(body) => {
-                let (new_id, mut new_block) = self.func.new_basic_block();
+                let (new_id, new_block) = self.func.new_basic_block();
+                self.replace_target(new_block);
                 let errors = self.translate_statement(&body)?;
 
                 // Add jump from previous block to our new one
-                self.target.as_mut().unwrap().add_terminator(ir::Instruction::new(ir::InstructionKind::Branch(new_id)));
+                self.target_mut().add_terminator(ir::Instruction::new(ir::InstructionKind::Branch(new_id)));
                 
                 // Add infinite-looping terminator
-                new_block.add_terminator(ir::Instruction::new(ir::InstructionKind::Branch(new_id)));
-                new_block.finalize();
+                self.target_mut().add_terminator(ir::Instruction::new(ir::InstructionKind::Branch(new_id)));
+
+                // Create block for following statements
+                // (For when we have `break`!)
+                let (_, cont_block) = self.func.new_basic_block();
+                self.replace_target(cont_block);
 
                 return errors.map(|f| f.into());
             },
@@ -171,26 +176,24 @@ impl FunctionTranslator {
                 let condition = self.translate_expression(condition)?
                     .propagate(&mut errors);
                 
-                // Create block for truth
+                // Create blocks for truth
                 let (true_id, mut true_block) = self.func.new_basic_block();
-                self.translate_statement(&body)?.propagate(&mut errors);
-
-                // Create block for following statements
                 let (cont_id, cont_block) = self.func.new_basic_block();
 
-                // Set up jump terminators
+                // Set up conditional branch
                 self.target_mut().add_terminator_if_none(Instruction::new(ir::InstructionKind::ConditionalBranch {
                     condition,
                     true_block: true_id,
                     false_block: cont_id,
                 }));
-                true_block.add_terminator_if_none(Instruction::new(ir::InstructionKind::Branch(cont_id)));
-                true_block.finalize();
 
-                // Finalise current target, replacing it with new continuation block
-                let old_target = self.target.take().unwrap();
-                old_target.finalize();
-                self.target = Some(cont_block);
+                // Populate true block
+                self.replace_target(true_block);
+                self.translate_statement(&body)?.propagate(&mut errors);
+                self.target_mut().add_terminator_if_none(Instruction::new(ir::InstructionKind::Branch(cont_id)));
+
+                // Replace target with continuation block
+                self.replace_target(cont_block);
 
                 return errors.map(|f| f.into());
             }
@@ -248,6 +251,12 @@ impl FunctionTranslator {
     #[must_use]
     pub fn target_mut(&mut self) -> &mut BasicBlockBuilder {
         self.target.as_mut().unwrap()
+    }
+
+    pub fn replace_target(&mut self, new: BasicBlockBuilder) {
+        let old_target = self.target.take().unwrap();
+        old_target.finalize();
+        self.target = Some(new);
     }
 }
 

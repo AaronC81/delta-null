@@ -30,4 +30,31 @@ mod test {
             5 + 12
         )
     }
+
+    #[test]
+    fn test_if() {
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() {
+                    if 1 {
+                        return 123;
+                    }
+                    return 456;
+                }
+            ").unwrap(),
+            123
+        );
+
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() {
+                    if 0 {
+                        return 123;
+                    }
+                    return 456;
+                }
+            ").unwrap(),
+            456
+        );
+    }
 }
