@@ -16,4 +16,6 @@ members = [
     "lang/lib/frontend",
 
     "lang/bin/compiler",
+
+    "lang/test",
 ]
