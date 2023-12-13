@@ -174,6 +174,12 @@ impl BasicBlockBuilder {
         self.add_instruction_internal(instruction);
     }
 
+    pub fn add_terminator_if_none(&mut self, instruction: Instruction) {
+        if !self.has_terminator() {
+            self.add_terminator(instruction);
+        }
+    }
+
     pub fn add_constant(&mut self, constant: ConstantValue) -> VariableId {
         self.add_instruction(Instruction::new(InstructionKind::Constant(constant)))
     }

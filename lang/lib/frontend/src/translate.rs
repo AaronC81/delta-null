@@ -176,17 +176,23 @@ impl FunctionTranslator {
                 self.translate_statement(&body)?.propagate(&mut errors);
 
                 // Create block for following statements
-                let (cont_id, mut cont_block) = self.func.new_basic_block();
+                let (cont_id, cont_block) = self.func.new_basic_block();
 
                 // Set up jump terminators
-                self.target.as_mut().unwrap().add_terminator(Instruction::new(ir::InstructionKind::ConditionalBranch {
+                self.target_mut().add_terminator_if_none(Instruction::new(ir::InstructionKind::ConditionalBranch {
                     condition,
                     true_block: true_id,
                     false_block: cont_id,
                 }));
-                true_block.add_terminator(Instruction::new(ir::InstructionKind::Branch(cont_id)));
+                true_block.add_terminator_if_none(Instruction::new(ir::InstructionKind::Branch(cont_id)));
+                true_block.finalize();
 
-                // TODO: this will break, because other blocks continue using the other as a target
+                // Finalise current target, replacing it with new continuation block
+                let old_target = self.target.take().unwrap();
+                old_target.finalize();
+                self.target = Some(cont_block);
+
+                return errors.map(|f| f.into());
             }
         }
 
