@@ -30,7 +30,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         self.expect(TokenKind::KwFn)?;
 
         // Parse function name
-        let Some(Token { kind: TokenKind::Identifier(name) }) = self.tokens.next() else {
+        let Some(Token { kind: TokenKind::Identifier(name), .. }) = self.tokens.next() else {
             return Fallible::new_fatal(vec![
                 ParseError::new("expected identifier after `fn`"),
             ])

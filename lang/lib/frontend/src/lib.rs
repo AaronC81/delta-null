@@ -14,6 +14,7 @@ pub mod tokenizer;
 pub mod node;
 pub mod parser;
 pub mod translate;
+pub mod source;
 
 pub fn code_to_module(code: &str) -> Result<Module, Vec<Box<dyn Error>>> {
     // Tokenize
