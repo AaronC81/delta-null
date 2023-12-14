@@ -4,6 +4,12 @@ alias b := build
 build:
     cargo build
 
+gateware-build:
+    python core/gateware/program.py build
+
+gateware-program:
+    python core/gateware/program.py program
+
 alias t := test
 test: build
     cargo test -q
