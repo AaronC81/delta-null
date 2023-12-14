@@ -5,7 +5,7 @@ An ongoing, heavily WIP, project to
 This comprises:
 
 - A **16-bit RISC processor core design**, implemented as:
-  - A **soft-core targeting the [TinyFPGA BX](https://tinyfpga.com/)**, and
+  - A **soft-core targeting the [TinyFPGA BX](https://tinyfpga.com/)**, written using [Amaranth HDL](https://github.com/amaranth-lang/amaranth), and
   - A software emulator
 - An **assembler**
 - A **compiler for a low-level programming language**, producing assembly
@@ -127,6 +127,7 @@ This goes over the notable parts of this repository's folder hierarchy.
 - `core` - The processor core implementation, and tooling which directly supports it.
   - `design` - Describes the architecture, instruction set, and EABI. Also documents the TinyFPGA BX
     specific parts of the implementation, such as the memory map
+  - `gateware` - Amaranth soft-core implementation
   - `examples` - Demo software written in assembly
   - `lib` - Libraries to support development of low-level tooling, such as instruction
     encoding/decoding
