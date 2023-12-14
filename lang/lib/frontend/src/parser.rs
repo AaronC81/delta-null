@@ -2,15 +2,23 @@ use std::{iter::Peekable, fmt::Display, error::Error};
 
 use crate::{node::{TopLevelItem, Statement, TopLevelItemKind, StatementKind, Expression, ExpressionKind, Type, TypeKind}, tokenizer::{Token, TokenKind}, fallible::{Fallible, MaybeFatal}, source::SourceLocation};
 
+/// Parses an iterator of [Token]s, interpreting them into a "module" - a collection of
+/// [TopLevelItem]s (like functions and definitions).
+/// 
+/// The methods within this parser are written to "cascade", like many similarly-implemented
+/// recursive-descent parsers. Each method will drill all the way down a node hierarchy, including
+/// to implement precedence.
 pub struct Parser<I: Iterator<Item = Token>> {
     tokens: Peekable<I>,
 }
 
 impl<I: Iterator<Item = Token>> Parser<I> {
+    /// Create a parser with the given stream of tokens.
     pub fn new(tokens: Peekable<I>) -> Self {
         Self { tokens }
     }
 
+    /// Consume tokens to parse a list of [TopLevelItem]s.
     pub fn parse_module(&mut self) -> Fallible<Vec<TopLevelItem>, ParseError> {
         let mut result = Fallible::new(vec![]);
     
@@ -29,6 +37,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         result
     }
 
+    /// Parse a function definition.
     pub fn parse_function_definition(&mut self) -> Fallible<MaybeFatal<TopLevelItem>, ParseError> {
         let loc = self.here_loc();
         self.expect(TokenKind::KwFn)?;
@@ -59,6 +68,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         })
     }
 
+    /// Parse a single statement, including any nested statements or expressions.
     pub fn parse_statement(&mut self) -> Fallible<MaybeFatal<Statement>, ParseError> {
         let loc = self.here_loc();
 
@@ -165,10 +175,12 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         }
     }
 
+    /// Parse an expression.
     pub fn parse_expression(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
         self.parse_add()
     }
 
+    /// Parse a usage of the `+` binary operator, or any expression with lower precedence.
     pub fn parse_add(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
         let mut expr = self.parse_equals()?;
 
@@ -183,6 +195,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         expr.map(|e| e.into())
     }
 
+    /// Parse a usage of the `==` binary operator, or any expression with lower precedence.
     pub fn parse_equals(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
         let mut expr = self.parse_atom()?;
 
@@ -197,6 +210,8 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         expr.map(|e| e.into())
     }
 
+    /// Parse an atom, the lowest-precedence form of expression - typically a single token like an
+    /// integer literal.
     pub fn parse_atom(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
         match self.tokens.peek().map(|t| &t.kind) {
             Some(TokenKind::Integer(_)) => {
@@ -223,6 +238,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         }
     }
     
+    /// Parse a type, for example in a variable definition.
     pub fn parse_type(&mut self) -> Fallible<MaybeFatal<Type>, ParseError> {
         let token = self.tokens.next();
         match token.as_ref().map(|t| &t.kind) {
@@ -241,6 +257,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         }
     }
 
+    /// Parse a curly-brace-delimited body of statements.
     pub fn parse_body(&mut self) -> Fallible<Vec<Statement>, ParseError> {
         let l_brace_expect = self.expect(TokenKind::LBrace);
         if l_brace_expect.has_errors() {
@@ -266,6 +283,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         statements
     }
 
+    /// Assume that the next token has the given [TokenKind], else fail with a parse error.
     #[must_use]
     fn expect(&mut self, kind: TokenKind) -> Fallible<MaybeFatal<()>, ParseError> {
         if let Some(token) = self.tokens.next() {
