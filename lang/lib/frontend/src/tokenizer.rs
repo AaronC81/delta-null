@@ -36,13 +36,10 @@ pub enum TokenKind {
     DoubleEquals,
 }
 
-pub fn tokenize(input: &str) -> (Vec<Token>, Vec<TokenizeError>) {
+pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>) {
     let mut tokens = vec![];
     let mut errors = vec![];
-    let mut chars = add_locations(
-        input.chars(),
-        "<file>".to_owned() // TODO
-    ).peekable();
+    let mut chars = add_locations(input.chars(), filename.to_owned()).peekable();
 
     while let Some((peeked, loc)) = chars.peek() {
         let loc = loc.clone();
@@ -156,7 +153,7 @@ mod test {
 
     #[test]
     fn test_fn() {
-        let (tokens, errors) = tokenize("fn foo() { }");
+        let (tokens, errors) = tokenize("fn foo() { }", "");
         assert!(errors.is_empty());
         assert_eq!(
             vec![
@@ -173,7 +170,7 @@ mod test {
 
     #[test]
     fn test_integer() {
-        let (tokens, errors) = tokenize("123 + -456");
+        let (tokens, errors) = tokenize("123 + -456", "");
         assert!(errors.is_empty());
         assert_eq!(
             vec![

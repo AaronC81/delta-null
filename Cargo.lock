@@ -169,6 +169,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "clap-stdin"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b2273396940ab439c58cd300e1e93a07768fce6e7a578f24089aab40b3a9d00"
+dependencies = [
+ "thiserror",
+]
+
+[[package]]
 name = "clap_builder"
 version = "4.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -309,7 +318,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "clap-num",
- "clap-stdin",
+ "clap-stdin 0.2.1",
  "delta-null-core-assembler",
  "delta-null-core-instructions",
  "serde_json",
@@ -397,7 +406,7 @@ name = "delta-null-lang-compiler"
 version = "0.1.0"
 dependencies = [
  "clap",
- "clap-stdin",
+ "clap-stdin 0.3.0",
  "delta-null-core-instructions",
  "delta-null-lang-backend",
  "delta-null-lang-backend-core",

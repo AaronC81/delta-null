@@ -16,9 +16,9 @@ pub mod parser;
 pub mod translate;
 pub mod source;
 
-pub fn code_to_module(code: &str) -> Result<Module, Vec<Box<dyn Error>>> {
+pub fn code_to_module(code: &str, filename: &str) -> Result<Module, Vec<Box<dyn Error>>> {
     // Tokenize
-    let (tokens, errors) = tokenize(code);
+    let (tokens, errors) = tokenize(code, filename);
     if !errors.is_empty() {
         return Err(errors.into_iter().map(|e| Box::new(e) as _).collect::<Vec<_>>())
     }

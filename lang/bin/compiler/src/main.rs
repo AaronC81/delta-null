@@ -1,4 +1,4 @@
-use std::{fs::OpenOptions, io::{Write, stdout}, process::exit};
+use std::{fs::OpenOptions, io::{Write, stdout, Read}, process::exit};
 
 use clap::Parser as ClapParser;
 use clap_stdin::FileOrStdin;
@@ -25,8 +25,12 @@ fn main() {
     let args = Args::parse();
 
     // Run frontend
-    let input = args.input.to_string();
-    let module = match code_to_module(&input) {
+    let filename = match &args.input.source {
+        clap_stdin::Source::Stdin => "<stdin>".to_owned(),
+        clap_stdin::Source::Arg(f) => f.to_owned(),
+    };
+    let input = args.input.contents().unwrap();
+    let module = match code_to_module(&input, &filename) {
         Ok(m) => m,
         Err(errors) => {
             for error in errors {
