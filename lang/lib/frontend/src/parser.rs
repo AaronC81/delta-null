@@ -157,7 +157,11 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     }
 
     pub fn parse_expression(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
-        let mut expr = self.parse_atom()?;
+        self.parse_add()
+    }
+
+    pub fn parse_add(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
+        let mut expr = self.parse_equals()?;
 
         if self.tokens.peek().map(|t| &t.kind) == Some(&TokenKind::Plus) {
             self.tokens.next();
@@ -165,6 +169,20 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             self.parse_expression()?
                 .integrate(&mut expr, |lhs, rhs|
                     *lhs = Expression::new(ExpressionKind::Add(Box::new(lhs.clone()), Box::new(rhs))));
+        }
+
+        expr.map(|e| e.into())
+    }
+
+    pub fn parse_equals(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
+        let mut expr = self.parse_atom()?;
+
+        if self.tokens.peek().map(|t| &t.kind) == Some(&TokenKind::DoubleEquals) {
+            self.tokens.next();
+
+            self.parse_expression()?
+                .integrate(&mut expr, |lhs, rhs|
+                    *lhs = Expression::new(ExpressionKind::Equals(Box::new(lhs.clone()), Box::new(rhs))));
         }
 
         expr.map(|e| e.into())

@@ -55,6 +55,9 @@ pub enum InstructionKind {
     /// Adds together two integer values, of the same type.
     Add(VariableId, VariableId),
 
+    /// Checks if two variables of the same type are equal.
+    Equals(VariableId, VariableId),
+
     /// Returns from the enclosing function, with a value if it is non-void.
     Return(Option<VariableId>),
 
@@ -117,7 +120,8 @@ impl Instruction {
             InstructionKind::Constant(_) => hashset!{},
             InstructionKind::ReadLocal(_) => hashset!{},
             InstructionKind::WriteLocal(_, v) => hashset!{ *v },
-            InstructionKind::Add(l, r) => hashset!{ *l, *r },
+            InstructionKind::Add(l, r)
+            | InstructionKind::Equals(l, r) => hashset!{ *l, *r },
             InstructionKind::Return(r) => r.into_iter().copied().collect(),
             InstructionKind::Branch(_) => hashset!{},
             InstructionKind::ConditionalBranch { condition, .. } => hashset!{ *condition },
@@ -155,6 +159,8 @@ impl Instruction {
                 Ok(Some(a_ty))
             },
 
+            InstructionKind::Equals(a, b) => Ok(Some(Type::Boolean)),
+
             InstructionKind::Return(_)
             | InstructionKind::Branch(_)
             | InstructionKind::ConditionalBranch { .. } => Ok(None),
@@ -187,6 +193,7 @@ impl PrintIR for Instruction {
             InstructionKind::ReadLocal(l) => format!("read {}", l.print_ir(options)),
             InstructionKind::WriteLocal(l, v) => format!("write {} = {}", l.print_ir(options), v.print_ir(options)),
             InstructionKind::Add(a, b) => format!("{} + {}", a.print_ir(options), b.print_ir(options)),
+            InstructionKind::Equals(a, b) => format!("{} == {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::Return(r) =>
                 if let Some(r) = r {
                     format!("return {}", r.print_ir(options))

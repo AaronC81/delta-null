@@ -57,4 +57,26 @@ mod test {
             456
         );
     }
+
+    #[test]
+    fn test_equality() {
+        // TODO: compilation fails without useless `return 0`
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() {
+                    var total: u16 = 0;
+                    var i: u16 = 0;
+                    loop {
+                        i = i + 1;
+                        total = total + i;
+                        if i == 5 {
+                            return total;
+                        }
+                    }
+                    return 0;
+                }
+            ").unwrap(),
+            1 + 2 + 3 + 4 + 5
+        );
+    }
 }

@@ -30,6 +30,7 @@ pub enum TokenKind {
     Semicolon,
     Plus,
     Equals,
+    DoubleEquals,
 }
 
 pub fn tokenize(input: &str) -> (Vec<Token>, Vec<TokenizeError>) {
@@ -53,7 +54,14 @@ pub fn tokenize(input: &str) -> (Vec<Token>, Vec<TokenizeError>) {
             ':' => { chars.next(); tokens.push(Token::new(TokenKind::Colon)) },
             ';' => { chars.next(); tokens.push(Token::new(TokenKind::Semicolon)) },
             '+' => { chars.next(); tokens.push(Token::new(TokenKind::Plus)) },
-            '=' => { chars.next(); tokens.push(Token::new(TokenKind::Equals)) },
+            '=' => {
+                chars.next();
+                if chars.next_if(|c| *c == '=').is_some() {
+                    tokens.push(Token::new(TokenKind::DoubleEquals))
+                } else {
+                    tokens.push(Token::new(TokenKind::Equals))
+                }
+            },
 
             // Identifier
             c if c.is_alphabetic() || c == '_' => {

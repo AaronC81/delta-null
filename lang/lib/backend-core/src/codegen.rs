@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use delta_null_core_assembler::{AssemblyItem, AssemblyOperand, LabelAccess};
-use delta_null_core_instructions::{GeneralPurposeRegister, GPR, InstructionOpcode};
+use delta_null_core_instructions::{GeneralPurposeRegister, GPR, InstructionOpcode, SPR};
 use delta_null_lang_backend::ir::{Function, VariableId, self, BasicBlockId, InstructionKind, LocalId};
 
 use crate::reg_alloc::Allocation;
@@ -113,6 +113,45 @@ impl<'f> FunctionGenerator<'f> {
                 buffer.push(AssemblyItem::new_instruction(
                     InstructionOpcode::Add,
                     &[result.into(), r.into()]
+                ));
+            },
+
+            ir::InstructionKind::Equals(l, r) => {
+                let l = self.generate_read(buffer, *l);
+                let r = self.generate_read(buffer, *r);
+
+                let result = self.variable_reg(stmt.result.unwrap());
+
+                // Do comparison - this puts result in `ef`
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Eq,
+                    &[l.into(), r.into()]
+                ));
+
+                // Copy entire `ef` register out into result
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Movso,
+                    &[result.into(), SPR::EF.into()]
+                ));
+
+                // Mask out the condition bit (0x0002)
+                // This is tricky, because we need to load the mask into a separate register, but
+                // the allocator only gave us one!
+                // Use `r0`, preserving through the stack, or `r1` in case `r0` happens to be our
+                // result register!
+                let mask_reg = if result == GPR::R0 { GPR::R1 } else { GPR::R0 };
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Push,
+                    &[mask_reg.into()]
+                ));
+                buffer.push(AssemblyItem::new_word_put(mask_reg, AssemblyOperand::Immediate(0x0002)));
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::And,
+                    &[result.into(), mask_reg.into()]
+                ));
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Pop,
+                    &[mask_reg.into()]
                 ));
             },
 

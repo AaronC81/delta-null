@@ -99,6 +99,9 @@ impl FunctionTranslator {
             node::StatementKind::Block { body, .. } => {
                 for s in body {
                     self.translate_statement(s)?;
+                    if self.target_mut().has_terminator() {
+                        break;
+                    }
                 }
             },
             
@@ -153,14 +156,12 @@ impl FunctionTranslator {
 
             node::StatementKind::Loop(body) => {
                 let (new_id, new_block) = self.func.new_basic_block();
+                self.target_mut().add_terminator_if_none(ir::Instruction::new(ir::InstructionKind::Branch(new_id)));
                 self.replace_target(new_block);
                 let errors = self.translate_statement(&body)?;
-
-                // Add jump from previous block to our new one
-                self.target_mut().add_terminator(ir::Instruction::new(ir::InstructionKind::Branch(new_id)));
                 
                 // Add infinite-looping terminator
-                self.target_mut().add_terminator(ir::Instruction::new(ir::InstructionKind::Branch(new_id)));
+                self.target_mut().add_terminator_if_none(ir::Instruction::new(ir::InstructionKind::Branch(new_id)));
 
                 // Create block for following statements
                 // (For when we have `break`!)
@@ -230,7 +231,15 @@ impl FunctionTranslator {
                     .map(|(l, r)|
                         self.target_mut().add_instruction(
                             ir::Instruction::new(ir::InstructionKind::Add(l, r))
-                        ).into())
+                        ).into()),
+
+            node::ExpressionKind::Equals(l, r) =>
+            self.translate_expression(&l)?
+                .combine(self.translate_expression(&r)?)
+                .map(|(l, r)|
+                    self.target_mut().add_instruction(
+                        ir::Instruction::new(ir::InstructionKind::Equals(l, r))
+                    ).into()),
         }
     }
 

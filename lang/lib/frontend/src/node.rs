@@ -74,6 +74,7 @@ pub enum ExpressionKind {
     Integer(String),
 
     Add(Box<Expression>, Box<Expression>),
+    Equals(Box<Expression>, Box<Expression>),
 }
 
 /// A parsed type.
