@@ -1,6 +1,6 @@
 use std::{iter::Peekable, fmt::Display, error::Error};
 
-use crate::{node::{TopLevelItem, Statement, TopLevelItemKind, StatementKind, Expression, ExpressionKind, Type, TypeKind}, tokenizer::{Token, TokenKind}, fallible::{Fallible, MaybeFatal}};
+use crate::{node::{TopLevelItem, Statement, TopLevelItemKind, StatementKind, Expression, ExpressionKind, Type, TypeKind}, tokenizer::{Token, TokenKind}, fallible::{Fallible, MaybeFatal}, source::SourceLocation};
 
 pub struct Parser<I: Iterator<Item = Token>> {
     tokens: Peekable<I>,
@@ -19,7 +19,10 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 TokenKind::KwFn => self.parse_function_definition()
                     .integrate_if_ok(&mut result, |l, i| l.push(i)),
 
-                _ => result.push_error(ParseError::new(&format!("unexpected token at top-level: {:?}", peeked)))
+                _ => {
+                    let token = self.tokens.next().unwrap();
+                    result.push_error(ParseError::new(&format!("unexpected token at top-level: {:?}", token.kind), token.loc));
+                }
             }
         }
     
@@ -27,14 +30,17 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     }
 
     pub fn parse_function_definition(&mut self) -> Fallible<MaybeFatal<TopLevelItem>, ParseError> {
+        let loc = self.here_loc();
         self.expect(TokenKind::KwFn)?;
 
         // Parse function name
-        let Some(Token { kind: TokenKind::Identifier(name), .. }) = self.tokens.next() else {
+        let name_token = self.tokens.next();
+        let Some(TokenKind::Identifier(name)) = name_token.as_ref().map(|t| &t.kind) else {
             return Fallible::new_fatal(vec![
-                ParseError::new("expected identifier after `fn`"),
+                ParseError::new("expected identifier after `fn`", name_token.unwrap().loc),
             ])
         };
+        let name = name.to_owned();
 
         // No arguments currently supported!
         self.expect(TokenKind::LParen)?;
@@ -48,12 +54,14 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 body: Statement::new(StatementKind::Block {
                     body: stmts,
                     trailing_return: false, // TODO
-                })
-            }).into()
+                }, loc.clone())
+            }, loc).into()
         })
     }
 
     pub fn parse_statement(&mut self) -> Fallible<MaybeFatal<Statement>, ParseError> {
+        let loc = self.here_loc();
+
         match self.tokens.peek().map(|t| &t.kind) {
             Some(TokenKind::KwReturn) => {
                 self.tokens.next();
@@ -63,7 +71,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 self.expect(TokenKind::Semicolon)?;
 
                 value.map(|e|
-                    Statement::new(StatementKind::Return(Some(e))).into())
+                    Statement::new(StatementKind::Return(Some(e)), loc).into())
             },
 
             Some(TokenKind::KwVar) => {
@@ -71,15 +79,16 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 let mut errors = Fallible::new(());
 
                 // Parse name and type
+                let name_token = self.tokens.next();
                 let name =
-                    match self.tokens.next().map(|t| t.kind) {
-                        Some(TokenKind::Identifier(i)) => i,
+                    match name_token.as_ref().map(|t| &t.kind) {
+                        Some(TokenKind::Identifier(i)) => i.to_owned(),
                         Some(_) => {
-                            errors.push_error(ParseError::new("expected identifier after `var`"));
+                            errors.push_error(ParseError::new("expected identifier after `var`", name_token.unwrap().loc));
                             "<?>".to_owned()
                         },
                         None => return Fallible::new_fatal(vec![
-                            ParseError::new("unexpected end-of-file"),
+                            ParseError::new("unexpected end-of-file", SourceLocation::stub()),
                         ]),
                     };
                 self.expect(TokenKind::Colon)?;
@@ -97,19 +106,19 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                         name,
                         ty,
                         value: Some(value),
-                    }).into())
+                    }, loc).into())
             }
 
             Some(TokenKind::LBrace) => self.parse_body()
                 .map(|body| Statement::new(StatementKind::Block {
                     body,
                     trailing_return: false
-                }).into()),
+                }, loc).into()),
 
             Some(TokenKind::KwLoop) => {
                 self.tokens.next();
                 self.parse_statement()?
-                    .map(|s| Statement::new(StatementKind::Loop(Box::new(s))).into())
+                    .map(|s| Statement::new(StatementKind::Loop(Box::new(s)), loc).into())
             }
 
             Some(TokenKind::KwIf) => {
@@ -119,7 +128,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                     .map(|(condition, body)| Statement::new(StatementKind::If {
                         condition,
                         body: Box::new(body),
-                    }).into())
+                    }, loc).into())
             }
 
             Some(_) => {
@@ -129,7 +138,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 // We want to do some further processing, but we need to be sure that parsing 
                 // actually succeeded first
                 if expr.has_errors() {
-                    return expr.map(|e| MaybeFatal::Ok(Statement::new(StatementKind::Expression(e))));
+                    return expr.map(|e| MaybeFatal::Ok(Statement::new(StatementKind::Expression(e), loc)));
                 }
                 let expr = expr.unwrap();
 
@@ -143,15 +152,15 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                             .map(|(value, _)| Statement::new(StatementKind::Assignment {
                                 name: id.to_owned(),
                                 value,
-                            }).into());
+                            }, loc).into());
                     }
                 }
 
-                Fallible::new_ok(Statement::new(StatementKind::Expression(expr)))
+                Fallible::new_ok(Statement::new(StatementKind::Expression(expr), loc))
             },
 
             None => Fallible::new_fatal(vec![
-                ParseError::new("expected statement, got end of file")
+                ParseError::new("expected statement, got end of file", SourceLocation::stub())
             ]),
         }
     }
@@ -164,11 +173,11 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         let mut expr = self.parse_equals()?;
 
         if self.tokens.peek().map(|t| &t.kind) == Some(&TokenKind::Plus) {
-            self.tokens.next();
+            let loc = self.tokens.next().unwrap().loc;
 
             self.parse_expression()?
                 .integrate(&mut expr, |lhs, rhs|
-                    *lhs = Expression::new(ExpressionKind::Add(Box::new(lhs.clone()), Box::new(rhs))));
+                    *lhs = Expression::new(ExpressionKind::Add(Box::new(lhs.clone()), Box::new(rhs)), loc));
         }
 
         expr.map(|e| e.into())
@@ -178,11 +187,11 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         let mut expr = self.parse_atom()?;
 
         if self.tokens.peek().map(|t| &t.kind) == Some(&TokenKind::DoubleEquals) {
-            self.tokens.next();
+            let loc = self.tokens.next().unwrap().loc;
 
             self.parse_expression()?
                 .integrate(&mut expr, |lhs, rhs|
-                    *lhs = Expression::new(ExpressionKind::Equals(Box::new(lhs.clone()), Box::new(rhs))));
+                    *lhs = Expression::new(ExpressionKind::Equals(Box::new(lhs.clone()), Box::new(rhs)), loc));
         }
 
         expr.map(|e| e.into())
@@ -191,50 +200,51 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     pub fn parse_atom(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
         match self.tokens.peek().map(|t| &t.kind) {
             Some(TokenKind::Integer(_)) => {
-                let TokenKind::Integer(i) = self.tokens.next().unwrap().kind else { unreachable!() };
-                Fallible::new_ok(Expression::new(ExpressionKind::Integer(i)))
+                let t = self.tokens.next().unwrap();
+                let TokenKind::Integer(i) = t.kind else { unreachable!() };
+                Fallible::new_ok(Expression::new(ExpressionKind::Integer(i), t.loc))
             },
 
             Some(TokenKind::Identifier(_)) => {
-                let TokenKind::Identifier(i) = self.tokens.next().unwrap().kind else { unreachable!() };
-                Fallible::new_ok(Expression::new(ExpressionKind::Identifier(i)))
+                let t = self.tokens.next().unwrap();
+                let TokenKind::Identifier(i) = t.kind else { unreachable!() };
+                Fallible::new_ok(Expression::new(ExpressionKind::Identifier(i), t.loc))
             },
 
             Some(_) => {
-                let t = self.tokens.next().unwrap().kind;
+                let t = self.tokens.next().unwrap();
                 Fallible::new_fatal(vec![
-                    ParseError::new(&format!("expected expression, got {:?}", t))
+                    ParseError::new(&format!("expected expression, got {:?}", t.kind), t.loc)
                 ])
             },
             None => Fallible::new_fatal(vec![
-                ParseError::new("expected expression, got end of file")
+                ParseError::new("expected expression, got end of file", SourceLocation::stub())
             ]),
         }
     }
     
     pub fn parse_type(&mut self) -> Fallible<MaybeFatal<Type>, ParseError> {
-        match self.tokens.next().map(|t| t.kind) {
-            Some(TokenKind::Identifier(i)) => Fallible::new_ok(Type::new(TypeKind::Name(i))),
+        let token = self.tokens.next();
+        match token.as_ref().map(|t| &t.kind) {
+            Some(TokenKind::Identifier(i)) => Fallible::new_ok(
+                Type::new(TypeKind::Name(i.to_owned()), token.unwrap().loc)
+            ),
 
             Some(k) => {
                 Fallible::new_fatal(vec![
-                    ParseError::new(&format!("expected expression, got {k:?}"))
+                    ParseError::new(&format!("expected type, got {k:?}"), token.unwrap().loc)
                 ])
             },
             None => Fallible::new_fatal(vec![
-                ParseError::new("expected type, got end of file")
+                ParseError::new("expected type, got end of file", SourceLocation::stub())
             ]),
         }
     }
 
     pub fn parse_body(&mut self) -> Fallible<Vec<Statement>, ParseError> {
-        if self.expect(TokenKind::LBrace).has_errors() {
-            return Fallible::new_with_errors(
-                vec![],
-                vec![
-                    ParseError::new("missing { for start of block"),
-                ]
-            )
+        let l_brace_expect = self.expect(TokenKind::LBrace);
+        if l_brace_expect.has_errors() {
+            return Fallible::new_with_errors(vec![], l_brace_expect.into_errors())
         }
 
         let mut statements = Fallible::new(vec![]);
@@ -248,7 +258,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                     self.parse_statement()
                         .integrate_if_ok(&mut statements, |stmts, s| stmts.push(s)),
                 None => {
-                    statements.push_error(ParseError::new("expected } before end of file"));
+                    statements.push_error(ParseError::new("expected } before end of file", SourceLocation::stub()));
                     break;
                 },
             }
@@ -261,15 +271,25 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         if let Some(token) = self.tokens.next() {
             if token.kind != kind {
                 Fallible::new_fatal(vec![
-                    ParseError::new(&format!("expected {:?}, got {:?}", kind, token.kind))
+                    ParseError::new(&format!("expected {:?}, got {:?}", kind, token.kind), token.loc)
                 ])
             } else {
                 Fallible::new_ok(())
             }
         } else {
             Fallible::new_fatal(vec![
-                ParseError::new(&format!("expected {kind:?}, got end of file"))
+                ParseError::new(&format!("expected {kind:?}, got end of file"), SourceLocation::stub())
             ])
+        }
+    }
+
+    /// Peeks at the current token, and fetches its location. If at the end of the file, returns a
+    /// marker stub instead.
+    #[must_use]
+    pub fn here_loc(&mut self) -> SourceLocation {
+        match &mut self.tokens.peek() {
+            Some(t) => t.loc.clone(),
+            None => SourceLocation::stub(),
         }
     }
 }
@@ -277,17 +297,18 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 #[derive(Debug, Clone)]
 pub struct ParseError {
     description: String,
+    loc: SourceLocation,
 }
 
 impl ParseError {
-    pub fn new(description: &str) -> Self {
-        ParseError { description: description.to_owned() }
+    pub fn new(description: &str, loc: SourceLocation) -> Self {
+        ParseError { description: description.to_owned(), loc }
     }
 }
 
 impl Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "tokenizer error: {}", self.description)
+        write!(f, "parse error: {}: {}", self.loc.describe(), self.description)
     }
 }
 impl Error for ParseError {}

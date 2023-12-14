@@ -1,12 +1,15 @@
+use crate::source::SourceLocation;
+
 /// An item which may appear at the top-level of a module (file), such as a function definition.
 #[derive(Clone, Debug)]
 pub struct TopLevelItem {
     pub kind: TopLevelItemKind,
+    pub loc: SourceLocation,
 }
 
 impl TopLevelItem {
-    pub fn new(kind: TopLevelItemKind) -> Self {
-        TopLevelItem { kind }
+    pub fn new(kind: TopLevelItemKind, loc: SourceLocation) -> Self {
+        TopLevelItem { kind, loc }
     }
 }
 
@@ -24,11 +27,12 @@ pub enum TopLevelItemKind {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Statement {
     pub kind: StatementKind,
+    pub loc: SourceLocation,
 }
 
 impl Statement {
-    pub fn new(kind: StatementKind) -> Self {
-        Statement { kind }
+    pub fn new(kind: StatementKind, loc: SourceLocation) -> Self {
+        Statement { kind, loc }
     }
 }
 
@@ -60,11 +64,12 @@ pub enum StatementKind {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Expression {
     pub kind: ExpressionKind,
+    pub loc: SourceLocation,
 }
 
 impl Expression {
-    pub fn new(kind: ExpressionKind) -> Self {
-        Expression { kind }
+    pub fn new(kind: ExpressionKind, loc: SourceLocation) -> Self {
+        Expression { kind, loc }
     }
 }
 
@@ -81,11 +86,12 @@ pub enum ExpressionKind {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Type {
     pub kind: TypeKind,
+    pub loc: SourceLocation,
 }
 
 impl Type {
-    pub fn new(kind: TypeKind) -> Self {
-        Type { kind }
+    pub fn new(kind: TypeKind, loc: SourceLocation) -> Self {
+        Type { kind, loc }
     }
 }
 
