@@ -24,9 +24,19 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    // Read and compile
+    // Run frontend
     let input = args.input.to_string();
-    let module = code_to_module(&input).unwrap();
+    let module = match code_to_module(&input) {
+        Ok(m) => m,
+        Err(errors) => {
+            for error in errors {
+                println!("{error}");
+            }
+            exit(1)
+        }
+    };
+
+    // `--to-ir` stops here
     if args.to_ir {
         println!("{}", module.functions.into_iter()
             .map(|f| f.print_ir(&PrintOptions::new()))
@@ -35,7 +45,16 @@ fn main() {
         exit(0)
     }
 
-    let asm = compile_module(&module).unwrap();
+    // Run backend
+    let asm = match compile_module(&module) {
+        Ok(a) => a,
+        Err(errors) => {
+            for error in errors {
+                println!("{error}");
+            }
+            exit(1);
+        }
+    };
 
     // Open output
     let mut output_handle: Box<dyn Write> =
