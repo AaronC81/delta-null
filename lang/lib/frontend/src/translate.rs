@@ -4,6 +4,7 @@ use delta_null_lang_backend::ir::{Module, FunctionBuilder, Local, LocalId, Basic
 
 use crate::{node::{TopLevelItem, TopLevelItemKind, self, Type}, fallible::{Fallible, MaybeFatal}};
 
+/// Translates [TopLevelItem]s into an IR [Module].
 pub struct ModuleTranslator {
     module: Module,
 }
@@ -44,9 +45,24 @@ impl ModuleTranslator {
     }
 }
 
+/// Translates the contents of a function into an IR function, using the [FunctionBuilder]
+/// interface.
 pub struct FunctionTranslator {
+    /// The function currently being built.
     func: FunctionBuilder,
+
+    /// A map of local variables to their ID. Currently, this is pregenerated and static throughout
+    /// the entire function, even if certain locals are only defined in certain branches.
     locals: HashMap<String, LocalId>,
+
+    /// The basic block which IR instructions are currently being generated onto the end of.
+    /// 
+    /// For simple sequential statements, this will stay the same, but any statements which
+    /// introduce control flow (like `if` or `loop`) could change this multiple times during their
+    /// translation.
+    /// 
+    /// Should never become [None] for any significant period of time, during usage - this is mainly
+    /// here to enable usage of `Option::take`.
     target: Option<BasicBlockBuilder>,
 }
 
@@ -59,6 +75,9 @@ impl FunctionTranslator {
         }
     }
 
+    /// Builds a mapping of local variables to their IR [LocalId]s.
+    /// 
+    /// Call this only once, and before doing any translation.
     #[must_use]
     pub fn populate_locals(&mut self, stmt: &node::Statement) -> Fallible<MaybeFatal<()>, TranslateError> {
         let mut result = Fallible::new_ok(());
@@ -93,6 +112,7 @@ impl FunctionTranslator {
         result
     }
 
+    /// Translates a parsed language statement into a set of IR instructions.
     #[must_use]
     pub fn translate_statement(&mut self, stmt: &node::Statement) -> Fallible<MaybeFatal<()>, TranslateError> {
         match &stmt.kind {
@@ -203,6 +223,8 @@ impl FunctionTranslator {
         Fallible::new_ok(())
     }
 
+    /// Translates an expression into a set of IR instructions, and return the [VariableId]
+    /// describing the final result of the expression.
     #[must_use]
     pub fn translate_expression(&mut self, expr: &node::Expression) -> Fallible<MaybeFatal<VariableId>, TranslateError> {
         match &expr.kind {
@@ -243,6 +265,7 @@ impl FunctionTranslator {
         }
     }
 
+    /// Translates a [Type] to an [ir::Type].
     #[must_use]
     pub fn node_type_to_ir_type(&self, ty: &Type) -> Fallible<MaybeFatal<ir::Type>, TranslateError> {
         match &ty.kind {
@@ -257,11 +280,13 @@ impl FunctionTranslator {
         }
     }
 
+    /// Gets a reference to the current basic block where instructions are being generated.
     #[must_use]
     pub fn target_mut(&mut self) -> &mut BasicBlockBuilder {
         self.target.as_mut().unwrap()
     }
 
+    /// Finalises the current basic block, and replaces it with a different one.
     pub fn replace_target(&mut self, new: BasicBlockBuilder) {
         let old_target = self.target.take().unwrap();
         old_target.finalize();
