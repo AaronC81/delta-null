@@ -1,85 +1,98 @@
+//! Describes the node types produced by the parser.
+//! 
+//! The node types here take a type parameter, and expressions store a value of that type. This
+//! enables association of additional information with each expression, which can be used later in
+//! the compilation process.
+
 use crate::source::SourceLocation;
 
 /// An item which may appear at the top-level of a module (file), such as a function definition.
 #[derive(Clone, Debug)]
-pub struct TopLevelItem {
-    pub kind: TopLevelItemKind,
+pub struct TopLevelItem<D = ()> {
+    pub kind: TopLevelItemKind<D>,
     pub loc: SourceLocation,
 }
 
-impl TopLevelItem {
-    pub fn new(kind: TopLevelItemKind, loc: SourceLocation) -> Self {
+impl<D> TopLevelItem<D> {
+    pub fn new(kind: TopLevelItemKind<D>, loc: SourceLocation) -> Self {
         TopLevelItem { kind, loc }
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum TopLevelItemKind {
+pub enum TopLevelItemKind<D> {
     FunctionDefinition {
         name: String,
         // TODO: parameters
         // TODO: return type
-        body: Statement,
+        body: Statement<D>,
     }
 }
 
 /// A statement which appears within a function body.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Statement {
-    pub kind: StatementKind,
+pub struct Statement<D = ()> {
+    pub kind: StatementKind<D>,
     pub loc: SourceLocation,
 }
 
-impl Statement {
-    pub fn new(kind: StatementKind, loc: SourceLocation) -> Self {
-        Statement { kind, loc }
+impl<D> Statement<D> {
+    pub fn new(kind: StatementKind<D>, loc: SourceLocation) -> Self {
+        Self { kind, loc }
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum StatementKind {
+pub enum StatementKind<D = ()> {
     Block {
-        body: Vec<Statement>,
+        body: Vec<Statement<D>>,
         trailing_return: bool,
     },
-    Expression(Expression),
+    Expression(Expression<D>),
     VariableDeclaration {
         name: String,
         ty: Type,
-        value: Option<Expression>,
+        value: Option<Expression<D>>,
     },
     Assignment {
         name: String,
-        value: Expression,
+        value: Expression<D>,
     },
-    Return(Option<Expression>),
-    Loop(Box<Statement>),
+    Return(Option<Expression<D>>),
+    Loop(Box<Statement<D>>),
     If {
-        condition: Expression,
-        body: Box<Statement>,
+        condition: Expression<D>,
+        body: Box<Statement<D>>,
     }
 }
 
 /// An expression which calculates part of the value of a statement.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Expression {
-    pub kind: ExpressionKind,
+pub struct Expression<D = ()> {
+    pub kind: ExpressionKind<D>,
     pub loc: SourceLocation,
+    pub data: D,
 }
 
-impl Expression {
-    pub fn new(kind: ExpressionKind, loc: SourceLocation) -> Self {
-        Expression { kind, loc }
+impl<D> Expression<D> {
+    pub fn new_with_data(kind: ExpressionKind<D>, loc: SourceLocation, data: D) -> Self {
+        Expression { kind, loc, data }
+    }
+}
+
+impl<D: Default> Expression<D> {
+    pub fn new(kind: ExpressionKind<D>, loc: SourceLocation) -> Self {
+        Self::new_with_data(kind, loc, D::default())
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ExpressionKind {
+pub enum ExpressionKind<ED> {
     Identifier(String),
     Integer(String),
 
-    Add(Box<Expression>, Box<Expression>),
-    Equals(Box<Expression>, Box<Expression>),
+    Add(Box<Expression<ED>>, Box<Expression<ED>>),
+    Equals(Box<Expression<ED>>, Box<Expression<ED>>),
 }
 
 /// A parsed type.
