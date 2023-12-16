@@ -55,6 +55,7 @@ pub fn run_just_command_with_stdin(task_name: &str, args: &[&str], stdin: &str) 
         .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn()
         .unwrap();
 
