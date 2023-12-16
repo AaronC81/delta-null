@@ -1,6 +1,23 @@
-use std::{process::{Command, Stdio, ExitStatusError}, io::Write, fs::read_dir, path::PathBuf, env::current_dir, error::Error};
+use std::{process::{Command, Stdio, ExitStatus}, io::Write, fs::read_dir, path::PathBuf, env::current_dir, error::Error, fmt::Display};
 
 use delta_null_core_emulator::{Core, memory::{SimpleMemory, Memory}};
+
+#[derive(Debug, Clone)]
+pub struct CommandError {
+    status: ExitStatus,
+    stdout: String,
+    stderr: String,
+}
+
+impl Display for CommandError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f,
+            "command exited with code {}\n\nstdout:\n{}\n\nstderr:\n{}", 
+            self.status.code().unwrap(), self.stdout, self.stderr
+        )
+    }
+}
+impl Error for CommandError {}
 
 pub fn compile_and_execute(code: &str) -> Result<u16, Box<dyn Error>> {
     let code = compile_to_machine_code(code)?;
@@ -14,15 +31,15 @@ pub fn compile_and_execute(code: &str) -> Result<u16, Box<dyn Error>> {
     Ok(core.gprs[0])
 }
 
-pub fn compile_to_machine_code(code: &str) -> Result<Vec<u16>, ExitStatusError> {
+pub fn compile_to_machine_code(code: &str) -> Result<Vec<u16>, CommandError> {
     assemble(&compile_to_assembly(code)?)
 }
 
-pub fn compile_to_assembly(code: &str) -> Result<String, ExitStatusError> {
+pub fn compile_to_assembly(code: &str) -> Result<String, CommandError> {
     run_just_command_with_stdin("compile", &["-"], code)
 }
 
-pub fn assemble(code: &str) -> Result<Vec<u16>, ExitStatusError> {
+pub fn assemble(code: &str) -> Result<Vec<u16>, CommandError> {
     Ok(
         run_just_command_with_stdin("assemble", &["-"], code)?
             .split_whitespace()
@@ -31,7 +48,7 @@ pub fn assemble(code: &str) -> Result<Vec<u16>, ExitStatusError> {
     )
 }
 
-pub fn run_just_command_with_stdin(task_name: &str, args: &[&str], stdin: &str) -> Result<String, ExitStatusError> {
+pub fn run_just_command_with_stdin(task_name: &str, args: &[&str], stdin: &str) -> Result<String, CommandError> {
     let mut cmd = Command::new("just")
         .current_dir(repo_root().unwrap())
         .arg(task_name)
@@ -49,10 +66,10 @@ pub fn run_just_command_with_stdin(task_name: &str, args: &[&str], stdin: &str) 
     let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
     if !output.status.success() {
-        panic!(
-            "task {} exited with code {}\n\nstdout:\n{}\n\nstderr:\n{}",
-            task_name, output.status.code().unwrap(), stdout, stderr
-        )
+        return Err(CommandError {
+            status: output.status,
+            stdout, stderr,
+        })
     }
     Ok(stdout)
 }

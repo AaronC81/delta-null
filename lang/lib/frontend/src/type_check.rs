@@ -38,17 +38,29 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
     let mut errors = Fallible::new(());
     let result = items.into_iter()
         .map(|i| {
+            let loc = i.loc.clone();
             i.map(|kind| match kind {
                 TopLevelItemKind::FunctionDefinition { name, return_type, body } => {
+                    // Create context
                     let mut ctx = LocalContext {
                         variables: HashMap::new(),
                         return_type: convert_node_type(&return_type).propagate(&mut errors),
                     };
-                    let body = type_check_statement(body, &mut ctx);
-                    body
-                        .map(|body|
-                            TopLevelItemKind::FunctionDefinition { name, return_type, body })
-                        .propagate(&mut errors)
+
+                    // Type-check body
+                    let body = type_check_statement(body, &mut ctx)
+                        .propagate(&mut errors);
+
+                    // Check that all control paths diverge (return something or loop forever)
+                    if ctx.return_type != Type::Direct(ir::Type::Void) {
+                        if !do_all_paths_diverge(&body) {
+                            errors.push_error(TypeError::new(
+                                &format!("not all control-flow paths of `{name}` return a value"), loc
+                            ))
+                        }
+                    }
+
+                    TopLevelItemKind::FunctionDefinition { name, return_type, body }
                 },
             })
         })
@@ -214,6 +226,26 @@ pub fn arithmetic_binop_result_type(left: &Type, right: &Type, op: &str, loc: So
     }
 }
 
+/// Returns a boolean indicating whether all paths through the given statement will diverge from the
+/// enclosing function.
+#[must_use]
+pub fn do_all_paths_diverge(body: &Statement<Type>) -> bool {
+    match &body.kind {
+        StatementKind::Block { body, trailing_return: _ } =>
+            body.iter().any(|s| do_all_paths_diverge(s)),
+
+        // TODO: when `else` exists, if both branches diverge, this does too
+        StatementKind::If { .. } => false,
+
+        StatementKind::Return(_) => true,
+        StatementKind::Loop(_) => false, // TODO: when `break` is added, if the loop contains any, this is false!
+
+        StatementKind::VariableDeclaration { .. } 
+        | StatementKind::Assignment { .. }
+        | StatementKind::Expression(_) => true,
+    }
+}
+
 /// Translates a [node::Type] to an [Type].
 #[must_use]
 pub fn convert_node_type(ty: &node::Type) -> Fallible<Type, TypeError> {
@@ -232,3 +264,69 @@ pub fn convert_node_type(ty: &node::Type) -> Fallible<Type, TypeError> {
 }
 
 frontend_error!(TypeError, "type");
+
+#[cfg(test)]
+mod test {
+    use crate::{parser::Parser, tokenizer::tokenize, node::TopLevelItem};
+
+    use super::type_check_module;
+
+    fn parse(code: &str) -> Vec<TopLevelItem> {
+        let (tokens, errors) = tokenize(code, "<test>");
+        if !errors.is_empty() {
+            panic!("{:?}", errors)
+        }
+        Parser::new(tokens.into_iter().peekable()).parse_module().unwrap()
+    }
+
+    fn assert_ok(module: Vec<TopLevelItem>) {
+        let tc = type_check_module(module);
+        assert!(!tc.has_errors(), "type-checking raised errors when none were expected: {:?}", tc.errors());
+    }
+
+    fn assert_errors(module: Vec<TopLevelItem>, containing: &str) {
+        let tc = type_check_module(module);
+        assert!(tc.has_errors(), "type-checking raised no errors, but expected one containing '{containing}'");
+
+        for error in tc.errors() {
+            if error.to_string().contains(containing) {
+                return;
+            }
+        }
+        panic!("no raised error contains '{containing}': {:?}", tc.errors())
+    }
+
+    #[test]
+    fn test_control_flow_check() {
+        // OK - needs to return a value, and does
+        assert_ok(parse("
+            fn main() -> u16 {
+                return 1;
+            }
+        "));
+
+        // OK - no need to return a value
+        assert_ok(parse("
+            fn main() { }
+        "));
+
+        // OK - always returns in the end, but sometimes early
+        assert_ok(parse("
+            fn main() -> u16 {
+                if 1 == 2 {
+                    return 2;
+                }
+                return 0;
+            }
+        "));
+
+        // Error - false path doesn't return
+        assert_errors(parse("
+            fn main() -> u16 {
+                if 1 == 2 {
+                    return 2;
+                }
+            }
+        "), "not all control-flow paths");
+    }
+}
