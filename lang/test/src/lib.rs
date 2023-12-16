@@ -126,4 +126,62 @@ mod test {
             0
         );
     }
+
+    #[test]
+    fn test_break() {
+        // One level
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    var total: u16 = 0;
+                    var i: u16 = 0;
+                    loop {
+                        i = i + 1;
+                        total = total + 10;
+                        if i == 5 {
+                            break;
+                        }
+                    }
+
+                    return total + 1; // +1 to ensure `break` gets here, rather than returning
+                }
+            ").unwrap(),
+            51
+        );
+
+        // Nested
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    var total: u16 = 0;
+
+                    // Outer loop
+                    var i: u16 = 0;
+                    loop {
+                        i = i + 1;
+
+                        // Inner loop
+                        var j: u16 = 0;
+                        loop {
+                            j = j + 1;
+
+                            // Incrementer
+                            total = total + 2;
+
+                            if j == 5 {
+                                break;
+                            }
+                        }
+
+                        if i == 5 {
+                            break;
+                        }
+                    }
+
+                    return total + 1; // +1 to ensure `break` gets here, rather than returning
+                }
+            ").unwrap(),
+            (5 * 5) * 2 + 1
+        );
+    }
 }

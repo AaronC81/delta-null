@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Display, error::Error};
 
-use delta_null_lang_backend::ir::{Module, FunctionBuilder, Local, LocalId, BasicBlockBuilder, VariableId, self, Instruction};
+use delta_null_lang_backend::ir::{Module, FunctionBuilder, Local, LocalId, BasicBlockBuilder, VariableId, self, Instruction, BasicBlockId};
 
 use crate::{node::{TopLevelItem, TopLevelItemKind, self, Type}, fallible::{Fallible, MaybeFatal}};
 
@@ -64,6 +64,14 @@ pub struct FunctionTranslator {
     /// Should never become [None] for any significant period of time, during usage - this is mainly
     /// here to enable usage of `Option::take`.
     target: Option<BasicBlockBuilder>,
+
+    /// The basic block to jump to if a `break` statement is executed.
+    /// 
+    /// Breakable constructs can be nested, so when introducing a new one, the implementation should
+    /// take care to preserve the current one and restore it afterwards.
+    /// 
+    /// If [None], a `break` is not valid here.
+    break_target: Option<BasicBlockId>,
 }
 
 impl FunctionTranslator {
@@ -72,6 +80,7 @@ impl FunctionTranslator {
             func,
             locals: HashMap::new(),
             target: None,
+            break_target: None,
         }
     }
 
@@ -178,21 +187,42 @@ impl FunctionTranslator {
             node::StatementKind::Loop(body) => {
                 let (new_id, new_block) = self.func.new_basic_block();
                 self.target_mut().add_terminator_if_none(ir::Instruction::new(ir::InstructionKind::Branch(new_id)));
+
+                // Create block for following statements - if `break` is executed, go there!
+                let (cont_id, cont_block) = self.func.new_basic_block();
+                let old_break_target = self.break_target;
+                self.break_target = Some(cont_id);
+
+                // Generate instructions within loop
                 self.replace_target(new_block);
                 let errors = self.translate_statement(&body)?;
                 
                 // Add infinite-looping terminator
                 self.target_mut().add_terminator_if_none(ir::Instruction::new(ir::InstructionKind::Branch(new_id)));
 
-                // Create block for following statements
-                // (For when we have `break`!)
-                let (_, cont_block) = self.func.new_basic_block();
+                // Restore old break target
+                self.break_target = old_break_target;
+
+                // Place any new instructions in the continuation block
                 self.replace_target(cont_block);
 
                 return errors.map(|f| f.into());
             },
 
-            node::StatementKind::Break => todo!("break nyi"), // TODO
+            node::StatementKind::Break => {
+                if let Some(break_target) = self.break_target {
+                    // Insert break terminator
+                    self.target_mut().add_terminator(Instruction::new(ir::InstructionKind::Branch(break_target)));
+
+                    // In case there are (unreachable) statements after this, generate a new block for them
+                    let (_, cont_block) = self.func.new_basic_block();
+                    self.replace_target(cont_block);
+                } else {
+                    return Fallible::new_with_errors(MaybeFatal::Fatal, vec![
+                        TranslateError::new("`break` is not valid here")
+                    ])
+                }
+            }
 
             node::StatementKind::If { condition, true_body, false_body } => {
                 let mut errors = Fallible::new(());
