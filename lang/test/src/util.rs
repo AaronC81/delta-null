@@ -46,8 +46,15 @@ pub fn run_just_command_with_stdin(task_name: &str, args: &[&str], stdin: &str) 
     drop(cmd_stdin);
 
     let output = cmd.wait_with_output().unwrap();
-    output.status.exit_ok()?;
-    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    if !output.status.success() {
+        panic!(
+            "task {} exited with code {}\n\nstdout:\n{}\n\nstderr:\n{}",
+            task_name, output.status.code().unwrap(), stdout, stderr
+        )
+    }
+    Ok(stdout)
 }
 
 pub fn repo_root() -> Result<PathBuf, std::io::Error> {
