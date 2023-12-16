@@ -239,8 +239,13 @@ pub fn do_all_paths_diverge(body: &Statement<Type>) -> bool {
         StatementKind::Block { body, trailing_return: _ } =>
             body.iter().any(|s| do_all_paths_diverge(s)),
 
-        // TODO: when `else` exists, if both branches diverge, this does too
-        StatementKind::If { .. } => false,
+        StatementKind::If { true_body, false_body, condition: _ } => {
+            if let Some(false_body) = false_body {
+                do_all_paths_diverge(&true_body) && do_all_paths_diverge(&false_body)
+            } else {
+                false
+            }
+        },
 
         StatementKind::Return(_) => true,
         StatementKind::Loop(_) => false, // TODO: when `break` is added, if the loop contains any, this is false!
@@ -330,6 +335,52 @@ mod test {
             fn main() -> u16 {
                 if 1 == 2 {
                     return 2;
+                }
+            }
+        "), "not all control-flow paths");
+
+        // OK - all branches return
+        assert_ok(parse("
+            fn main() -> u16 {
+                if 1 == 2 {
+                    if 2 == 3 { 
+                        if 3 == 4 {
+                            return 1;
+                        } else {
+                            return 3;
+                        }
+                    } else {
+                        if 4 == 5 {
+                            return 1;
+                        } else {
+                            return 2;
+                        }
+                    }
+                } else {
+                    return 0;
+                }
+            }
+        "));
+
+        // Error - missing a branch
+        assert_errors(parse("
+            fn main() -> u16 {
+                if 1 == 2 {
+                    if 2 == 3 { 
+                        if 3 == 4 {
+                            return 1;
+                        } else {
+                            return 3;
+                        }
+                    } else {
+                        if 4 == 5 {
+                            
+                        } else {
+                            return 2;
+                        }
+                    }
+                } else {
+                    return 0;
                 }
             }
         "), "not all control-flow paths");
