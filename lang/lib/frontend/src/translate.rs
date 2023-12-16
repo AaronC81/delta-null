@@ -106,7 +106,8 @@ impl FunctionTranslator {
             // Nothing to do
             node::StatementKind::Return(_)
             | node::StatementKind::Expression(_)
-            | node::StatementKind::Assignment { .. } => (),
+            | node::StatementKind::Assignment { .. }
+            | node::StatementKind::Break => (),
         }
 
         result
@@ -190,6 +191,8 @@ impl FunctionTranslator {
 
                 return errors.map(|f| f.into());
             },
+
+            node::StatementKind::Break => todo!("break nyi"), // TODO
 
             node::StatementKind::If { condition, true_body, false_body } => {
                 let mut errors = Fallible::new(());

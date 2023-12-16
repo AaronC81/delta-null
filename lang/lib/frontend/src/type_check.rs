@@ -137,6 +137,8 @@ pub fn type_check_statement(stmt: Statement<()>, ctx: &mut LocalContext) -> Fall
                     type_check_statement(*body, ctx).propagate(&mut errors)
                 )),
 
+            StatementKind::Break => StatementKind::Break,
+
             StatementKind::If { condition, true_body, false_body } => {
                 let condition = type_check_expression(condition, ctx).propagate(&mut errors);
 
@@ -251,11 +253,46 @@ pub fn do_all_paths_diverge(body: &Statement<Type>) -> bool {
         },
 
         StatementKind::Return(_) => true,
-        StatementKind::Loop(_) => false, // TODO: when `break` is added, if the loop contains any, this is false!
+        StatementKind::Loop(body) =>
+            match find_statement(&body, &|s| s.kind == StatementKind::Break) {
+                // If the loop contains a `break`, then it might not be infinite.
+                // But if the body definitely diverges (e.g. always executes a `return`) then this
+                // does too. Admittedly this is useless - the loop would only ever execute once -
+                // but it makes sense to check.
+                Some(_) => do_all_paths_diverge(&body),
+
+                // If it doesn't `break`, then it's an infinite loop!
+                // The enclosing function could only leave this loop by validating returning, so
+                // no statements need to follow this.
+                None => true,
+            },
 
         StatementKind::VariableDeclaration { .. } 
         | StatementKind::Assignment { .. }
-        | StatementKind::Expression(_) => true,
+        | StatementKind::Break
+        | StatementKind::Expression(_) => false,
+    }
+}
+
+/// Walks the tree of statements to find one matching the given predicate, returning it if found.
+#[must_use]
+pub fn find_statement<'s, T>(stmt: &'s Statement<T>, predicate: &impl Fn(&Statement<T>) -> bool) -> Option<&'s Statement<T>> {
+    if predicate(stmt) {
+        return Some(stmt)
+    }
+
+    match &stmt.kind {
+        StatementKind::Block { body, .. } => body.iter().find(|s| find_statement(s, predicate).is_some()),
+        StatementKind::If { true_body, false_body, .. } =>
+            find_statement(&true_body, predicate)
+                .or_else(|| false_body.as_ref().and_then(|b| find_statement(b, predicate))),
+
+        StatementKind::VariableDeclaration { .. }
+        | StatementKind::Assignment { .. }
+        | StatementKind::Expression(_)
+        | StatementKind::Return(_)
+        | StatementKind::Loop(_)
+        | StatementKind::Break => None,
     }
 }
 
@@ -387,5 +424,52 @@ mod test {
                 }
             }
         "), "not all control-flow paths");
+
+        // OK - body of loop always returns
+        assert_ok(parse("
+            fn main() -> u16 {
+                loop {
+                    return 1;
+                }
+            }
+        "));
+
+        // OK - loop could break, but this leads to a return
+        assert_ok(parse("
+            fn main() -> u16 {
+                loop {
+                    if 1 == 2 {
+                        break;
+                    } else {
+                        return 2;
+                    }
+                }
+                return 1;
+            }
+        "));
+
+        // Error - loop could break, no return after
+        assert_errors(parse("
+            fn main() -> u16 {
+                loop {
+                    if 1 == 2 {
+                        break;
+                    } else {
+                        return 2;
+                    }
+                }
+                // Falls off
+            }
+        "), "not all control-flow paths");
+
+        // OK - infinite loop
+        assert_ok(parse("
+            fn main() -> u16 {
+                var x: u16 = 0;
+                loop {
+                    x = x + 1;
+                }
+            }
+        "));
     }
 }

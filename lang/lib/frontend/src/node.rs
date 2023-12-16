@@ -74,6 +74,7 @@ pub enum StatementKind<D = ()> {
     },
     Return(Option<Expression<D>>),
     Loop(Box<Statement<D>>),
+    Break,
     If {
         condition: Expression<D>,
         true_body: Box<Statement<D>>,
