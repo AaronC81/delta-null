@@ -76,7 +76,8 @@ pub enum StatementKind<D = ()> {
     Loop(Box<Statement<D>>),
     If {
         condition: Expression<D>,
-        body: Box<Statement<D>>,
+        true_body: Box<Statement<D>>,
+        false_body: Option<Box<Statement<D>>>,
     }
 }
 

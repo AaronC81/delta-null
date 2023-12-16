@@ -137,15 +137,20 @@ pub fn type_check_statement(stmt: Statement<()>, ctx: &mut LocalContext) -> Fall
                     type_check_statement(*body, ctx).propagate(&mut errors)
                 )),
 
-            StatementKind::If { condition, body } => {
+            StatementKind::If { condition, true_body, false_body } => {
                 let condition = type_check_expression(condition, ctx).propagate(&mut errors);
 
                 // Condition should be a boolean
                 check_types_are_assignable(&Type::Direct(ir::Type::Boolean), &condition.data, loc).propagate(&mut errors);
 
-                let body = type_check_statement(*body, ctx).propagate(&mut errors);
+                let true_body = type_check_statement(*true_body, ctx).propagate(&mut errors);
+                let false_body = false_body.map(|b| type_check_statement(*b, ctx).propagate(&mut errors));
 
-                StatementKind::If { condition, body: Box::new(body) }
+                StatementKind::If {
+                    condition,
+                    true_body: Box::new(true_body),
+                    false_body: false_body.map(Box::new),
+                }
             },
         }
     });

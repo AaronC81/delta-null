@@ -56,6 +56,34 @@ mod test {
             ").unwrap(),
             456
         );
+
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    if 1 == 1 {
+                        return 123;
+                    } else {
+                        return 456;
+                    }
+                    return 0;
+                }
+            ").unwrap(),
+            123
+        );
+
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    if 1 == 0 {
+                        return 123;
+                    } else {
+                        return 456;
+                    }
+                    return 0;
+                }
+            ").unwrap(),
+            456
+        );
     }
 
     #[test]

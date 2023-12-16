@@ -99,7 +99,7 @@ impl FunctionTranslator {
             node::StatementKind::Loop(body) => {
                 self.populate_locals(&body).propagate(&mut result);
             },
-            node::StatementKind::If { body, .. } => {
+            node::StatementKind::If { true_body: body, .. } => {
                 self.populate_locals(&body).propagate(&mut result);
             }
 
@@ -191,27 +191,41 @@ impl FunctionTranslator {
                 return errors.map(|f| f.into());
             },
 
-            node::StatementKind::If { condition, body } => {
+            node::StatementKind::If { condition, true_body, false_body } => {
                 let mut errors = Fallible::new(());
 
                 let condition = self.translate_expression(condition)?
                     .propagate(&mut errors);
                 
                 // Create blocks for truth
-                let (true_id, mut true_block) = self.func.new_basic_block();
+                let (true_id, true_block) = self.func.new_basic_block();
+                let (false_id, false_block) =
+                    if false_body.is_some() {
+                        let (i, b) = self.func.new_basic_block();
+                        (Some(i), Some(b))
+                    } else {
+                        (None, None)
+                    };
                 let (cont_id, cont_block) = self.func.new_basic_block();
 
                 // Set up conditional branch
                 self.target_mut().add_terminator_if_none(Instruction::new(ir::InstructionKind::ConditionalBranch {
                     condition,
                     true_block: true_id,
-                    false_block: cont_id,
+                    false_block: false_id.unwrap_or(cont_id),
                 }));
 
                 // Populate true block
                 self.replace_target(true_block);
-                self.translate_statement(&body)?.propagate(&mut errors);
+                self.translate_statement(&true_body)?.propagate(&mut errors);
                 self.target_mut().add_terminator_if_none(Instruction::new(ir::InstructionKind::Branch(cont_id)));
+
+                // If we have a false block, populate it too
+                if let Some(false_block) = false_block {
+                    self.replace_target(false_block);
+                    self.translate_statement(&false_body.as_ref().unwrap())?.propagate(&mut errors);
+                    self.target_mut().add_terminator_if_none(Instruction::new(ir::InstructionKind::Branch(cont_id)));    
+                }
 
                 // Replace target with continuation block
                 self.replace_target(cont_block);

@@ -147,9 +147,18 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 self.tokens.next();
                 self.parse_expression()?
                     .combine(self.parse_statement()?)
-                    .map(|(condition, body)| Statement::new(StatementKind::If {
+                    .combine({
+                        if self.tokens.peek().map(|t| &t.kind) == Some(&TokenKind::KwElse) {
+                            self.tokens.next();
+                            self.parse_statement()?.map(|s| Some(s))
+                        } else {
+                            Fallible::new(None)
+                        }
+                    })
+                    .map(|((condition, true_body), false_body)| Statement::new(StatementKind::If {
                         condition,
-                        body: Box::new(body),
+                        true_body: Box::new(true_body),
+                        false_body: false_body.map(Box::new),
                     }, loc).into())
             }
 
