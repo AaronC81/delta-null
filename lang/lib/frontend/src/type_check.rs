@@ -15,6 +15,15 @@ pub enum Type {
     Unknown,
 }
 
+impl Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Type::Direct(d) => write!(f, "{d}"),
+            Type::Unknown => write!(f, "<unknown>"),
+        }
+    }
+}
+
 /// Describes the context within a particular scope of a function.
 #[derive(Debug, Clone)]
 pub struct LocalContext {
@@ -189,7 +198,7 @@ pub fn check_types_are_assignable(target: &Type, source: &Type, loc: SourceLocat
         Fallible::new(()) 
     } else {
         Fallible::new_with_errors((), vec![
-            TypeError::new(&format!("type `{source:?}` is not assignable to `{target:?}`"), loc)
+            TypeError::new(&format!("type `{source}` is not assignable to `{target}`"), loc)
         ])
     }
 }
@@ -200,7 +209,7 @@ pub fn arithmetic_binop_result_type(left: &Type, right: &Type, op: &str, loc: So
         Fallible::new(left.clone()) 
     } else {
         Fallible::new_with_errors(left.clone(), vec![
-            TypeError::new(&format!("operator `{op}` is not compatible with types `{left:?}` and `{right:?}`"), loc)
+            TypeError::new(&format!("operator `{op}` is not compatible with types `{left}` and `{right}`"), loc)
         ])
     }
 }

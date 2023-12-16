@@ -1,7 +1,7 @@
 //! Encodes an intermediate representation for code, expressed in
 //! [SSA form](https://en.wikipedia.org/wiki/Static_single-assignment_form).
 
-use std::{collections::HashMap, fmt::format};
+use std::{collections::HashMap, fmt::Display};
 
 mod stmt;
 pub use stmt::*;
@@ -233,10 +233,29 @@ impl Type {
     }
 }
 
+impl Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Type::UnsignedInteger(s) => write!(f, "u{}", s),
+            Type::SignedInteger(s) => write!(f, "s{}", s),
+            Type::Boolean => write!(f, "bool"),
+            Type::Void => write!(f, "void"),
+        }
+    }
+}
+
 /// The supported sizes of [Type::UnsignedInteger] and [Type::SignedInteger].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum IntegerSize {
     Bits16,
+}
+
+impl Display for IntegerSize {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            IntegerSize::Bits16 => write!(f, "16"),
+        }
+    }
 }
 
 /// Models some variable container.
