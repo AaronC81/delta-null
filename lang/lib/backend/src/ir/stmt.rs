@@ -79,7 +79,12 @@ pub enum InstructionKind {
     /// which branched to this block is not covered.
     Phi {
         choices: Vec<(BasicBlockId, VariableId)>,
-    }
+    },
+
+    /// A terminator used to mark a point which should never be reached.
+    /// 
+    /// Undefined behaviour occurs if this instruction is executed in a compiled program.
+    Unreachable,
 }
 
 impl Instruction {
@@ -92,6 +97,7 @@ impl Instruction {
             InstructionKind::Return(_)
             | InstructionKind::Branch(_)
             | InstructionKind::ConditionalBranch { .. }
+            | InstructionKind::Unreachable
                 => true,
 
             _ => false,
@@ -126,6 +132,7 @@ impl Instruction {
             InstructionKind::Branch(_) => hashset!{},
             InstructionKind::ConditionalBranch { condition, .. } => hashset!{ *condition },
             InstructionKind::Phi { choices } => choices.iter().map(|(_, var)| *var).collect(),
+            InstructionKind::Unreachable => hashset!{},
         }
     }
 
@@ -182,6 +189,8 @@ impl Instruction {
 
                 Ok(Some(*first_ty))
             }
+
+            InstructionKind::Unreachable => Ok(None),
         }
     }
 }
@@ -210,7 +219,8 @@ impl PrintIR for Instruction {
                         .map(|(b, v)| format!("{} -> {}", b.print_ir(options), v.print_ir(options)))
                         .collect::<Vec<_>>()
                         .join(", ")
-                )
+                ),
+            InstructionKind::Unreachable => "unreachable".to_owned(),
         }
     }
 }

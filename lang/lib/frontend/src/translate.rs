@@ -29,7 +29,7 @@ impl ModuleTranslator {
                 let (_, start_block) = func_trans.func.new_basic_block();
                 func_trans.target = Some(start_block);
                 func_trans.translate_statement(body)?;
-                func_trans.target.unwrap().finalize();
+                func_trans.finalize_target();
 
                 // Add to module
                 let func = func_trans.func.finalize();
@@ -305,10 +305,35 @@ impl FunctionTranslator {
         self.target.as_mut().unwrap()
     }
 
+    /// Finalises the current basic block.
+    fn finalize_target(&mut self) {
+        let mut old_target = self.target.take().unwrap();
+
+        // The code generator will sometimes generate empty blocks when it's trying to do a good
+        // job, for example...
+        // 
+        // ```
+        // if something {
+        //     return 2;
+        // } else {
+        //     return 3;
+        // }
+        // ```
+        // 
+        // ...generates a blank IR block for after the `if` statement, but this will never be
+        // reached, and therefore it is valid for no statements to exist in this case.
+        // 
+        // To handle this, if the block is empty, insert an `Unreachable` instruction.
+        if old_target.statement_count() == 0{
+            old_target.add_terminator(Instruction::new(ir::InstructionKind::Unreachable))
+        }
+
+        old_target.finalize();
+    }
+
     /// Finalises the current basic block, and replaces it with a different one.
     pub fn replace_target(&mut self, new: BasicBlockBuilder) {
-        let old_target = self.target.take().unwrap();
-        old_target.finalize();
+        self.finalize_target();
         self.target = Some(new);
     }
 }

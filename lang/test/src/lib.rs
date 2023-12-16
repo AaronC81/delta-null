@@ -65,7 +65,6 @@ mod test {
                     } else {
                         return 456;
                     }
-                    return 0;
                 }
             ").unwrap(),
             123
@@ -79,7 +78,6 @@ mod test {
                     } else {
                         return 456;
                     }
-                    return 0;
                 }
             ").unwrap(),
             456

@@ -188,6 +188,10 @@ impl BasicBlockBuilder {
         self.statements.iter().any(|s| s.borrow().instruction.is_terminator())
     }
 
+    pub fn statement_count(&self) -> usize {
+        self.statements.len()
+    }
+
     pub fn finalize(self) {
         let mut state = self.state.borrow_mut();
 

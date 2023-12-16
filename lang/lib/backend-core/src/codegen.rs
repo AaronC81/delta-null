@@ -214,6 +214,15 @@ impl<'f> FunctionGenerator<'f> {
                 // There's nothing to do here - `Phi` is generated on the blocks which call into
                 // this, not in the beginning of the block where the node is placed.
             },
+
+            ir::InstructionKind::Unreachable => {
+                // Something's gone wrong if we hit this! This instruction's behaviour is undefined,
+                // but we'll be nice and generate a halt, so that case is detectable.
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Hlt,
+                    &[]
+                ));
+            }
         }
     }
 
