@@ -114,6 +114,7 @@ impl<D: Default> Expression<D> {
 pub enum ExpressionKind<ED> {
     Identifier(String),
     Integer(String),
+    Boolean(bool),
 
     Add(Box<Expression<ED>>, Box<Expression<ED>>),
     Equals(Box<Expression<ED>>, Box<Expression<ED>>),

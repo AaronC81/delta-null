@@ -107,4 +107,25 @@ mod test {
             1 + 2 + 3 + 4 + 5
         );
     }
+
+    #[test]
+    fn test_boolean_literals() {
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> bool {
+                    return true;
+                }
+            ").unwrap(),
+            1
+        );
+
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> bool {
+                    return false;
+                }
+            ").unwrap(),
+            0
+        );
+    }
 }

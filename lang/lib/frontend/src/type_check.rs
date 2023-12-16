@@ -184,6 +184,9 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut LocalContext) -> Fa
                 (ExpressionKind::Integer(int), Type::Direct(ir::Type::UnsignedInteger(ir::IntegerSize::Bits16)))
             },
 
+            ExpressionKind::Boolean(b) =>
+                (ExpressionKind::Boolean(b), Type::Direct(ir::Type::Boolean)),
+
             ExpressionKind::Add(l, r) => {
                 let l = type_check_expression(*l, ctx).propagate(&mut errors);
                 let r = type_check_expression(*r, ctx).propagate(&mut errors);

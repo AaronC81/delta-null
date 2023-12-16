@@ -261,6 +261,10 @@ impl FunctionTranslator {
                 self.target_mut().add_constant(ir::ConstantValue::U16(i.parse().unwrap()))
             ),
 
+            node::ExpressionKind::Boolean(b) => Fallible::new_ok(
+                self.target_mut().add_constant(ir::ConstantValue::Boolean(*b))
+            ),
+
             node::ExpressionKind::Add(l, r) =>
                 self.translate_expression(&l)?
                     .combine(self.translate_expression(&r)?)

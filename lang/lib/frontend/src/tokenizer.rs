@@ -25,6 +25,8 @@ pub enum TokenKind {
     KwLoop,
     KwIf,
     KwElse,
+    KwTrue,
+    KwFalse,
 
     LBrace,
     RBrace,
@@ -85,6 +87,8 @@ pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>)
                     "loop" => TokenKind::KwLoop,
                     "if" => TokenKind::KwIf,
                     "else" => TokenKind::KwElse,
+                    "true" => TokenKind::KwTrue,
+                    "false" => TokenKind::KwFalse,
                     _ => TokenKind::Identifier(buffer),
                 };
                 tokens.push(Token::new(kind, loc));
