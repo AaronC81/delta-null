@@ -36,7 +36,7 @@ mod test {
         assert_eq!(
             util::compile_and_execute("
                 fn main() {
-                    if 1 {
+                    if 1 == 1 {
                         return 123;
                     }
                     return 456;
@@ -48,7 +48,7 @@ mod test {
         assert_eq!(
             util::compile_and_execute("
                 fn main() {
-                    if 0 {
+                    if 1 == 0 {
                         return 123;
                     }
                     return 456;

@@ -1,5 +1,6 @@
 #![feature(try_trait_v2)]
 #![feature(never_type)]
+#![feature(type_changing_struct_update)]
 
 use std::error::Error;
 
@@ -15,6 +16,7 @@ pub mod node;
 pub mod parser;
 pub mod translate;
 pub mod source;
+pub mod type_check;
 
 pub fn code_to_module(code: &str, filename: &str) -> Result<Module, Vec<Box<dyn Error>>> {
     // Tokenize
@@ -26,6 +28,9 @@ pub fn code_to_module(code: &str, filename: &str) -> Result<Module, Vec<Box<dyn 
     // Parse
     let mut parser = Parser::new(tokens.into_iter().peekable());
     let parsed_module = parser.parse_module().box_errors().into_result()?;
+
+    // Type-check
+    type_check::type_check_module(parsed_module.clone()).box_errors().into_result()?;
 
     // Translate
     let mut translator = ModuleTranslator::new();

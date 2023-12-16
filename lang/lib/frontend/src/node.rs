@@ -17,6 +17,13 @@ impl<D> TopLevelItem<D> {
     pub fn new(kind: TopLevelItemKind<D>, loc: SourceLocation) -> Self {
         TopLevelItem { kind, loc }
     }
+
+    pub fn map<O>(self, func: impl FnOnce(TopLevelItemKind<D>) -> TopLevelItemKind<O>) -> TopLevelItem<O> {
+        TopLevelItem {
+            kind: func(self.kind),
+            loc: self.loc,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -39,6 +46,13 @@ pub struct Statement<D = ()> {
 impl<D> Statement<D> {
     pub fn new(kind: StatementKind<D>, loc: SourceLocation) -> Self {
         Self { kind, loc }
+    }
+
+    pub fn map<O>(self, func: impl FnOnce(StatementKind<D>) -> StatementKind<O>) -> Statement<O> {
+        Statement {
+            kind: func(self.kind),
+            loc: self.loc,
+        }
     }
 }
 
@@ -77,6 +91,15 @@ pub struct Expression<D = ()> {
 impl<D> Expression<D> {
     pub fn new_with_data(kind: ExpressionKind<D>, loc: SourceLocation, data: D) -> Self {
         Expression { kind, loc, data }
+    }
+
+    pub fn map<O>(self, func: impl FnOnce(ExpressionKind<D>, D) -> (ExpressionKind<O>, O)) -> Expression<O> {
+        let (kind, data) = func(self.kind, self.data);
+        Expression {
+            kind,
+            data,
+            loc: self.loc,
+        }
     }
 }
 
