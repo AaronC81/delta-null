@@ -347,7 +347,7 @@ mod test {
     }
 
     #[test]
-    fn test_control_flow_check() {
+    fn test_flow_simple() {
         // OK - needs to return a value, and does
         assert_ok(parse("
             fn main() -> u16 {
@@ -359,7 +359,10 @@ mod test {
         assert_ok(parse("
             fn main() { }
         "));
+    }
 
+    #[test]
+    fn test_flow_branching() {
         // OK - always returns in the end, but sometimes early
         assert_ok(parse("
             fn main() -> u16 {
@@ -424,7 +427,10 @@ mod test {
                 }
             }
         "), "not all control-flow paths");
+    }
 
+    #[test]
+    fn test_flow_looping() {
         // OK - body of loop always returns
         assert_ok(parse("
             fn main() -> u16 {
