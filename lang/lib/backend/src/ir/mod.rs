@@ -107,15 +107,15 @@ impl Function {
         let mut source = "digraph cfg {\n".to_owned();
 
         // Create node for each block
-        for id in self.ordered_blocks() {
-            let ir = self.blocks[&id].print_ir(options);
-            source.push_str(&format!("  block{} [shape=box label=\"{}\"];\n", id.0, escape(&ir)))
+        for block in self.ordered_blocks() {
+            let ir = block.print_ir(options);
+            source.push_str(&format!("  block{} [shape=box label=\"{}\"];\n", block.id.0, escape(&ir)))
         }
 
         // Create edges between blocks
-        for id in self.ordered_blocks() {
-            for dest in self.blocks[&id].terminator().instruction.branch_destinations() {
-                source.push_str(&format!("  block{} -> block{};\n", id.0, dest.0))
+        for block in self.ordered_blocks() {
+            for dest in block.terminator().instruction.branch_destinations() {
+                source.push_str(&format!("  block{} -> block{};\n", block.id.0, dest.0))
             }
         }
 
@@ -127,10 +127,10 @@ impl Function {
     /// 
     /// The meaning of [BasicBlockId]s is not certain or guaranteed, but this is nice for debugging,
     /// where you'd typically expect to see blocks in the order they were created.
-    pub fn ordered_blocks(&self) -> impl Iterator<Item = BasicBlockId> {
+    pub fn ordered_blocks(&self) -> impl Iterator<Item = &BasicBlock> {
         let mut ids = self.blocks.keys().copied().collect::<Vec<_>>();
         ids.sort();
-        ids.into_iter()
+        ids.into_iter().map(|id| &self.blocks[&id])
     }
 }
 
@@ -138,8 +138,8 @@ impl PrintIR for Function {
     fn print_ir(&self, options: &PrintOptions) -> String {
         format!("=== FUNC: {}\n\n{}",
             self.name,
-            self.blocks.iter()
-                .map(|(_, b)| b.print_ir(options))
+            self.ordered_blocks()
+                .map(|b| b.print_ir(options))
                 .collect::<Vec<_>>()
                 .join("\n")
         )
