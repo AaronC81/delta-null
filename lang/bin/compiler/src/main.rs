@@ -1,11 +1,20 @@
 use std::{fs::OpenOptions, io::{Write, stdout, Read}, process::exit};
 
-use clap::Parser as ClapParser;
+use clap::{Parser as ClapParser, ValueEnum};
 use clap_stdin::FileOrStdin;
 use delta_null_core_instructions::ToAssembly;
 use delta_null_lang_backend::ir::{PrintIR, PrintOptions};
 use delta_null_lang_backend_core::compile_module;
 use delta_null_lang_frontend::code_to_module;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum IrFormat {
+    /// Text listing
+    Text,
+
+    /// GraphViz DOT control-flow graph
+    Dot,
+}
 
 #[derive(ClapParser, Debug)]
 struct Args {
@@ -16,9 +25,9 @@ struct Args {
     #[arg(short = 'o', long)]
     output_file: Option<String>,
 
-    /// Print IR and stop, without executing the compiler backend
+    /// Print IR in given format and stop, without executing the compiler backend
     #[arg(long)]
-    to_ir: bool,
+    ir: Option<IrFormat>,
 }
 
 fn main() {
@@ -40,12 +49,17 @@ fn main() {
         }
     };
 
-    // `--to-ir` stops here
-    if args.to_ir {
-        println!("{}", module.functions.into_iter()
-            .map(|f| f.print_ir(&PrintOptions::new()))
-            .collect::<Vec<_>>()
-            .join("\n"));
+    // `--ir` stops here
+    if let Some(ir_format) = args.ir {
+        let lines = match ir_format {
+            IrFormat::Text => module.functions.into_iter()
+                .map(|f| f.print_ir(&PrintOptions::new()))
+                .collect::<Vec<_>>(),
+            IrFormat::Dot => module.functions.into_iter()
+                .map(|f| f.print_ir_as_graph(&PrintOptions::new()))
+                .collect::<Vec<_>>(),
+        };
+        println!("{}", lines.join("\n"));
         exit(0)
     }
 

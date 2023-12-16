@@ -89,6 +89,49 @@ impl Function {
 
         unreachable!()
     }
+
+    /// Outputs the GraphViz DOT source code for a graph displaying this function's IR, with a node
+    /// for each basic block, and an edge representing possible control flow between blocks.
+    pub fn print_ir_as_graph(&self, options: &PrintOptions) -> String {
+        /// Escapes a string for use in a GraphViz label.
+        fn escape(s: &str) -> String {
+            // https://forum.graphviz.org/t/how-do-i-properly-escape-arbitrary-text-for-use-in-labels/1762/9
+            s
+                .replace("\\", "\\\\")
+                .replace('"', "\\\"")
+                .replace("\n", "\\l") // Left-aligns lines
+                .replace("\r", "\\r")
+                .replace("\t", "\\t")
+        }
+
+        let mut source = "digraph cfg {\n".to_owned();
+
+        // Create node for each block
+        for id in self.ordered_blocks() {
+            let ir = self.blocks[&id].print_ir(options);
+            source.push_str(&format!("  block{} [shape=box label=\"{}\"];\n", id.0, escape(&ir)))
+        }
+
+        // Create edges between blocks
+        for id in self.ordered_blocks() {
+            for dest in self.blocks[&id].terminator().instruction.branch_destinations() {
+                source.push_str(&format!("  block{} -> block{};\n", id.0, dest.0))
+            }
+        }
+
+        source.push_str("\n}");
+        source
+    }
+
+    /// Returns an iterator over [BasicBlockId]s in ascending order.
+    /// 
+    /// The meaning of [BasicBlockId]s is not certain or guaranteed, but this is nice for debugging,
+    /// where you'd typically expect to see blocks in the order they were created.
+    pub fn ordered_blocks(&self) -> impl Iterator<Item = BasicBlockId> {
+        let mut ids = self.blocks.keys().copied().collect::<Vec<_>>();
+        ids.sort();
+        ids.into_iter()
+    }
 }
 
 impl PrintIR for Function {
