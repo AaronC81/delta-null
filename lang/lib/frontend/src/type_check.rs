@@ -30,13 +30,15 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
     let result = items.into_iter()
         .map(|i| {
             i.map(|kind| match kind {
-                TopLevelItemKind::FunctionDefinition { name, body } => {
+                TopLevelItemKind::FunctionDefinition { name, return_type, body } => {
                     let mut ctx = LocalContext {
                         variables: HashMap::new(),
-                        return_type: Type::Direct(ir::Type::UnsignedInteger(ir::IntegerSize::Bits16)), // TODO
+                        return_type: convert_node_type(&return_type).propagate(&mut errors),
                     };
                     let body = type_check_statement(body, &mut ctx);
-                    body.map(|body| TopLevelItemKind::FunctionDefinition { name, body })
+                    body
+                        .map(|body|
+                            TopLevelItemKind::FunctionDefinition { name, return_type, body })
                         .propagate(&mut errors)
                 },
             })
@@ -215,7 +217,8 @@ pub fn convert_node_type(ty: &node::Type) -> Fallible<Type, TypeError> {
                 Type::Unknown,
                 vec![TypeError::new(&format!("unknown type `{t}`"), ty.loc.clone())]
             ),
-        }
+        },
+        node::TypeKind::Void => Fallible::new(Type::Direct(ir::Type::Void)),
     }
 }
 

@@ -218,6 +218,7 @@ pub enum Type {
     UnsignedInteger(IntegerSize),
     SignedInteger(IntegerSize),
     Boolean,
+    Void,
 }
 
 impl Type {
@@ -227,6 +228,7 @@ impl Type {
             Type::UnsignedInteger(_) => 1,
             Type::SignedInteger(_) => 1,
             Type::Boolean => 1,
+            Type::Void => 0,
         }
     }
 }

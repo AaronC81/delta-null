@@ -31,7 +31,7 @@ pub enum TopLevelItemKind<D> {
     FunctionDefinition {
         name: String,
         // TODO: parameters
-        // TODO: return type
+        return_type: Type,
         body: Statement<D>,
     }
 }
@@ -134,4 +134,5 @@ impl Type {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TypeKind {
     Name(String),
+    Void,
 }

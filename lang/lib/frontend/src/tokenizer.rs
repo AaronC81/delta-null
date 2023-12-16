@@ -34,6 +34,7 @@ pub enum TokenKind {
     Plus,
     Equals,
     DoubleEquals,
+    RArrow,
 }
 
 pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>) {
@@ -87,10 +88,19 @@ pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>)
                 tokens.push(Token::new(kind, loc));
             },
 
-            // Integer
+            // Integer, or `->`
             c if c.is_ascii_digit() || c == '-' => {
+                // The `-` could represent a negative integer, or the first character of `->`.
+                // We're still peeking at the `-`, so to see the next character we need to take it.
                 let mut buffer = String::new();
-                buffer.push(chars.next().unwrap().0); // brought out to catch -
+                buffer.push(chars.next().unwrap().0);
+
+                if &buffer == "-" && chars.peek().map(|(o, _)| *o) == Some('>') {
+                    chars.next().unwrap();
+                    tokens.push(Token::new(TokenKind::RArrow, loc));
+                    continue;
+                }
+
                 while let Some((next, _)) = chars.next_if(|(c, _)| c.is_ascii_digit()) {
                     buffer.push(next);
                 }

@@ -18,7 +18,7 @@ impl ModuleTranslator {
 
     pub fn translate_item(&mut self, item: &TopLevelItem) -> Fallible<MaybeFatal<()>, TranslateError> {
         match &item.kind {
-            TopLevelItemKind::FunctionDefinition { name, body } => {
+            TopLevelItemKind::FunctionDefinition { name, return_type, body } => {
                 // Setup
                 let mut func_trans = FunctionTranslator::new(
                     FunctionBuilder::new(name),
@@ -277,6 +277,7 @@ impl FunctionTranslator {
                     TranslateError::new(&format!("unknown type `{t}`")),
                 ]),
             }
+            node::TypeKind::Void => Fallible::new_ok(ir::Type::Void),
         }
     }
 

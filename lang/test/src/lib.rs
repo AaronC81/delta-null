@@ -13,7 +13,7 @@ mod test {
     #[test]
     fn test_basic() {
         assert_eq!(
-            util::compile_and_execute("fn main() { return 2; }").unwrap(), 2
+            util::compile_and_execute("fn main() -> u16 { return 2; }").unwrap(), 2
         );
     }
 
@@ -21,7 +21,7 @@ mod test {
     fn test_variables() {
         assert_eq!(
             util::compile_and_execute("
-                fn main() {
+                fn main() -> u16 {
                     var a: u16 = 5;
                     var b: u16 = 12;
                     return a + b;
@@ -35,7 +35,7 @@ mod test {
     fn test_if() {
         assert_eq!(
             util::compile_and_execute("
-                fn main() {
+                fn main() -> u16 {
                     if 1 == 1 {
                         return 123;
                     }
@@ -47,7 +47,7 @@ mod test {
 
         assert_eq!(
             util::compile_and_execute("
-                fn main() {
+                fn main() -> u16 {
                     if 1 == 0 {
                         return 123;
                     }
@@ -63,7 +63,7 @@ mod test {
         // TODO: compilation fails without useless `return 0`
         assert_eq!(
             util::compile_and_execute("
-                fn main() {
+                fn main() -> u16 {
                     var total: u16 = 0;
                     var i: u16 = 0;
                     loop {

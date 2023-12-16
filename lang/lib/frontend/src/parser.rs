@@ -55,17 +55,29 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         self.expect(TokenKind::LParen)?;
         self.expect(TokenKind::RParen)?;
 
+        // Parse return type, if provided - else default to void
+        let return_type;
+        if self.tokens.peek().map(|t| &t.kind) == Some(&TokenKind::RArrow) {
+            self.tokens.next();
+            return_type = self.parse_type()?;
+        } else {
+            return_type = Fallible::new(Type::new(TypeKind::Void, loc.clone()))
+        }
+
         // Body
         let statements = self.parse_body();
-        statements.map(|stmts| {
-            TopLevelItem::new(TopLevelItemKind::FunctionDefinition {
-                name,
-                body: Statement::new(StatementKind::Block {
-                    body: stmts,
-                    trailing_return: false, // TODO
-                }, loc.clone())
-            }, loc).into()
-        })
+        statements
+            .combine(return_type)
+            .map(|(stmts, return_type)| {
+                TopLevelItem::new(TopLevelItemKind::FunctionDefinition {
+                    name,
+                    body: Statement::new(StatementKind::Block {
+                        body: stmts,
+                        trailing_return: false, // TODO
+                    }, loc.clone()),
+                    return_type,
+                }, loc).into()
+            })
     }
 
     /// Parse a single statement, including any nested statements or expressions.
