@@ -88,7 +88,6 @@ mod test {
 
     #[test]
     fn test_equality() {
-        // TODO: compilation fails without useless `return 0`
         assert_eq!(
             util::compile_and_execute("
                 fn main() -> u16 {
@@ -101,7 +100,8 @@ mod test {
                             return total;
                         }
                     }
-                    return 0;
+
+                    return 0; // Shouldn't be necessary!
                 }
             ").unwrap(),
             1 + 2 + 3 + 4 + 5

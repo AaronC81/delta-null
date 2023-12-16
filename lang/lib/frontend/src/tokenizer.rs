@@ -35,6 +35,7 @@ pub enum TokenKind {
     Colon,
     Semicolon,
     Plus,
+    ForwardSlash,
     Equals,
     DoubleEquals,
     RArrow,
@@ -69,6 +70,19 @@ pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>)
                     tokens.push(Token::new(TokenKind::DoubleEquals, loc))
                 } else {
                     tokens.push(Token::new(TokenKind::Equals, loc))
+                }
+            },
+
+            // Comment, or forward slash
+            '/' => {
+                chars.next();
+                if chars.next_if(|(c, _)| *c == '/').is_some() {
+                    // Consume characters until newline, or end
+                    while let Some((c, _)) = chars.next() {
+                        if c == '\n' { break }
+                    }
+                } else {
+                    tokens.push(Token::new(TokenKind::ForwardSlash, loc))
                 }
             },
 
