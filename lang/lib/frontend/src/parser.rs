@@ -1,6 +1,6 @@
 use std::{iter::Peekable, fmt::Display, error::Error};
 
-use crate::{node::{TopLevelItem, Statement, TopLevelItemKind, StatementKind, Expression, ExpressionKind, Type, TypeKind}, tokenizer::{Token, TokenKind}, fallible::{Fallible, MaybeFatal}, source::SourceLocation};
+use crate::{node::{TopLevelItem, Statement, TopLevelItemKind, StatementKind, Expression, ExpressionKind, Type, TypeKind}, tokenizer::{Token, TokenKind}, fallible::{Fallible, MaybeFatal}, source::SourceLocation, frontend_error};
 
 /// Parses an iterator of [Token]s, interpreting them into a "module" - a collection of
 /// [TopLevelItem]s (like functions and definitions).
@@ -312,21 +312,4 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct ParseError {
-    description: String,
-    loc: SourceLocation,
-}
-
-impl ParseError {
-    pub fn new(description: &str, loc: SourceLocation) -> Self {
-        ParseError { description: description.to_owned(), loc }
-    }
-}
-
-impl Display for ParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "parse error: {}: {}", self.loc.describe(), self.description)
-    }
-}
-impl Error for ParseError {}
+frontend_error!(ParseError, "parse");

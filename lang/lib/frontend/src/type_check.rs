@@ -2,7 +2,7 @@ use std::{fmt::Display, error::Error, collections::HashMap};
 
 use delta_null_lang_backend::ir;
 
-use crate::{source::SourceLocation, node::{Statement, Expression, StatementKind, self, ExpressionKind, TopLevelItem, TopLevelItemKind}, fallible::Fallible};
+use crate::{source::SourceLocation, node::{Statement, Expression, StatementKind, self, ExpressionKind, TopLevelItem, TopLevelItemKind}, fallible::Fallible, frontend_error};
 
 /// Describes the type of an IR expression.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -219,22 +219,4 @@ pub fn convert_node_type(ty: &node::Type) -> Fallible<Type, TypeError> {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct TypeError {
-    description: String,
-    loc: SourceLocation,
-}
-
-impl TypeError {
-    pub fn new(description: &str, loc: SourceLocation) -> Self {
-        TypeError { description: description.to_owned(), loc }
-    }
-}
-
-impl Display for TypeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "type error: {}: {}", self.loc.describe(), self.description)
-    }
-}
-impl Error for TypeError {}
-
+frontend_error!(TypeError, "type");

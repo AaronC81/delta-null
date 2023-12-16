@@ -1,6 +1,6 @@
 use std::{fmt::Display, error::Error};
 
-use crate::source::SourceLocation;
+use crate::{source::SourceLocation, frontend_error};
 
 #[derive(Debug, Clone)]
 pub struct Token {
@@ -126,24 +126,7 @@ fn add_locations(chars: impl Iterator<Item = char>, file: String) -> impl Iterat
         })
 }
 
-#[derive(Debug, Clone)]
-pub struct TokenizeError {
-    description: String,
-    loc: SourceLocation,
-}
-
-impl TokenizeError {
-    pub fn new(description: &str, loc: SourceLocation) -> Self {
-        TokenizeError { description: description.to_owned(), loc }
-    }
-}
-
-impl Display for TokenizeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "tokenizer error: {}: {}", self.loc.describe(), self.description)
-    }
-}
-impl Error for TokenizeError {}
+frontend_error!(TokenizeError, "tokenizer");
 
 #[cfg(test)]
 mod test {
