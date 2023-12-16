@@ -150,6 +150,20 @@ impl<T, E> From<Result<T, E>> for Fallible<MaybeFatal<T>, E> {
     }
 }
 
+impl<T, E, C: FromIterator<T>> FromIterator<Fallible<T, E>> for Fallible<C, E> {
+    fn from_iter<I: IntoIterator<Item = Fallible<T, E>>>(iter: I) -> Self {
+        let mut items = vec![];
+        let mut errors = vec![];
+
+        for item in iter {
+            items.push(item.item);
+            errors.extend(item.errors);
+        }
+
+        Fallible::new_with_errors(items.into_iter().collect(), errors)
+    }
+}
+
 /// An [Option]-like type, intended to be used as the item type for a [Fallible] where errors may be
 /// fatal, leading to the absence of any value.
 /// 
