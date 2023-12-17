@@ -102,14 +102,14 @@ impl FunctionTranslator {
             // Contain other statements, so recursed into
             node::StatementKind::Block { body, .. } => {
                 for s in body {
-                    self.populate_locals(&s).propagate(&mut result);
+                    self.populate_locals(s).propagate(&mut result);
                 }
             },
             node::StatementKind::Loop(body) => {
-                self.populate_locals(&body).propagate(&mut result);
+                self.populate_locals(body).propagate(&mut result);
             },
             node::StatementKind::If { true_body: body, .. } => {
-                self.populate_locals(&body).propagate(&mut result);
+                self.populate_locals(body).propagate(&mut result);
             }
 
             // Nothing to do
@@ -162,7 +162,7 @@ impl FunctionTranslator {
                             self.target.as_mut().unwrap().add_void_instruction(
                                 ir::Instruction::new(ir::InstructionKind::WriteLocal(local, v))
                             );
-                            ()
+                            
                         });
                 } else {
                     return Fallible::new_fatal(vec![
@@ -177,7 +177,8 @@ impl FunctionTranslator {
                         .map(|v| {
                             self.target.as_mut().unwrap().add_terminator(
                                 ir::Instruction::new(ir::InstructionKind::Return(Some(v)))
-                            ).into()
+                            );
+                            ().into()
                         });
                 } else {
                     self.target.as_mut().unwrap().add_terminator(ir::Instruction::new(ir::InstructionKind::Return(None)));
@@ -195,7 +196,7 @@ impl FunctionTranslator {
 
                 // Generate instructions within loop
                 self.replace_target(new_block);
-                let errors = self.translate_statement(&body)?;
+                let errors = self.translate_statement(body)?;
                 
                 // Add infinite-looping terminator
                 self.target_mut().add_terminator_if_none(ir::Instruction::new(ir::InstructionKind::Branch(new_id)));
@@ -250,13 +251,13 @@ impl FunctionTranslator {
 
                 // Populate true block
                 self.replace_target(true_block);
-                self.translate_statement(&true_body)?.propagate(&mut errors);
+                self.translate_statement(true_body)?.propagate(&mut errors);
                 self.target_mut().add_terminator_if_none(Instruction::new(ir::InstructionKind::Branch(cont_id)));
 
                 // If we have a false block, populate it too
                 if let Some(false_block) = false_block {
                     self.replace_target(false_block);
-                    self.translate_statement(&false_body.as_ref().unwrap())?.propagate(&mut errors);
+                    self.translate_statement(false_body.as_ref().unwrap())?.propagate(&mut errors);
                     self.target_mut().add_terminator_if_none(Instruction::new(ir::InstructionKind::Branch(cont_id)));    
                 }
 
@@ -299,16 +300,16 @@ impl FunctionTranslator {
             ),
 
             node::ExpressionKind::Add(l, r) =>
-                self.translate_expression(&l)?
-                    .combine(self.translate_expression(&r)?)
+                self.translate_expression(l)?
+                    .combine(self.translate_expression(r)?)
                     .map(|(l, r)|
                         self.target_mut().add_instruction(
                             ir::Instruction::new(ir::InstructionKind::Add(l, r))
                         ).into()),
 
             node::ExpressionKind::Equals(l, r) =>
-            self.translate_expression(&l)?
-                .combine(self.translate_expression(&r)?)
+            self.translate_expression(l)?
+                .combine(self.translate_expression(r)?)
                 .map(|(l, r)|
                     self.target_mut().add_instruction(
                         ir::Instruction::new(ir::InstructionKind::Equals(l, r))

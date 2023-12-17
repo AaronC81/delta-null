@@ -24,7 +24,7 @@ pub enum Allocation {
 ///   http://web.cs.ucla.edu/~palsberg/course/cs132/linearscan.pdf
 /// Specifically following the pseudocode in §4.1.
 pub fn allocate(_func: &Function, cfg: &ControlFlowGraph, liveness: &LivenessAnalysis) -> HashMap<VariableId, Allocation> {
-    let intervals = liveness.live_intervals(&cfg);
+    let intervals = liveness.live_intervals(cfg);
     let indexes = cfg.statement_ordering();
 
     let mut mapping = HashMap::new();
@@ -60,7 +60,7 @@ pub fn allocate(_func: &Function, cfg: &ControlFlowGraph, liveness: &LivenessAna
             active.sort_by_key(|(_, _, end)| indexes[end]);
         } else {
             // Spill at interval
-            let (spill_var, _, spill_end) = active.last().unwrap().clone();
+            let (spill_var, _, spill_end) = *active.last().unwrap();
             if indexes[&spill_end] > indexes[end] {
                 mapping.insert(*var, mapping[&spill_var].clone());
                 mapping.insert(spill_var, Allocation::Spill(next_spill_index));

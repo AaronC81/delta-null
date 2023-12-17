@@ -97,11 +97,11 @@ impl Function {
         fn escape(s: &str) -> String {
             // https://forum.graphviz.org/t/how-do-i-properly-escape-arbitrary-text-for-use-in-labels/1762/9
             s
-                .replace("\\", "\\\\")
+                .replace('\\', "\\\\")
                 .replace('"', "\\\"")
-                .replace("\n", "\\l") // Left-aligns lines
-                .replace("\r", "\\r")
-                .replace("\t", "\\t")
+                .replace('\n', "\\l") // Left-aligns lines
+                .replace('\r', "\\r")
+                .replace('\t', "\\t")
         }
 
         let mut source = "digraph cfg {\n".to_owned();
@@ -180,7 +180,7 @@ impl BasicBlock {
 
     // Returns the first statement in the block.
     pub fn first_statement(&self) -> &Statement {
-        &self.statements.first().unwrap()
+        self.statements.first().unwrap()
     }
 
     /// Tries to find the statement in the block which assigns to the given variable ID, else

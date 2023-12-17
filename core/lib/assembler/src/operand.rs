@@ -58,7 +58,7 @@ impl AssemblyOperand {
             // Immediate or identifier
             _ => {
                 // Check if number (either decimal, or start of 0x/0b prefix)
-                if op.chars().next().unwrap().is_digit(10) {
+                if op.chars().next().unwrap().is_ascii_digit() {
                     let numeral;
                     let radix;
                     if op.starts_with("0x") {

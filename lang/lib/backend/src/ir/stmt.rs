@@ -16,7 +16,7 @@ impl PrintIR for Statement {
     fn print_ir(&self, options: &super::PrintOptions) -> String {
         if let Some(result) = self.result {
             // Check if we're given any additional info, and if so, if it contains this variable
-            if let Some(info) = options.additional_variable_info.as_ref().map(|m| m.get(&result)).flatten() {
+            if let Some(info) = options.additional_variable_info.as_ref().and_then(|m| m.get(&result)) {
                 format!("{} ({}) = {}", result.print_ir(options), info, self.instruction.print_ir(options))
             } else {
                 format!("{} = {}", result.print_ir(options), self.instruction.print_ir(options))
@@ -128,7 +128,7 @@ impl Instruction {
             InstructionKind::WriteLocal(_, v) => hashset!{ *v },
             InstructionKind::Add(l, r)
             | InstructionKind::Equals(l, r) => hashset!{ *l, *r },
-            InstructionKind::Return(r) => r.into_iter().copied().collect(),
+            InstructionKind::Return(r) => r.iter().copied().collect(),
             InstructionKind::Branch(_) => hashset!{},
             InstructionKind::ConditionalBranch { condition, .. } => hashset!{ *condition },
             InstructionKind::Phi { choices } => choices.iter().map(|(_, var)| *var).collect(),

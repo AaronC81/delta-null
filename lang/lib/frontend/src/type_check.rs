@@ -52,12 +52,10 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
                         .propagate(&mut errors);
 
                     // Check that all control paths diverge (return something or loop forever)
-                    if ctx.return_type != Type::Direct(ir::Type::Void) {
-                        if !do_all_paths_diverge(&body) {
-                            errors.push_error(TypeError::new(
-                                &format!("not all control-flow paths of `{name}` return a value"), loc
-                            ))
-                        }
+                    if ctx.return_type != Type::Direct(ir::Type::Void) && !do_all_paths_diverge(&body) {
+                        errors.push_error(TypeError::new(
+                            &format!("not all control-flow paths of `{name}` return a value"), loc
+                        ))
                     }
 
                     TopLevelItemKind::FunctionDefinition { name, return_type, body }
@@ -242,11 +240,11 @@ pub fn arithmetic_binop_result_type(left: &Type, right: &Type, op: &str, loc: So
 pub fn do_all_paths_diverge(body: &Statement<Type>) -> bool {
     match &body.kind {
         StatementKind::Block { body, trailing_return: _ } =>
-            body.iter().any(|s| do_all_paths_diverge(s)),
+            body.iter().any(do_all_paths_diverge),
 
         StatementKind::If { true_body, false_body, condition: _ } => {
             if let Some(false_body) = false_body {
-                do_all_paths_diverge(&true_body) && do_all_paths_diverge(&false_body)
+                do_all_paths_diverge(true_body) && do_all_paths_diverge(false_body)
             } else {
                 false
             }
@@ -254,12 +252,12 @@ pub fn do_all_paths_diverge(body: &Statement<Type>) -> bool {
 
         StatementKind::Return(_) => true,
         StatementKind::Loop(body) =>
-            match find_statement(&body, &|s| s.kind == StatementKind::Break) {
+            match find_statement(body, &|s| s.kind == StatementKind::Break) {
                 // If the loop contains a `break`, then it might not be infinite.
                 // But if the body definitely diverges (e.g. always executes a `return`) then this
                 // does too. Admittedly this is useless - the loop would only ever execute once -
                 // but it makes sense to check.
-                Some(_) => do_all_paths_diverge(&body),
+                Some(_) => do_all_paths_diverge(body),
 
                 // If it doesn't `break`, then it's an infinite loop!
                 // The enclosing function could only leave this loop by validating returning, so
@@ -284,7 +282,7 @@ pub fn find_statement<'s, T>(stmt: &'s Statement<T>, predicate: &impl Fn(&Statem
     match &stmt.kind {
         StatementKind::Block { body, .. } => body.iter().find(|s| find_statement(s, predicate).is_some()),
         StatementKind::If { true_body, false_body, .. } =>
-            find_statement(&true_body, predicate)
+            find_statement(true_body, predicate)
                 .or_else(|| false_body.as_ref().and_then(|b| find_statement(b, predicate))),
 
         StatementKind::VariableDeclaration { .. }

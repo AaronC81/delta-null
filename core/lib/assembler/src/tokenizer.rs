@@ -83,7 +83,7 @@ impl<'a> Tokenizer<'a> {
                     }
                     self.chars.next();
                 }
-                return self.tokenize_one();
+                self.tokenize_one()
             }
 
             // Spacing
@@ -93,7 +93,7 @@ impl<'a> Tokenizer<'a> {
             }
             Some(c) if c.is_whitespace() => {
                 self.chars.next();
-                return self.tokenize_one();
+                self.tokenize_one()
             }
 
             // Directives

@@ -4,11 +4,11 @@ macro_rules! frontend_error {
         #[derive(Debug, Clone)]
         pub struct $name {
             description: String,
-            loc: crate::source::SourceLocation,
+            loc: $crate::source::SourceLocation,
         }
 
         impl $name {
-            pub fn new(description: &str, loc: crate::source::SourceLocation) -> Self {
+            pub fn new(description: &str, loc: $crate::source::SourceLocation) -> Self {
                 $name { description: description.to_owned(), loc }
             }
         }

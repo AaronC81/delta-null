@@ -108,8 +108,7 @@ pub fn liveness_analysis(func: &Function) -> LivenessAnalysis {
             out_map.insert(stmt.id,
                 func.statement_successors(stmt.id)
                     .iter()
-                    .map(|succ| in_map[succ].clone())
-                    .flatten()
+                    .flat_map(|succ| in_map[succ].clone())
                     .collect()
             );
 

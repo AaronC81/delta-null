@@ -148,8 +148,7 @@ fn draw_instruction_view(f: &mut Frame, rect: Rect, state: &ApplicationState) {
     for (addr, encoded_value) in instruction_data {
         // Try to decode
         let disassembled = encoded_value
-            .map(|bits| Instruction::decode(bits))
-            .flatten()
+            .and_then(Instruction::decode)
             .map(|ins| ins.to_assembly());
 
         rows.push(Row::new(vec![

@@ -146,7 +146,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             Some(TokenKind::KwBreak) => {
                 self.tokens.next();
                 self.expect(TokenKind::Semicolon)?;
-                Fallible::new_ok(Statement::new(StatementKind::Break, loc).into())
+                Fallible::new_ok(Statement::new(StatementKind::Break, loc))
             }
 
             Some(TokenKind::KwIf) => {
@@ -156,7 +156,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                     .combine({
                         if self.tokens.peek().map(|t| &t.kind) == Some(&TokenKind::KwElse) {
                             self.tokens.next();
-                            self.parse_statement()?.map(|s| Some(s))
+                            self.parse_statement()?.map(Some)
                         } else {
                             Fallible::new(None)
                         }

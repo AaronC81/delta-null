@@ -79,7 +79,7 @@ pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>)
                 chars.next();
                 if chars.next_if(|(c, _)| *c == '/').is_some() {
                     // Consume characters until newline, or end
-                    while let Some((c, _)) = chars.next() {
+                    for (c, _) in chars.by_ref() {
                         if c == '\n' { break }
                     }
                 } else {

@@ -35,7 +35,7 @@ impl<'f> FunctionGenerator<'f> {
         // Concatenate blocks into a buffer
         let mut buffer = vec![];
         for id in &sorted_block_ids {
-            buffer.extend(blocks.remove(&id).unwrap());
+            buffer.extend(blocks.remove(id).unwrap());
         }
 
         // Prepend stack allocation stuff
@@ -179,7 +179,7 @@ impl<'f> FunctionGenerator<'f> {
                 buffer.push(AssemblyItem::new_instruction(
                     InstructionOpcode::Jmpoff,
                     &[AssemblyOperand::Label {
-                        name: self.basic_block_label(&dest),
+                        name: self.basic_block_label(dest),
                         access: Some(LabelAccess::Offset),
                     }]
                 ));
@@ -197,14 +197,14 @@ impl<'f> FunctionGenerator<'f> {
                     &[AssemblyOperand::Label {
                         // We used `eqz`, so conditional-jump to the false block if that condition
                         // was met, because 0 is false
-                        name: self.basic_block_label(&false_block), 
+                        name: self.basic_block_label(false_block), 
                         access: Some(LabelAccess::Offset),
                     }]
                 ));
                 buffer.push(AssemblyItem::new_instruction(
                     InstructionOpcode::Jmpoff,
                     &[AssemblyOperand::Label {
-                        name: self.basic_block_label(&true_block), 
+                        name: self.basic_block_label(true_block), 
                         access: Some(LabelAccess::Offset),
                     }]
                 ));
@@ -242,7 +242,7 @@ impl<'f> FunctionGenerator<'f> {
                 // The phi instruction implementation must come _before_ the terminator - which
                 // we'll assume is the last instruction (as it should be!).
                 for (incoming_block_id, var) in choices {
-                    let buffer = buffers.get_mut(&incoming_block_id).unwrap();
+                    let buffer = buffers.get_mut(incoming_block_id).unwrap();
                     let source = self.generate_read(buffer, *var);
                     buffer.insert(
                         buffer.len() - 1,
@@ -294,8 +294,8 @@ impl<'f> FunctionGenerator<'f> {
     /// register preservation or other actions, but the changes must not carry over to the next IR
     /// instruction.
     fn stack_space(&self) -> usize {
-        self.func.locals.iter()
-            .map(|(_, local)| local.ty.word_size())
+        self.func.locals.values()
+            .map(|local| local.ty.word_size())
             .sum()
     }
 

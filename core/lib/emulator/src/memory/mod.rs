@@ -21,7 +21,7 @@ impl Display for MemoryError {
         match self {
             MemoryError::UnalignedAccess => f.write_str("unaligned access"),
             MemoryError::OutOfRange => f.write_str("out of range"),
-            MemoryError::Other(s) => f.write_str(&s),
+            MemoryError::Other(s) => f.write_str(s),
         }
     }
 }

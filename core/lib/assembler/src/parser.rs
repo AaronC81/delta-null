@@ -143,7 +143,7 @@ impl<'a, T: Iterator<Item = &'a Token>> Parser<'a, T> {
             let item = match &operation.kind {
                 TokenKind::Atom(mnemonic) => {
                     // Construct instruction
-                    let Some(opcode) = InstructionOpcode::from_mnemonic(&mnemonic) else {
+                    let Some(opcode) = InstructionOpcode::from_mnemonic(mnemonic) else {
                         errors.push(ParseError::new(format!("no instruction: {mnemonic}"))); continue;
                     };
                     
@@ -157,7 +157,7 @@ impl<'a, T: Iterator<Item = &'a Token>> Parser<'a, T> {
                     match directive.as_ref() {
                         "word" => {
                             if operands.len() != 1 {
-                                errors.push(ParseError::new(format!(".word takes 1 operand")));
+                                errors.push(ParseError::new(".word takes 1 operand".to_string()));
                                 continue 'top;
                             }
                             let AssemblyOperand::Immediate(imm) = operands[0] else {
@@ -173,7 +173,7 @@ impl<'a, T: Iterator<Item = &'a Token>> Parser<'a, T> {
                         
                         "put" => {
                             if operands.len() != 2 {
-                                errors.push(ParseError::new(format!(".put takes 2 operands")));
+                                errors.push(ParseError::new(".put takes 2 operands".to_string()));
                                 continue 'top;
                             }
                             let AssemblyOperand::Register(AnyRegister::G(gpr)) = operands[0] else {
@@ -256,7 +256,7 @@ impl<'a, T: Iterator<Item = &'a Token>> Parser<'a, T> {
             Some(t) => return Err(ParseError::new(format!("expected atom, got {}", t.describe()))),
             None => return Err(ParseError::new("expected atom, got end-of-file".to_string())),
         };
-        match AssemblyOperand::parse(&operand_atom) {
+        match AssemblyOperand::parse(operand_atom) {
             Ok(o) => Ok(o),
             Err(e) => Err(e),
         }
@@ -270,7 +270,7 @@ pub mod test {
     use crate::{parser::Parser, AssemblyItem, AssemblyItemKind, AssemblyOperand, LabelAccess, Tokenizer, ParseError};
 
     pub fn parse_str(s: &str) -> Result<Vec<AssemblyItem>, Vec<ParseError>> {
-        let mut tokenizer = Tokenizer::from_str(&s);
+        let mut tokenizer = Tokenizer::from_str(s);
         let tokens = tokenizer.tokenize().unwrap();
         
         let mut parser = Parser::from_tokens(&tokens);

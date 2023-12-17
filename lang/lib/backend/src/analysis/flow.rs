@@ -123,7 +123,7 @@ impl ControlFlowGraph {
             // Push pending searches for descendant blocks we haven't searched yet
             let mut children = self.outgoing_branches(next_to_traverse)
                 .iter()
-                .filter(|b| !result.contains(&b))
+                .filter(|b| !result.contains(b))
                 .collect::<Vec<_>>();
             children.sort(); // Give deterministic ordering for tests
             pending.extend(children);
