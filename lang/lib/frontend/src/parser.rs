@@ -56,13 +56,13 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         self.expect(TokenKind::RParen)?;
 
         // Parse return type, if provided - else default to void
-        let return_type;
-        if self.tokens.peek().map(|t| &t.kind) == Some(&TokenKind::RArrow) {
-            self.tokens.next();
-            return_type = self.parse_type()?;
-        } else {
-            return_type = Fallible::new(Type::new(TypeKind::Void, loc.clone()))
-        }
+        let return_type =
+            if self.tokens.peek().map(|t| &t.kind) == Some(&TokenKind::RArrow) {
+                self.tokens.next();
+                self.parse_type()?
+            } else {
+                Fallible::new(Type::new(TypeKind::Void, loc.clone()))
+            };
 
         // Body
         let statements = self.parse_body();

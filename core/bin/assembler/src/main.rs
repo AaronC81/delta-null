@@ -81,16 +81,16 @@ fn main() {
             let mut is_first = true;
             for word in words {
                 if !is_first {
-                    output_handle.write(&[b' ']).unwrap();
+                    output_handle.write_all(&[b' ']).unwrap();
                 }
                 is_first = false;
-                output_handle.write(format!("{word:0>4X}").as_bytes()).unwrap();
+                output_handle.write_all(format!("{word:0>4X}").as_bytes()).unwrap();
             }
-            output_handle.write(&[b'\n']).unwrap();
+            output_handle.write_all(&[b'\n']).unwrap();
         },
         OutputFormat::Raw => {
             for word in words {
-                output_handle.write(&word.to_be_bytes()).unwrap();
+                output_handle.write_all(&word.to_be_bytes()).unwrap();
             }
         },
     }

@@ -91,5 +91,5 @@ fn main() {
         .map(|i| i.to_assembly())
         .collect::<Vec<_>>()
         .join("\n");
-    output_handle.write(asm_code.as_bytes()).unwrap();
+    output_handle.write_all(asm_code.as_bytes()).unwrap();
 }

@@ -61,11 +61,11 @@ impl AssemblyOperand {
                 if op.chars().next().unwrap().is_ascii_digit() {
                     let numeral;
                     let radix;
-                    if op.starts_with("0x") {
-                        numeral = &op[2..];
+                    if let Some(n) = op.strip_prefix("0x") {
+                        numeral = n;
                         radix = 16;
-                    } else if op.starts_with("0b") {
-                        numeral = &op[2..];
+                    } else if let Some(n) = op.strip_prefix("0b") {
+                        numeral = n;
                         radix = 2;
                     } else {
                         numeral = op;

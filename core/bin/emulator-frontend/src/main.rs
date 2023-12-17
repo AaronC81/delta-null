@@ -88,7 +88,6 @@ fn main() -> Result<(), Box<dyn Error>> {
                     KeyCode::Enter => {
                         // Twiddle the buffer to make the borrow checker happy
                         let buffer_clone = buffer.clone();
-                        drop(buffer);
 
                         // Execute command and return to normal (which empties the buffer)
                         state.menu = match state.execute_command(&buffer_clone) {

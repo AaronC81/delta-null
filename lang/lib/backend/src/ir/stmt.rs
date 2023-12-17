@@ -93,15 +93,12 @@ impl Instruction {
     /// Every basic block must end with a terminator, and conversely terminators can only appear at
     /// the end of basic blocks.
     pub fn is_terminator(&self) -> bool {
-        match self.kind {
-            InstructionKind::Return(_)
+        matches!(self.kind, 
+              InstructionKind::Return(_)
             | InstructionKind::Branch(_)
             | InstructionKind::ConditionalBranch { .. }
             | InstructionKind::Unreachable
-                => true,
-
-            _ => false,
-        }
+        )
     }
 
     /// Returns the IDs of any basic blocks which this instruction could branch to.

@@ -232,7 +232,7 @@ impl<'f> FunctionGenerator<'f> {
     /// Intended to execute as a post-processing step, after other block code has been generated.
     fn insert_phi_instructions(&self, buffers: &mut HashMap<BasicBlockId, Vec<AssemblyItem>>) {
         // Iterate over each basic block, and check if it starts with a phi
-        for (_, block) in &self.func.blocks {
+        for block in self.func.blocks.values() {
             let first_stmt = block.first_statement();
             if let InstructionKind::Phi { choices } = &first_stmt.instruction.kind {
                 let phi_result = self.variable_reg(first_stmt.result.unwrap());
