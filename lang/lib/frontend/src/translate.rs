@@ -299,13 +299,20 @@ impl FunctionTranslator {
                 self.target_mut().add_constant(ir::ConstantValue::Boolean(*b))
             ),
 
-            node::ExpressionKind::Add(l, r) =>
+            node::ExpressionKind::ArithmeticBinOp(op, l, r) => {
+                let ir_kind = match op {
+                    node::ArithmeticBinOp::Add => ir::InstructionKind::Add,
+                    node::ArithmeticBinOp::Subtract => ir::InstructionKind::Subtract,
+                    node::ArithmeticBinOp::Multiply => ir::InstructionKind::Multiply,
+                };
+
                 self.translate_expression(l)?
                     .combine(self.translate_expression(r)?)
                     .map(|(l, r)|
                         self.target_mut().add_instruction(
-                            ir::Instruction::new(ir::InstructionKind::Add(l, r))
-                        ).into()),
+                            ir::Instruction::new(ir_kind(l, r))
+                        ).into())
+            }
 
             node::ExpressionKind::Equals(l, r) =>
             self.translate_expression(l)?

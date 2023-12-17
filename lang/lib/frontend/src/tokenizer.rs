@@ -29,16 +29,19 @@ pub enum TokenKind {
     KwTrue,
     KwFalse,
 
+    Plus,
+    Minus,
+    Star,
+    ForwardSlash,
+    Equals,
+    DoubleEquals,
+
     LBrace,
     RBrace,
     LParen,
     RParen,
     Colon,
     Semicolon,
-    Plus,
-    ForwardSlash,
-    Equals,
-    DoubleEquals,
     RArrow,
 }
 
@@ -65,6 +68,7 @@ pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>)
             ':' => { chars.next(); tokens.push(Token::new(TokenKind::Colon, loc)) },
             ';' => { chars.next(); tokens.push(Token::new(TokenKind::Semicolon, loc)) },
             '+' => { chars.next(); tokens.push(Token::new(TokenKind::Plus, loc)) },
+            '*' => { chars.next(); tokens.push(Token::new(TokenKind::Star, loc)) },
             '=' => {
                 chars.next();
                 if chars.next_if(|(c, _)| *c == '=').is_some() {
@@ -112,7 +116,10 @@ pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>)
 
             // Integer, or `->`
             c if c.is_ascii_digit() || c == '-' => {
-                // The `-` could represent a negative integer, or the first character of `->`.
+                // The `-` could represent:
+                //   * a negative integer
+                //   * a lone `-` 
+                //   * the first character of `->`
                 // We're still peeking at the `-`, so to see the next character we need to take it.
                 let mut buffer = String::new();
                 buffer.push(chars.next().unwrap().0);
@@ -120,6 +127,11 @@ pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>)
                 if &buffer == "-" && chars.peek().map(|(o, _)| *o) == Some('>') {
                     chars.next().unwrap();
                     tokens.push(Token::new(TokenKind::RArrow, loc));
+                    continue;
+                }
+                if &buffer == "-" && !chars.peek().map(|(o, _)| o.is_ascii_digit()).unwrap_or(false) {
+                    chars.next().unwrap();
+                    tokens.push(Token::new(TokenKind::Minus, loc));
                     continue;
                 }
 

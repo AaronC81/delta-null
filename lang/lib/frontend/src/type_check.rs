@@ -187,11 +187,11 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut LocalContext) -> Fa
             ExpressionKind::Boolean(b) =>
                 (ExpressionKind::Boolean(b), Type::Direct(ir::Type::Boolean)),
 
-            ExpressionKind::Add(l, r) => {
+            ExpressionKind::ArithmeticBinOp(op, l, r) => {
                 let l = type_check_expression(*l, ctx).propagate(&mut errors);
                 let r = type_check_expression(*r, ctx).propagate(&mut errors);
-                let ty = arithmetic_binop_result_type(&l.data, &r.data, "+", loc).propagate(&mut errors);
-                (ExpressionKind::Add(Box::new(l), Box::new(r)), ty)
+                let ty = arithmetic_binop_result_type(&l.data, &r.data, &op.to_string(), loc).propagate(&mut errors);
+                (ExpressionKind::ArithmeticBinOp(op, Box::new(l), Box::new(r)), ty)
             },
 
             ExpressionKind::Equals(l, r) => {

@@ -184,4 +184,28 @@ mod test {
             (5 * 5) * 2 + 1
         );
     }
+
+    #[test]
+    fn test_add_sub() {
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    return 1 + 6 - 2 + 4;
+                }
+            ").unwrap(),
+            1 + 6 - 2 + 4
+        );
+    }
+
+    #[test]
+    fn test_mul() {
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    return 1 + 2 * 4 + 1;
+                }
+            ").unwrap(),
+            1 + 2 * 4 + 1
+        );
+    }
 }

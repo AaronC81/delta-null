@@ -98,23 +98,12 @@ impl<'f> FunctionGenerator<'f> {
                 ));
             },
 
-            ir::InstructionKind::Add(l, r) => {
-                let l = self.generate_read(buffer, *l);
-                let r = self.generate_read(buffer, *r);
-
-                let result = self.variable_reg(stmt.result.unwrap());
-
-                // Our `add` instruction is "mutating" - it acts like a `+=`.
-                // So copy one of the values into the result register, then add onto that
-                buffer.push(AssemblyItem::new_instruction(
-                    InstructionOpcode::Mov,
-                    &[result.into(), l.into()]
-                ));
-                buffer.push(AssemblyItem::new_instruction(
-                    InstructionOpcode::Add,
-                    &[result.into(), r.into()]
-                ));
-            },
+            ir::InstructionKind::Add(l, r) =>
+                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Add),
+            ir::InstructionKind::Subtract(l, r) =>
+                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Sub),
+            ir::InstructionKind::Multiply(l, r) =>
+                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Mul),
 
             ir::InstructionKind::Equals(l, r) => {
                 let l = self.generate_read(buffer, *l);
@@ -336,6 +325,24 @@ impl<'f> FunctionGenerator<'f> {
             Allocation::Register(r) => *r,
             Allocation::Spill(_) => todo!("spilling not yet supported"),
         }
+    }
+
+    fn generate_arithmetic_bin_op(&self, buffer: &mut Vec<AssemblyItem>, stmt: &ir::Statement, l: VariableId, r: VariableId, op: InstructionOpcode) {
+        let l = self.generate_read(buffer, l);
+        let r = self.generate_read(buffer, r);
+
+        let result = self.variable_reg(stmt.result.unwrap());
+
+        // Our binop instructions are "mutating" - for example, `add` acts like a `+=`.
+        // So copy one of the values into the result register, then add onto that
+        buffer.push(AssemblyItem::new_instruction(
+            InstructionOpcode::Mov,
+            &[result.into(), l.into()]
+        ));
+        buffer.push(AssemblyItem::new_instruction(
+            op,
+            &[result.into(), r.into()]
+        ));
     }
 
     // TODO: generate_write(buffer, var, value)

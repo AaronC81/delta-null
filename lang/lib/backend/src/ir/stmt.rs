@@ -55,6 +55,12 @@ pub enum InstructionKind {
     /// Adds together two integer values, of the same type.
     Add(VariableId, VariableId),
 
+    /// Subtracts one integer value from another, of the same type.
+    Subtract(VariableId, VariableId),
+
+    /// Multiply two integer values with each other, of the same type.
+    Multiply(VariableId, VariableId),
+
     /// Checks if two variables of the same type are equal.
     Equals(VariableId, VariableId),
 
@@ -124,6 +130,8 @@ impl Instruction {
             InstructionKind::ReadLocal(_) => hashset!{},
             InstructionKind::WriteLocal(_, v) => hashset!{ *v },
             InstructionKind::Add(l, r)
+            | InstructionKind::Subtract(l, r)
+            | InstructionKind::Multiply(l, r)
             | InstructionKind::Equals(l, r) => hashset!{ *l, *r },
             InstructionKind::Return(r) => r.iter().copied().collect(),
             InstructionKind::Branch(_) => hashset!{},
@@ -153,7 +161,9 @@ impl Instruction {
             InstructionKind::ReadLocal(l) => Ok(Some(locals.get_local(*l).ty)),
             InstructionKind::WriteLocal(_, _) => Ok(None),
 
-            InstructionKind::Add(a, b) => {
+            InstructionKind::Add(a, b)
+            | InstructionKind::Subtract(a, b)
+            | InstructionKind::Multiply(a, b) => {
                 let a_ty = vars.get_variable(*a).ty;
                 let b_ty = vars.get_variable(*b).ty;
                 if a_ty != b_ty {
@@ -199,6 +209,8 @@ impl PrintIR for Instruction {
             InstructionKind::ReadLocal(l) => format!("read {}", l.print_ir(options)),
             InstructionKind::WriteLocal(l, v) => format!("write {} = {}", l.print_ir(options), v.print_ir(options)),
             InstructionKind::Add(a, b) => format!("{} + {}", a.print_ir(options), b.print_ir(options)),
+            InstructionKind::Subtract(a, b) => format!("{} - {}", a.print_ir(options), b.print_ir(options)),
+            InstructionKind::Multiply(a, b) => format!("{} * {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::Equals(a, b) => format!("{} == {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::Return(r) =>
                 if let Some(r) = r {

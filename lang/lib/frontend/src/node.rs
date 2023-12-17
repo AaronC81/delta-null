@@ -4,6 +4,8 @@
 //! enables association of additional information with each expression, which can be used later in
 //! the compilation process.
 
+use std::fmt::Display;
+
 use crate::source::SourceLocation;
 
 /// An item which may appear at the top-level of a module (file), such as a function definition.
@@ -117,8 +119,25 @@ pub enum ExpressionKind<ED> {
     Integer(String),
     Boolean(bool),
 
-    Add(Box<Expression<ED>>, Box<Expression<ED>>),
+    ArithmeticBinOp(ArithmeticBinOp, Box<Expression<ED>>, Box<Expression<ED>>),
     Equals(Box<Expression<ED>>, Box<Expression<ED>>),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ArithmeticBinOp {
+    Add,
+    Subtract,
+    Multiply,
+}
+
+impl Display for ArithmeticBinOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", match self {
+            ArithmeticBinOp::Add => "+",
+            ArithmeticBinOp::Subtract => "-",
+            ArithmeticBinOp::Multiply => "*",
+        })
+    }
 }
 
 /// A parsed type.
