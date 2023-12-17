@@ -1,6 +1,8 @@
 #![feature(try_trait_v2)]
 #![feature(never_type)]
 #![feature(type_changing_struct_update)]
+#![feature(assert_matches)]
+#![feature(box_patterns)]
 
 use std::error::Error;
 

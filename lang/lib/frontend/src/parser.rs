@@ -204,34 +204,34 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
     /// Parse an expression.
     pub fn parse_expression(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
-        self.parse_add()
+        self.parse_equals()
     }
 
-    /// Parse a usage of the `+` binary operator, or any expression with lower precedence.
-    pub fn parse_add(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
-        let mut expr = self.parse_equals()?;
+    /// Parse a usage of the `==` binary operator, or any expression with lower precedence.
+    pub fn parse_equals(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
+        let mut expr = self.parse_add()?;
 
-        if self.tokens.peek().map(|t| &t.kind) == Some(&TokenKind::Plus) {
+        if self.tokens.peek().map(|t| &t.kind) == Some(&TokenKind::DoubleEquals) {
             let loc = self.tokens.next().unwrap().loc;
 
-            self.parse_expression()?
+            self.parse_add()?
                 .integrate(&mut expr, |lhs, rhs|
-                    *lhs = Expression::new(ExpressionKind::Add(Box::new(lhs.clone()), Box::new(rhs)), loc));
+                    *lhs = Expression::new(ExpressionKind::Equals(Box::new(lhs.clone()), Box::new(rhs)), loc));
         }
 
         expr.map(|e| e.into())
     }
 
-    /// Parse a usage of the `==` binary operator, or any expression with lower precedence.
-    pub fn parse_equals(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
+    /// Parse a usage of the `+` binary operator, or any expression with lower precedence.
+    pub fn parse_add(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
         let mut expr = self.parse_atom()?;
 
-        if self.tokens.peek().map(|t| &t.kind) == Some(&TokenKind::DoubleEquals) {
+        if self.tokens.peek().map(|t| &t.kind) == Some(&TokenKind::Plus) {
             let loc = self.tokens.next().unwrap().loc;
 
-            self.parse_expression()?
+            self.parse_atom()?
                 .integrate(&mut expr, |lhs, rhs|
-                    *lhs = Expression::new(ExpressionKind::Equals(Box::new(lhs.clone()), Box::new(rhs)), loc));
+                    *lhs = Expression::new(ExpressionKind::Add(Box::new(lhs.clone()), Box::new(rhs)), loc));
         }
 
         expr.map(|e| e.into())
@@ -345,3 +345,45 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 }
 
 frontend_error!(ParseError, "parse");
+
+#[cfg(test)]
+mod test {
+    use std::assert_matches::assert_matches;
+
+    use crate::{node::{Expression, ExpressionKind}, tokenizer::tokenize};
+
+    use super::Parser;
+
+    fn parse_expression(code: &str) -> Expression {
+        let (tokens, errors) = tokenize(code, "<test>");
+        if !errors.is_empty() {
+            panic!("{:?}", errors)
+        }
+        Parser::new(tokens.into_iter().peekable()).parse_expression().unwrap().unwrap()
+    }
+
+    #[test]
+    fn test_equality_precedence() {
+        assert_matches!(
+            parse_expression("2 + 2 == 4"),
+            Expression {
+                kind: ExpressionKind::Equals(box Expression { 
+                    kind: ExpressionKind::Add(_, _),
+                    ..
+                }, _),
+                ..
+            }
+        );
+
+        assert_matches!(
+            parse_expression("4 == 2 + 2"),
+            Expression {
+                kind: ExpressionKind::Equals(_, box Expression { 
+                    kind: ExpressionKind::Add(_, _),
+                    ..
+                }),
+                ..
+            }
+        );
+    }
+}
