@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Display, error::Error};
 
-use delta_null_lang_backend::ir::{Module, FunctionBuilder, Local, LocalId, BasicBlockBuilder, VariableId, self, Instruction, BasicBlockId};
+use delta_null_lang_backend::ir::{Module, FunctionBuilder, LocalId, BasicBlockBuilder, VariableId, self, Instruction, BasicBlockId};
 
 use crate::{node::{TopLevelItem, TopLevelItemKind, self, Type}, fallible::{Fallible, MaybeFatal}};
 
@@ -18,7 +18,7 @@ impl ModuleTranslator {
 
     pub fn translate_item(&mut self, item: &TopLevelItem) -> Fallible<MaybeFatal<()>, TranslateError> {
         match &item.kind {
-            TopLevelItemKind::FunctionDefinition { name, return_type, body } => {
+            TopLevelItemKind::FunctionDefinition { name, return_type: _, body } => {
                 // Setup
                 let mut func_trans = FunctionTranslator::new(
                     FunctionBuilder::new(name),
@@ -139,7 +139,7 @@ impl FunctionTranslator {
                 self.translate_expression(e)?;
             },
 
-            node::StatementKind::VariableDeclaration { name, ty, value } => {
+            node::StatementKind::VariableDeclaration { name, ty: _, value } => {
                 // Creating the local was already handled by `populate_locals`.
                 let local = *self.locals.get(name).unwrap();
 

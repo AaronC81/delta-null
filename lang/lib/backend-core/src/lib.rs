@@ -1,7 +1,7 @@
 //! Language backend targeting the Delta Null's processor soft-core.
 
 use codegen::FunctionGenerator;
-use delta_null_core_assembler::{Builder, BuildError, AssemblyItem};
+use delta_null_core_assembler::{BuildError, AssemblyItem};
 use delta_null_lang_backend::{ir::Module, analysis::{liveness::liveness_analysis, flow::ControlFlowGraph}};
 use reg_alloc::allocate;
 

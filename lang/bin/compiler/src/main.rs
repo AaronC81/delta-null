@@ -1,4 +1,4 @@
-use std::{fs::OpenOptions, io::{Write, stdout, Read}, process::exit};
+use std::{fs::OpenOptions, io::{Write, stdout}, process::exit};
 
 use clap::{Parser as ClapParser, ValueEnum};
 use clap_stdin::FileOrStdin;

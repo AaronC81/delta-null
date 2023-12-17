@@ -157,7 +157,7 @@ impl BasicBlockId {
 }
 
 impl PrintIR for BasicBlockId {
-    fn print_ir(&self, options: &PrintOptions) -> String {
+    fn print_ir(&self, _options: &PrintOptions) -> String {
         format!("%{}", self.0)
     }
 }
@@ -215,13 +215,13 @@ pub struct VariableId(usize);
 pub struct LocalId(usize);
 
 impl PrintIR for VariableId {
-    fn print_ir(&self, options: &PrintOptions) -> String {
+    fn print_ir(&self, _options: &PrintOptions) -> String {
         format!("${}", self.0)
     }
 }
 
 impl PrintIR for LocalId {
-    fn print_ir(&self, options: &PrintOptions) -> String {
+    fn print_ir(&self, _options: &PrintOptions) -> String {
         format!("<local {}>", self.0)
     }
 }
@@ -235,7 +235,7 @@ pub struct Variable {
 }
 
 impl PrintIR for Variable {
-    fn print_ir(&self, options: &PrintOptions) -> String {
+    fn print_ir(&self, _options: &PrintOptions) -> String {
         format!("${}", self.id.0)
     }
 }
@@ -250,7 +250,7 @@ pub struct Local {
 }
 
 impl PrintIR for Local {
-    fn print_ir(&self, options: &PrintOptions) -> String {
+    fn print_ir(&self, _options: &PrintOptions) -> String {
         format!("<local {} ({})>", self.id.0, self.name)
     }
 }

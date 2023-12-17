@@ -338,15 +338,7 @@ impl<'f> FunctionGenerator<'f> {
         }
     }
 
-    /// Returns the instructions, if any, required to write a spilled variable's calculated value
-    /// back onto the stack, so that it is preserved when the register it is temporarily using is
-    /// trashed agian.
-    fn generate_write(&self, _buffer: &mut Vec<AssemblyItem>, var: VariableId) {
-        match &self.allocations[&var] {
-            Allocation::Register(_) => (),
-            Allocation::Spill(_) => todo!("spilling not yet supported"),
-        }
-    }
+    // TODO: generate_write(buffer, var, value)
 
     /// Returns a unique name for a basic block, used as an Assembly label to refer to its start.
     fn basic_block_label(&self, id: &BasicBlockId) -> String {
@@ -363,7 +355,7 @@ mod test {
 
     #[test]
     fn test_add() {
-        let mut func = FunctionBuilder::new("foo");
+        let func = FunctionBuilder::new("foo");
         let (_, mut block) = func.new_basic_block();
         let a = block.add_constant(ConstantValue::U16(0xAB));
         let b = block.add_constant(ConstantValue::U16(0x20));
@@ -381,7 +373,7 @@ mod test {
 
     #[test]
     fn test_unconditional_branch() {
-        let mut func = FunctionBuilder::new("foo");
+        let func = FunctionBuilder::new("foo");
         let (ids, mut blocks) = func.new_basic_blocks(6);
 
         // Each of the blocks (after the first) has a return statement, with a different value
@@ -402,7 +394,7 @@ mod test {
     #[test]
     fn test_conditional_branch() {
         fn make_test_with_value(b: bool) -> Core<impl Memory> {
-            let mut func = FunctionBuilder::new("foo");
+            let func = FunctionBuilder::new("foo");
             let (ids, mut blocks) = func.new_basic_blocks(3);
 
             // Conditional jump
@@ -434,7 +426,7 @@ mod test {
     #[test]
     fn test_phi() {
         fn make_test_with_value(b: bool) -> Core<impl Memory> {
-            let mut func = FunctionBuilder::new("foo");
+            let func = FunctionBuilder::new("foo");
             let (ids, mut blocks) = func.new_basic_blocks(4);
 
             // Conditional jump
@@ -476,7 +468,7 @@ mod test {
 
     #[test]
     fn test_locals() {
-        let mut func = FunctionBuilder::new("foo");
+        let func = FunctionBuilder::new("foo");
         let local_a = func.new_local("a", Type::UnsignedInteger(IntegerSize::Bits16));
         let local_b = func.new_local("b", Type::UnsignedInteger(IntegerSize::Bits16));
 

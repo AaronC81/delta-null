@@ -166,7 +166,7 @@ impl Instruction {
                 Ok(Some(a_ty))
             },
 
-            InstructionKind::Equals(a, b) => Ok(Some(Type::Boolean)),
+            InstructionKind::Equals(_, _) => Ok(Some(Type::Boolean)),
 
             InstructionKind::Return(_)
             | InstructionKind::Branch(_)
@@ -243,7 +243,7 @@ impl ConstantValue {
 }
 
 impl PrintIR for ConstantValue {
-    fn print_ir(&self, options: &super::PrintOptions) -> String {
+    fn print_ir(&self, _options: &super::PrintOptions) -> String {
         match self {
             ConstantValue::U16(u) => u.to_string(),
             ConstantValue::I16(v) => v.to_string(),

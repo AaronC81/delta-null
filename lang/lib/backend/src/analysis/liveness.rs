@@ -147,7 +147,7 @@ mod test {
 
     #[test]
     fn test_liveness_simple() {
-        let mut func = FunctionBuilder::new("foo");
+        let func = FunctionBuilder::new("foo");
         let (block_id, mut block) = func.new_basic_block();
         let a = block.add_constant(ConstantValue::U16(123));
         let b = block.add_constant(ConstantValue::U16(456));
