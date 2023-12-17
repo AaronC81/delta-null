@@ -279,6 +279,13 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             Some(TokenKind::KwFalse) =>
                 Fallible::new_ok(Expression::new(ExpressionKind::Boolean(false), self.tokens.next().unwrap().loc)),
 
+            Some(TokenKind::LParen) => {
+                self.tokens.next();
+                self.parse_expression()
+                    .combine(self.expect(TokenKind::RParen))
+                    .map(|(e, _)| e)
+            },
+
             Some(_) => {
                 let t = self.tokens.next().unwrap();
                 Fallible::new_fatal(vec![

@@ -207,5 +207,14 @@ mod test {
             ").unwrap(),
             1 + 2 * 4 + 1
         );
+
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    return (1 + 2) * (4 + 1);
+                }
+            ").unwrap(),
+            (1 + 2) * (4 + 1)
+        );
     }
 }
