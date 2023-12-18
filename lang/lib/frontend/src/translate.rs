@@ -399,7 +399,7 @@ impl TranslateError {
 
 impl Display for TranslateError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "tokenizer error: {}", self.description)
+        write!(f, "translate error: {}", self.description)
     }
 }
 impl Error for TranslateError {}
