@@ -33,11 +33,11 @@ pub fn code_to_module(code: &str, filename: &str) -> Result<Module, Vec<Box<dyn 
     let parsed_module = parser.parse_module().box_errors().into_result()?;
 
     // Type-check
-    type_check::type_check_module(parsed_module.clone()).box_errors().into_result()?;
+    let typed_module = type_check::type_check_module(parsed_module.clone()).box_errors().into_result()?;
 
     // Translate
     let mut translator = ModuleTranslator::new();
-    for item in parsed_module {
+    for item in typed_module {
         translator.translate_item(&item).box_errors().into_result()?;
     }
     let mut module = translator.finalize();

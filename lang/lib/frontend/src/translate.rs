@@ -4,6 +4,8 @@ use delta_null_lang_backend::ir::{Module, FunctionBuilder, LocalId, BasicBlockBu
 
 use crate::{node::{TopLevelItem, TopLevelItemKind, self, Type}, fallible::{Fallible, MaybeFatal}};
 
+type ExpressionData = crate::type_check::Type;
+
 /// Translates [TopLevelItem]s into an IR [Module].
 pub struct ModuleTranslator {
     module: Module,
@@ -16,7 +18,7 @@ impl ModuleTranslator {
         }
     }
 
-    pub fn translate_item(&mut self, item: &TopLevelItem) -> Fallible<MaybeFatal<()>, TranslateError> {
+    pub fn translate_item(&mut self, item: &TopLevelItem<ExpressionData>) -> Fallible<MaybeFatal<()>, TranslateError> {
         match &item.kind {
             TopLevelItemKind::FunctionDefinition { name, return_type: _, body } => {
                 // Setup
@@ -88,7 +90,7 @@ impl FunctionTranslator {
     /// 
     /// Call this only once, and before doing any translation.
     #[must_use]
-    pub fn populate_locals(&mut self, stmt: &node::Statement) -> Fallible<MaybeFatal<()>, TranslateError> {
+    pub fn populate_locals(&mut self, stmt: &node::Statement<ExpressionData>) -> Fallible<MaybeFatal<()>, TranslateError> {
         let mut result = Fallible::new_ok(());
 
         match &stmt.kind {
@@ -124,7 +126,7 @@ impl FunctionTranslator {
 
     /// Translates a parsed language statement into a set of IR instructions.
     #[must_use]
-    pub fn translate_statement(&mut self, stmt: &node::Statement) -> Fallible<MaybeFatal<()>, TranslateError> {
+    pub fn translate_statement(&mut self, stmt: &node::Statement<ExpressionData>) -> Fallible<MaybeFatal<()>, TranslateError> {
         match &stmt.kind {
             node::StatementKind::Block { body, .. } => {
                 for s in body {
@@ -274,7 +276,7 @@ impl FunctionTranslator {
     /// Translates an expression into a set of IR instructions, and return the [VariableId]
     /// describing the final result of the expression.
     #[must_use]
-    pub fn translate_expression(&mut self, expr: &node::Expression) -> Fallible<MaybeFatal<VariableId>, TranslateError> {
+    pub fn translate_expression(&mut self, expr: &node::Expression<ExpressionData>) -> Fallible<MaybeFatal<VariableId>, TranslateError> {
         match &expr.kind {
             node::ExpressionKind::Identifier(id) => {
                 if let Some(local) = self.locals.get(id).copied() {
