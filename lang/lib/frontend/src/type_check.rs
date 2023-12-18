@@ -24,6 +24,26 @@ impl Display for Type {
     }
 }
 
+/// A bundle of both module-level and local context.
+#[derive(Debug, Clone)]
+pub struct Context<'m> {
+    module: &'m ModuleContext,
+    local: LocalContext,
+}
+
+impl<'m> Context<'m> {
+    pub fn resolve_identifier(&self, id: &str) -> Option<&Type> {
+        self.local.variables.get(id).or_else(|| self.module.globals.get(id))
+    }
+}
+
+/// Describes the context within a module.
+#[derive(Debug, Clone)]
+pub struct ModuleContext {
+    /// All defined globals.
+    globals: HashMap<String, Type>,
+}
+
 /// Describes the context within a particular scope of a function.
 #[derive(Debug, Clone)]
 pub struct LocalContext {
@@ -36,15 +56,36 @@ pub struct LocalContext {
 
 pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<Type>>, TypeError> {
     let mut errors = Fallible::new(());
+
+    // Build module-level context
+    let mut module_ctx = ModuleContext { globals: HashMap::new() };
+    for item in &items {
+        match &item.kind {
+            TopLevelItemKind::FunctionDefinition { name, return_type, body: _ } => {
+                let Type::Direct(return_type) = convert_node_type(return_type).propagate(&mut errors) else {
+                    panic!("more advanced return type than anticipated!");
+                };
+                module_ctx.globals.insert(
+                    name.clone(),
+                    Type::Direct(ir::Type::FunctionReference { return_type: Box::new(return_type) }),
+                );
+            },
+        }
+    }
+
+    // Type-check items
     let result = items.into_iter()
         .map(|i| {
             let loc = i.loc.clone();
             i.map(|kind| match kind {
                 TopLevelItemKind::FunctionDefinition { name, return_type, body } => {
                     // Create context
-                    let mut ctx = LocalContext {
-                        variables: HashMap::new(),
-                        return_type: convert_node_type(&return_type).propagate(&mut errors),
+                    let mut ctx = Context {
+                        module: &module_ctx,
+                        local: LocalContext {
+                            variables: HashMap::new(),
+                            return_type: convert_node_type(&return_type).propagate(&mut errors),
+                        },
                     };
 
                     // Type-check body
@@ -52,7 +93,7 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
                         .propagate(&mut errors);
 
                     // Check that all control paths diverge (return something or loop forever)
-                    if ctx.return_type != Type::Direct(ir::Type::Void) && !do_all_paths_diverge(&body) {
+                    if ctx.local.return_type != Type::Direct(ir::Type::Void) && !do_all_paths_diverge(&body) {
                         errors.push_error(TypeError::new(
                             &format!("not all control-flow paths of `{name}` return a value"), loc
                         ))
@@ -67,7 +108,7 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
     errors.map(|_| result)
 }
 
-pub fn type_check_statement(stmt: Statement<()>, ctx: &mut LocalContext) -> Fallible<Statement<Type>, TypeError> {
+pub fn type_check_statement(stmt: Statement<()>, ctx: &mut Context) -> Fallible<Statement<Type>, TypeError> {
     let mut errors = Fallible::new(());
     let loc = stmt.loc.clone();
     let result = stmt.map(|kind| {
@@ -87,12 +128,12 @@ pub fn type_check_statement(stmt: Statement<()>, ctx: &mut LocalContext) -> Fall
             StatementKind::VariableDeclaration { name, ty, value } => {
                 // Create key in context, which shouldn't exist already
                 let converted_ty = convert_node_type(&ty).propagate(&mut errors);
-                if ctx.variables.contains_key(&name) {
+                if ctx.local.variables.contains_key(&name) {
                     errors.push_error(TypeError::new(
                         &format!("redefinition of local variable `{name}`"), loc
                     ));
                 } else {
-                    ctx.variables.insert(name.clone(), converted_ty.clone());
+                    ctx.local.variables.insert(name.clone(), converted_ty.clone());
                 }
 
                 // Check type matches initial value, if specified
@@ -107,7 +148,7 @@ pub fn type_check_statement(stmt: Statement<()>, ctx: &mut LocalContext) -> Fall
             StatementKind::Assignment { name, value } => {
                 let value = type_check_expression(value, ctx).propagate(&mut errors);
 
-                if let Some(local_ty) = ctx.variables.get(&name) {
+                if let Some(local_ty) = ctx.local.variables.get(&name) {
                     check_types_are_assignable(local_ty, &value.data, loc).propagate(&mut errors);
                 } else {
                     errors.push_error(TypeError::new(
@@ -122,7 +163,7 @@ pub fn type_check_statement(stmt: Statement<()>, ctx: &mut LocalContext) -> Fall
                 let value = value.map(|e| type_check_expression(e, ctx).propagate(&mut errors));
 
                 if let Some(ref value) = value {
-                    check_types_are_assignable(&ctx.return_type, &value.data, loc).propagate(&mut errors);
+                    check_types_are_assignable(&ctx.local.return_type, &value.data, loc).propagate(&mut errors);
                 } else {
                     todo!("valueless return")
                 }
@@ -158,13 +199,13 @@ pub fn type_check_statement(stmt: Statement<()>, ctx: &mut LocalContext) -> Fall
     errors.map(|_| result)
 }
 
-pub fn type_check_expression(expr: Expression<()>, ctx: &mut LocalContext) -> Fallible<Expression<Type>, TypeError> {
+pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallible<Expression<Type>, TypeError> {
     let mut errors = Fallible::new(());
     let loc = expr.loc.clone();
     let result = expr.map(|kind, _| {
         match kind {
             ExpressionKind::Identifier(id) => {
-                if let Some(local_ty) = ctx.variables.get(&id) {
+                if let Some(local_ty) = ctx.resolve_identifier(&id) {
                     (ExpressionKind::Identifier(id), local_ty.clone())
                 } else {
                     errors.push_error(TypeError::new(
