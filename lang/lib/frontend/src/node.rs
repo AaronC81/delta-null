@@ -119,6 +119,10 @@ pub enum ExpressionKind<ED> {
     Integer(String),
     Boolean(bool),
 
+    Call {
+        target: Box<Expression<ED>>,
+    },
+
     ArithmeticBinOp(ArithmeticBinOp, Box<Expression<ED>>, Box<Expression<ED>>),
     Equals(Box<Expression<ED>>, Box<Expression<ED>>),
 }

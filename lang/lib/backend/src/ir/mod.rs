@@ -256,12 +256,15 @@ impl PrintIR for Local {
 }
 
 /// Describes the type of an IR [Variable].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Type {
     UnsignedInteger(IntegerSize),
     SignedInteger(IntegerSize),
     Boolean,
     Void,
+    FunctionReference {
+        return_type: Box<Type>,
+    }
 }
 
 impl Type {
@@ -272,6 +275,7 @@ impl Type {
             Type::SignedInteger(_) => 1,
             Type::Boolean => 1,
             Type::Void => 0,
+            Type::FunctionReference { .. } => 1,
         }
     }
 }
@@ -283,6 +287,7 @@ impl Display for Type {
             Type::SignedInteger(s) => write!(f, "s{}", s),
             Type::Boolean => write!(f, "bool"),
             Type::Void => write!(f, "void"),
+            Type::FunctionReference { return_type } => write!(f, "fn() -> {return_type}")
         }
     }
 }

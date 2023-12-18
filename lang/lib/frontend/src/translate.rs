@@ -315,12 +315,19 @@ impl FunctionTranslator {
             }
 
             node::ExpressionKind::Equals(l, r) =>
-            self.translate_expression(l)?
-                .combine(self.translate_expression(r)?)
-                .map(|(l, r)|
-                    self.target_mut().add_instruction(
-                        ir::Instruction::new(ir::InstructionKind::Equals(l, r))
-                    ).into()),
+                self.translate_expression(l)?
+                    .combine(self.translate_expression(r)?)
+                    .map(|(l, r)|
+                        self.target_mut().add_instruction(
+                            ir::Instruction::new(ir::InstructionKind::Equals(l, r))
+                        ).into()),
+
+            node::ExpressionKind::Call { target } =>
+                self.translate_expression(target)?
+                    .map(|t|
+                        self.target_mut().add_instruction(
+                            ir::Instruction::new(ir::InstructionKind::Call(t))
+                        ).into()),
         }
     }
 

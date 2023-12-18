@@ -174,6 +174,23 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut LocalContext) -> Fa
                 }
             },
 
+            ExpressionKind::Call { target } => {
+                let target = type_check_expression(*target, ctx).propagate(&mut errors);
+
+                match &target.data {
+                    Type::Direct(ir::Type::FunctionReference { return_type }) => {
+                        let ty = Type::Direct(*return_type.clone());
+                        (ExpressionKind::Call { target: Box::new(target) }, ty)
+                    },
+                    _ => {
+                        errors.push_error(TypeError::new(
+                            &format!("cannot call non-function value of type `{}`", target.data), loc
+                        ));
+                        (ExpressionKind::Call { target: Box::new(target) }, Type::Unknown)
+                    },
+                }
+            }
+
             ExpressionKind::Integer(int) => {
                 if int.parse::<u16>().is_err() {
                     errors.push_error(TypeError::new(

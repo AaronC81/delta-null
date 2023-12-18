@@ -244,15 +244,32 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
     /// Parse a usage of the `*` binary operator, or any expression with higher precedence.
     pub fn parse_mul(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
-        let mut expr = self.parse_atom()?;
+        let mut expr = self.parse_call()?;
 
         while let Some(&TokenKind::Star) = self.tokens.peek().map(|t| &t.kind) {
             let Token { kind: _, loc } = self.tokens.next().unwrap();
             let op = ArithmeticBinOp::Multiply;
 
             self.parse_atom()?
-            .integrate(&mut expr, |lhs, rhs|
-                *lhs = Expression::new(ExpressionKind::ArithmeticBinOp(op, Box::new(lhs.clone()), Box::new(rhs)), loc));
+                .integrate(&mut expr, |lhs, rhs|
+                    *lhs = Expression::new(ExpressionKind::ArithmeticBinOp(op, Box::new(lhs.clone()), Box::new(rhs)), loc));
+        }
+
+        expr.map(|e| e.into())
+    }
+
+    /// Parses a call.
+    pub fn parse_call(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
+        let mut expr = self.parse_atom()?;
+
+        if let Some(&TokenKind::LParen) = self.tokens.peek().map(|t| &t.kind) {
+            let Token { kind: _, loc } = self.tokens.next().unwrap();
+
+            // Arguments not yet supported
+            self.expect(TokenKind::RParen)?;
+
+            expr = expr
+                .map(|target| Expression::new(ExpressionKind::Call { target: Box::new(target) }, loc));
         }
 
         expr.map(|e| e.into())
@@ -410,6 +427,21 @@ mod test {
                     kind: ExpressionKind::ArithmeticBinOp(ArithmeticBinOp::Add, _, _),
                     ..
                 }),
+                ..
+            }
+        );
+    }
+
+    #[test]
+    fn test_call() {
+        assert_matches!(
+            parse_expression("a() + b()"),
+            Expression {
+                kind: ExpressionKind::ArithmeticBinOp(
+                    ArithmeticBinOp::Add,
+                    box Expression { kind: ExpressionKind::Call { .. }, .. },
+                    box Expression { kind: ExpressionKind::Call { .. }, .. },
+                ),
                 ..
             }
         );

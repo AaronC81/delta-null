@@ -64,6 +64,10 @@ pub enum InstructionKind {
     /// Checks if two variables of the same type are equal.
     Equals(VariableId, VariableId),
 
+    /// Calls a different function, using the given [VariableId], which should hold a
+    /// [Type::FunctionReference].
+    Call(VariableId),
+
     /// Returns from the enclosing function, with a value if it is non-void.
     Return(Option<VariableId>),
 
@@ -133,6 +137,7 @@ impl Instruction {
             | InstructionKind::Subtract(l, r)
             | InstructionKind::Multiply(l, r)
             | InstructionKind::Equals(l, r) => hashset!{ *l, *r },
+            InstructionKind::Call(t) => hashset!{ *t },
             InstructionKind::Return(r) => r.iter().copied().collect(),
             InstructionKind::Branch(_) => hashset!{},
             InstructionKind::ConditionalBranch { condition, .. } => hashset!{ *condition },
@@ -158,14 +163,14 @@ impl Instruction {
         match &self.kind {
             InstructionKind::Constant(v) => Ok(Some(v.ty())),
 
-            InstructionKind::ReadLocal(l) => Ok(Some(locals.get_local(*l).ty)),
+            InstructionKind::ReadLocal(l) => Ok(Some(locals.get_local(*l).ty.clone())),
             InstructionKind::WriteLocal(_, _) => Ok(None),
 
             InstructionKind::Add(a, b)
             | InstructionKind::Subtract(a, b)
             | InstructionKind::Multiply(a, b) => {
-                let a_ty = vars.get_variable(*a).ty;
-                let b_ty = vars.get_variable(*b).ty;
+                let a_ty = vars.get_variable(*a).ty.clone();
+                let b_ty = vars.get_variable(*b).ty.clone();
                 if a_ty != b_ty {
                     return Err(TypeError::new("both sides of `Add` must have the same type"));
                 }
@@ -175,13 +180,22 @@ impl Instruction {
 
             InstructionKind::Equals(_, _) => Ok(Some(Type::Boolean)),
 
+            InstructionKind::Call(target) => {
+                let target_ty = &vars.get_variable(*target).ty;
+                let Type::FunctionReference { return_type } = target_ty else {
+                    return Err(TypeError::new("`Call` is only valid on a `FunctionReference`"));
+                };
+
+                Ok(Some(*return_type.clone()))
+            }
+            
             InstructionKind::Return(_)
             | InstructionKind::Branch(_)
             | InstructionKind::ConditionalBranch { .. } => Ok(None),
 
             InstructionKind::Phi { choices } => {
                 let choice_tys = choices.iter()
-                    .map(|(_, var)| vars.get_variable(*var).ty)
+                    .map(|(_, var)| vars.get_variable(*var).ty.clone())
                     .collect::<Vec<_>>();
 
                 // Check all types are the same
@@ -194,7 +208,7 @@ impl Instruction {
                     }
                 }
 
-                Ok(Some(*first_ty))
+                Ok(Some(first_ty.clone()))
             }
 
             InstructionKind::Unreachable => Ok(None),
@@ -212,6 +226,7 @@ impl PrintIR for Instruction {
             InstructionKind::Subtract(a, b) => format!("{} - {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::Multiply(a, b) => format!("{} * {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::Equals(a, b) => format!("{} == {}", a.print_ir(options), b.print_ir(options)),
+            InstructionKind::Call(t) => format!("call {}", t.print_ir(options)),
             InstructionKind::Return(r) =>
                 if let Some(r) = r {
                     format!("return {}", r.print_ir(options))

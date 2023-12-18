@@ -144,6 +144,8 @@ impl<'f> FunctionGenerator<'f> {
                 ));
             },
 
+            ir::InstructionKind::Call(_) => todo!("call nyi"),
+
             ir::InstructionKind::Return(ret) => {
                 if let Some(ret) = *ret {
                     // EABI says to use r0-r1 to pass return value
