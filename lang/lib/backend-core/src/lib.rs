@@ -2,7 +2,7 @@
 
 use codegen::FunctionGenerator;
 use delta_null_core_assembler::{BuildError, AssemblyItem};
-use delta_null_lang_backend::{ir::Module, analysis::{liveness::liveness_analysis, flow::ControlFlowGraph}};
+use delta_null_lang_backend::{ir::{Module, Function}, analysis::{liveness::liveness_analysis, flow::ControlFlowGraph}};
 use reg_alloc::allocate;
 
 mod reg_alloc;
@@ -17,18 +17,27 @@ pub fn compile_module(module: &Module) -> Result<Vec<AssemblyItem>, Vec<BuildErr
         todo!("modules without entry point are not yet supported");
     };
 
-    if module.functions.len() != 1 {
-        todo!("only one function currently supported");
-    }
-    let entry_func = &module.functions[0];
-    if &entry_func.name != entry {
-        panic!("single function is not the entry function");
+    // Find entry function and compile it first, as that's how our program's entry point currently
+    // works
+    let (entry_funcs, other_funcs): (Vec<_>, Vec<_>) = module.functions.iter().partition(|f| &f.name == entry);
+    if entry_funcs.len() != 1 {
+        panic!("expected 1 entry point function named {entry}, but found {}", entry.len())
     }
 
-    let analysis = liveness_analysis(entry_func);
-    let cfg = ControlFlowGraph::generate(entry_func);
-    let allocation = allocate(entry_func, &cfg, &analysis);
+    // Compile and concatenate all
+    let mut items = vec![];
+    for func in entry_funcs.iter().chain(other_funcs.iter()) {
+        items.extend(compile_function(func)?);
+    }
 
-    let generator = FunctionGenerator::new(entry_func, allocation);
+    Ok(items)
+}
+
+fn compile_function(func: &Function) -> Result<Vec<AssemblyItem>, Vec<BuildError>> {
+    let analysis = liveness_analysis(func);
+    let cfg = ControlFlowGraph::generate(func);
+    let allocation = allocate(func, &cfg, &analysis);
+
+    let generator = FunctionGenerator::new(func, allocation);
     Ok(generator.to_assembly())
 }

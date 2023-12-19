@@ -217,4 +217,20 @@ mod test {
             (1 + 2) * (4 + 1)
         );
     }
+
+    #[test]
+    fn test_call() {
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    return number();
+                }
+                
+                fn number() -> u16 {
+                    return 1234;
+                }            
+            ").unwrap(),
+            1234
+        );
+    }
 }
