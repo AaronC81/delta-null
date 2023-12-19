@@ -160,11 +160,16 @@ impl<'f> FunctionGenerator<'f> {
                 // Preserve caller-saved registers.
                 // In the future we could be more intelligent and only save ones which are actually
                 // in use, but this pessimistic approach works fine for now.
-                // The one thing we don't save is the result register, since we're going to replace
-                // that after the function call, so there's no point.
-                let caller_saved_registers = [GPR::R0, GPR::R1, GPR::R2, GPR::R3];
-                for reg in &caller_saved_registers {
-                    if reg != &result {
+                // We don't save:
+                //   - Any registers which aren't allocated to variables, because there's no reason
+                //     to care about their values
+                //   - The one thing we don't save is the result register, since we're going to
+                //     replace that after the function call
+                let possible_caller_saved_registers = [GPR::R0, GPR::R1, GPR::R2, GPR::R3];
+                let mut actual_saved = vec![];
+                for reg in &possible_caller_saved_registers {
+                    if reg != &result && self.is_register_allocated(*reg) {
+                        actual_saved.push(*reg);
                         buffer.push(AssemblyItem::new_instruction(InstructionOpcode::Push, &[(*reg).into()]));
                     }
                 }
@@ -181,10 +186,8 @@ impl<'f> FunctionGenerator<'f> {
                 ));
 
                 // Restore registers
-                for reg in caller_saved_registers.iter().rev() {
-                    if reg != &result {
-                        buffer.push(AssemblyItem::new_instruction(InstructionOpcode::Pop, &[(*reg).into()]));
-                    }
+                for reg in actual_saved.iter().rev() {
+                    buffer.push(AssemblyItem::new_instruction(InstructionOpcode::Pop, &[(*reg).into()]));
                 }
             },
 
@@ -355,12 +358,14 @@ impl<'f> FunctionGenerator<'f> {
             )
         );
 
-        // Preserve GPRs
+        // Preserve callee-saved GPRs which we use
         for reg in Self::CALLEE_SAVED_GPRS.iter().rev() {
-            buffer.insert(
-                0,
-                AssemblyItem::new_instruction(InstructionOpcode::Push, &[(*reg).into()])
-            );
+            if self.is_register_allocated(*reg) {
+                buffer.insert(
+                    0,
+                    AssemblyItem::new_instruction(InstructionOpcode::Push, &[(*reg).into()])
+                );
+            }
         }
     }
 
@@ -377,7 +382,9 @@ impl<'f> FunctionGenerator<'f> {
 
         // Restore GPRs
         for reg in Self::CALLEE_SAVED_GPRS.iter().rev() {
-            buffer.push(AssemblyItem::new_instruction(InstructionOpcode::Pop, &[(*reg).into()]));
+            if self.is_register_allocated(*reg) {
+                buffer.push(AssemblyItem::new_instruction(InstructionOpcode::Pop, &[(*reg).into()]));
+            }
         }
     }
 
@@ -458,6 +465,20 @@ impl<'f> FunctionGenerator<'f> {
     /// Returns a unique name for a basic block, used as an Assembly label to refer to its start.
     fn basic_block_label(&self, id: &BasicBlockId) -> String {
         format!("{}___block_{}", self.func.name, id.0)
+    }
+
+    /// Determines whether this function uses the given register to store any variable.
+    ///
+    /// Used to optimise register preservation - if a register is never used, it doesn't need to be
+    /// preserved across call boundaries.
+    fn is_register_allocated(&self, reg: GeneralPurposeRegister) -> bool {
+        for alloc in self.allocations.values() {
+            if alloc == &Allocation::Register(reg) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
 

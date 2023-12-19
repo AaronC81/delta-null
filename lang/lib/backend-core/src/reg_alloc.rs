@@ -6,7 +6,7 @@ use delta_null_core_instructions::GPR;
 use delta_null_lang_backend::{ir::{VariableId, Function}, analysis::{liveness::LivenessAnalysis, flow::ControlFlowGraph}};
 
 /// Describes how an IR variable was allocated onto the core during a function's execution.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Allocation {
     /// This variable can live in a general-purpose register for its whole lifetime.
     Register(GPR),
