@@ -37,9 +37,7 @@ pub fn code_to_module(code: &str, filename: &str) -> Result<Module, Vec<Box<dyn 
 
     // Translate
     let mut translator = ModuleTranslator::new();
-    for item in typed_module {
-        translator.translate_item(&item).box_errors().into_result()?;
-    }
+    translator.translate_items(&typed_module).box_errors().into_result()?;
     let mut module = translator.finalize();
     module.entry = Some("main".to_owned()); // TODO
 

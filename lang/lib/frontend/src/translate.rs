@@ -18,28 +18,30 @@ impl ModuleTranslator {
         }
     }
 
-    pub fn translate_item(&mut self, item: &TopLevelItem<ExpressionData>) -> Fallible<MaybeFatal<()>, TranslateError> {
-        match &item.kind {
-            TopLevelItemKind::FunctionDefinition { name, return_type: _, body } => {
-                // Setup
-                let mut func_trans = FunctionTranslator::new(
-                    FunctionBuilder::new(name),
-                );
-                func_trans.populate_locals(body)?;
+    pub fn translate_items(&mut self, items: &[TopLevelItem<ExpressionData>]) -> Fallible<MaybeFatal<()>, TranslateError> {
+        for item in items {
+            match &item.kind {
+                TopLevelItemKind::FunctionDefinition { name, return_type: _, body } => {
+                    // Setup
+                    let mut func_trans = FunctionTranslator::new(
+                        FunctionBuilder::new(name),
+                    );
+                    func_trans.populate_locals(body)?;
 
-                // Translate
-                let (_, start_block) = func_trans.func.new_basic_block();
-                func_trans.target = Some(start_block);
-                func_trans.translate_statement(body)?;
-                func_trans.finalize_target();
+                    // Translate
+                    let (_, start_block) = func_trans.func.new_basic_block();
+                    func_trans.target = Some(start_block);
+                    func_trans.translate_statement(body)?;
+                    func_trans.finalize_target();
 
-                // Add to module
-                let func = func_trans.func.finalize();
-                self.module.functions.push(func);
-
-                Fallible::new_ok(())
-            },
+                    // Add to module
+                    let func = func_trans.func.finalize();
+                    self.module.functions.push(func);
+                },
+            }
         }
+
+        Fallible::new_ok(())
     }
 
     pub fn finalize(self) -> Module {
