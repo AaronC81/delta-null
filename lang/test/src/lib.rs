@@ -220,6 +220,7 @@ mod test {
 
     #[test]
     fn test_call() {
+        // One layer
         assert_eq!(
             util::compile_and_execute("
                 fn main() -> u16 {
@@ -231,6 +232,20 @@ mod test {
                 }            
             ").unwrap(),
             1234
+        );
+
+        // Nesting!
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    return num_a() + num_b() + num_c();
+                }
+                
+                fn num_a() -> u16 { return num_b() + 2; }
+                fn num_b() -> u16 { return num_c() + 5; }
+                fn num_c() -> u16 { return 10; }
+            ").unwrap(),
+            (10 + 2 + 5) + (10 + 5) + 10
         );
     }
 }
