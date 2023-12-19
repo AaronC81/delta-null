@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display, error::Error};
 
 use delta_null_lang_backend::ir::{Module, FunctionBuilder, LocalId, BasicBlockBuilder, VariableId, self, Instruction, BasicBlockId};
 
-use crate::{node::{TopLevelItem, TopLevelItemKind, self, Type}, fallible::{Fallible, MaybeFatal}};
+use crate::{node::{TopLevelItem, TopLevelItemKind, self, Type}, fallible::{Fallible, MaybeFatal}, type_check::convert_node_type};
 
 type ExpressionData = crate::type_check::Type;
 
@@ -19,12 +19,32 @@ impl ModuleTranslator {
     }
 
     pub fn translate_items(&mut self, items: &[TopLevelItem<ExpressionData>]) -> Fallible<MaybeFatal<()>, TranslateError> {
+        let mut errors = Fallible::new_ok(());
+        let mut functions = HashMap::new();
+
+        // Build up list of functions
+        for item in items {
+            if let TopLevelItemKind::FunctionDefinition { name, return_type, body: _ } = &item.kind {
+                // TODO: crap that we're still converting here
+                let super::type_check::Type::Direct(return_type) = convert_node_type(return_type).propagate(&mut errors) else {
+                    panic!("indirect return type");
+                };
+                functions.insert(
+                    name.to_owned(),
+                    ir::Type::FunctionReference {
+                        return_type: Box::new(return_type),
+                    }
+                );
+            }
+        }
+
         for item in items {
             match &item.kind {
                 TopLevelItemKind::FunctionDefinition { name, return_type: _, body } => {
                     // Setup
                     let mut func_trans = FunctionTranslator::new(
                         FunctionBuilder::new(name),
+                        &functions,
                     );
                     func_trans.populate_locals(body)?;
 
@@ -51,7 +71,7 @@ impl ModuleTranslator {
 
 /// Translates the contents of a function into an IR function, using the [FunctionBuilder]
 /// interface.
-pub struct FunctionTranslator {
+pub struct FunctionTranslator<'c> {
     /// The function currently being built.
     func: FunctionBuilder,
 
@@ -76,15 +96,19 @@ pub struct FunctionTranslator {
     /// 
     /// If [None], a `break` is not valid here.
     break_target: Option<BasicBlockId>,
+
+    /// The types of defined functions.
+    functions: &'c HashMap<String, ir::Type>,
 }
 
-impl FunctionTranslator {
-    pub fn new(func: FunctionBuilder) -> Self {
+impl<'c> FunctionTranslator<'c> {
+    pub fn new(func: FunctionBuilder, functions: &'c HashMap<String, ir::Type>) -> Self {
         Self {
             func,
             locals: HashMap::new(),
             target: None,
             break_target: None,
+            functions,
         }
     }
 
@@ -285,6 +309,15 @@ impl FunctionTranslator {
                     Fallible::new_ok(
                         self.target_mut().add_instruction(
                             ir::Instruction::new(ir::InstructionKind::ReadLocal(local))
+                        )
+                    )
+                } else if let Some(ty) = self.functions.get(id) {
+                    Fallible::new_ok(
+                        self.target_mut().add_instruction(
+                            ir::Instruction::new(ir::InstructionKind::FunctionReference {
+                                name: id.clone(),
+                                ty: ty.clone(),
+                            })
                         )
                     )
                 } else {

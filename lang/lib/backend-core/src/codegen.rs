@@ -78,6 +78,8 @@ impl<'f> FunctionGenerator<'f> {
                 buffer.push(AssemblyItem::new_word_put(reg, imm.into()));
             },
 
+            ir::InstructionKind::FunctionReference { .. } => todo!(),
+
             ir::InstructionKind::ReadLocal(l) => {
                 let local_offset = self.local_access_map()[l];
                 let result = self.variable_reg(stmt.result.unwrap());

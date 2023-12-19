@@ -46,6 +46,13 @@ pub enum InstructionKind {
     /// Evaluates to a constant value.
     Constant(ConstantValue),
 
+    /// Acquires a [Type::FunctionReference], given the name of a function, and the type of the
+    /// expected reference.
+    FunctionReference {
+        name: String,
+        ty: Type,
+    },
+
     /// Reads the current value of a local.
     ReadLocal(LocalId),
 
@@ -131,6 +138,7 @@ impl Instruction {
     pub fn referenced_variables(&self) -> HashSet<VariableId> {
         match &self.kind {
             InstructionKind::Constant(_) => hashset!{},
+            InstructionKind::FunctionReference { .. } => hashset!{},
             InstructionKind::ReadLocal(_) => hashset!{},
             InstructionKind::WriteLocal(_, v) => hashset!{ *v },
             InstructionKind::Add(l, r)
@@ -162,6 +170,7 @@ impl Instruction {
     ) -> Result<Option<Type>, TypeError> {
         match &self.kind {
             InstructionKind::Constant(v) => Ok(Some(v.ty())),
+            InstructionKind::FunctionReference { ty, .. } => Ok(Some(ty.clone())),
 
             InstructionKind::ReadLocal(l) => Ok(Some(locals.get_local(*l).ty.clone())),
             InstructionKind::WriteLocal(_, _) => Ok(None),
@@ -220,6 +229,8 @@ impl PrintIR for Instruction {
     fn print_ir(&self, options: &super::PrintOptions) -> String {
         match &self.kind {
             InstructionKind::Constant(c) => c.print_ir(options),
+            InstructionKind::FunctionReference { name, ty } =>
+                format!("funcref `{name}` : {ty}"),
             InstructionKind::ReadLocal(l) => format!("read {}", l.print_ir(options)),
             InstructionKind::WriteLocal(l, v) => format!("write {} = {}", l.print_ir(options), v.print_ir(options)),
             InstructionKind::Add(a, b) => format!("{} + {}", a.print_ir(options), b.print_ir(options)),
