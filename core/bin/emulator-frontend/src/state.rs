@@ -35,6 +35,28 @@ impl ApplicationState {
 
         match command.as_str() {
             "core.step" => self.emulator_step(),
+            "core.gpr.set" => {
+                if args.len() != 2 {
+                    return Err(Box::new(CommandError::new("usage: core.reg.set <reg> <value>".to_string())));
+                }
+
+                let reg_index =
+                    if let Some(index) = args[0].strip_prefix("r") {
+                        index.parse()
+                    } else {
+                        args[0].parse()
+                    }?;
+                let data =
+                    if let Some(hex) = args[1].strip_prefix("0x") {
+                        u16::from_str_radix(hex, 16)
+                    } else {
+                        args[1].parse()
+                    }?;
+
+                self.socket.send_request(&Request::SetGPR { index: reg_index, data })?;
+
+                Ok(())
+            }
 
             "mem.clear" => {
                 for i in 0..0xFFFF {
