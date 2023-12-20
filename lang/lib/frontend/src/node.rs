@@ -32,10 +32,16 @@ impl<D> TopLevelItem<D> {
 pub enum TopLevelItemKind<D> {
     FunctionDefinition {
         name: String,
-        // TODO: parameters
+        parameters: Vec<FunctionParameter>,
         return_type: Type,
         body: Statement<D>,
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FunctionParameter {
+    pub name: String,
+    pub ty: Type,
 }
 
 /// A statement which appears within a function body.

@@ -24,7 +24,7 @@ impl ModuleTranslator {
 
         // Build up list of functions
         for item in items {
-            if let TopLevelItemKind::FunctionDefinition { name, return_type, body: _ } = &item.kind {
+            if let TopLevelItemKind::FunctionDefinition { name, parameters, return_type, body: _ } = &item.kind {
                 // TODO: crap that we're still converting here
                 let super::type_check::Type::Direct(return_type) = convert_node_type(return_type).propagate(&mut errors) else {
                     panic!("indirect return type");
@@ -32,7 +32,14 @@ impl ModuleTranslator {
                 functions.insert(
                     name.to_owned(),
                     ir::Type::FunctionReference {
-                        argument_types: vec![], // TODO
+                        argument_types: parameters.iter()
+                            .map(|p| {
+                                let super::type_check::Type::Direct(ty) = convert_node_type(&p.ty).propagate(&mut errors) else {
+                                    panic!("indirect parameter type");
+                                };
+                                ty
+                            })
+                            .collect(),
                         return_type: Box::new(return_type),
                     }
                 );
@@ -41,7 +48,7 @@ impl ModuleTranslator {
 
         for item in items {
             match &item.kind {
-                TopLevelItemKind::FunctionDefinition { name, return_type: _, body } => {
+                TopLevelItemKind::FunctionDefinition { name, parameters, return_type: _, body } => {
                     // Setup
                     let mut func_trans = FunctionTranslator::new(
                         FunctionBuilder::new(name),

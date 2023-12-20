@@ -1,6 +1,6 @@
 use std::{iter::Peekable, fmt::Display, error::Error};
 
-use crate::{node::{TopLevelItem, Statement, TopLevelItemKind, StatementKind, Expression, ExpressionKind, Type, TypeKind, ArithmeticBinOp}, tokenizer::{Token, TokenKind}, fallible::{Fallible, MaybeFatal}, source::SourceLocation, frontend_error};
+use crate::{node::{TopLevelItem, Statement, TopLevelItemKind, StatementKind, Expression, ExpressionKind, Type, TypeKind, ArithmeticBinOp, FunctionParameter}, tokenizer::{Token, TokenKind}, fallible::{Fallible, MaybeFatal}, source::SourceLocation, frontend_error};
 
 /// Parses an iterator of [Token]s, interpreting them into a "module" - a collection of
 /// [TopLevelItem]s (like functions and definitions).
@@ -51,9 +51,8 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         };
         let name = name.to_owned();
 
-        // No arguments currently supported!
-        self.expect(TokenKind::LParen)?;
-        self.expect(TokenKind::RParen)?;
+        // Parse parameters
+        let parameters = self.parse_parenthesised_list_of(Self::parse_function_parameter);
 
         // Parse return type, if provided - else default to void
         let return_type =
@@ -68,13 +67,15 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         let statements = self.parse_body();
         statements
             .combine(return_type)
-            .map(|(stmts, return_type)| {
+            .combine(parameters)
+            .map(|((stmts, return_type), parameters)| {
                 TopLevelItem::new(TopLevelItemKind::FunctionDefinition {
                     name,
                     body: Statement::new(StatementKind::Block {
                         body: stmts,
                         trailing_return: false, // TODO
                     }, loc.clone()),
+                    parameters,
                     return_type,
                 }, loc).into()
             })
@@ -423,16 +424,39 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         errors.map(|_| items)
     }
 
-    /// Assume that the next token has the given [TokenKind], else fail with a parse error.
+    /// Parses a function parameter of the form `name: type`.
+    fn parse_function_parameter(&mut self) -> Fallible<MaybeFatal<FunctionParameter>, ParseError> {
+        let name_token = self.tokens.next();
+        let loc = name_token.as_ref().map(|t| t.loc.clone()).unwrap_or_else(|| SourceLocation::stub());
+        let Some(TokenKind::Identifier(name)) = name_token.map(|t| t.kind) else {
+            return Fallible::new_fatal(vec![
+                ParseError::new(
+                    &format!("expected function parameter name"), loc
+                )
+            ])
+        };
+
+        self.expect(TokenKind::Colon)?;
+
+        self.parse_type()?.map(|ty|
+            FunctionParameter {
+                name: name.clone(),
+                ty,
+            }.into()
+        )
+    }
+
+    /// Assume that the next token has the given [TokenKind], and returns it, else fail with a parse
+    /// error.
     #[must_use]
-    fn expect(&mut self, kind: TokenKind) -> Fallible<MaybeFatal<()>, ParseError> {
+    fn expect(&mut self, kind: TokenKind) -> Fallible<MaybeFatal<Token>, ParseError> {
         if let Some(token) = self.tokens.next() {
             if token.kind != kind {
                 Fallible::new_fatal(vec![
                     ParseError::new(&format!("expected {:?}, got {:?}", kind, token.kind), token.loc)
                 ])
             } else {
-                Fallible::new_ok(())
+                Fallible::new_ok(token)
             }
         } else {
             Fallible::new_fatal(vec![

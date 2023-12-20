@@ -61,14 +61,21 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
     let mut module_ctx = ModuleContext { globals: HashMap::new() };
     for item in &items {
         match &item.kind {
-            TopLevelItemKind::FunctionDefinition { name, return_type, body: _ } => {
+            TopLevelItemKind::FunctionDefinition { name, parameters, return_type, body: _ } => {
                 let Type::Direct(return_type) = convert_node_type(return_type).propagate(&mut errors) else {
                     panic!("more advanced return type than anticipated!");
                 };
                 module_ctx.globals.insert(
                     name.clone(),
                     Type::Direct(ir::Type::FunctionReference {
-                        argument_types: vec![], // TODO
+                        argument_types: parameters.iter()
+                            .map(|p| {
+                                let super::type_check::Type::Direct(ty) = convert_node_type(&p.ty).propagate(&mut errors) else {
+                                    panic!("indirect parameter type");
+                                };
+                                ty
+                            })
+                            .collect(),
                         return_type: Box::new(return_type)
                     }),
                 );
@@ -81,7 +88,7 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
         .map(|i| {
             let loc = i.loc.clone();
             i.map(|kind| match kind {
-                TopLevelItemKind::FunctionDefinition { name, return_type, body } => {
+                TopLevelItemKind::FunctionDefinition { name, parameters, return_type, body } => {
                     // Create context
                     let mut ctx = Context {
                         module: &module_ctx,
@@ -102,7 +109,7 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
                         ))
                     }
 
-                    TopLevelItemKind::FunctionDefinition { name, return_type, body }
+                    TopLevelItemKind::FunctionDefinition { name, parameters, return_type, body }
                 },
             })
         })
@@ -219,8 +226,6 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
             },
 
             ExpressionKind::Call { target, arguments } => {
-                if !arguments.is_empty() { panic!("arguments nyi") }
-
                 let target = type_check_expression(*target, ctx).propagate(&mut errors);
                 let arguments = arguments.into_iter()
                     .map(|arg| type_check_expression(arg, ctx).propagate(&mut errors))
