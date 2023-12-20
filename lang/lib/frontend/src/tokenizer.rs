@@ -43,6 +43,7 @@ pub enum TokenKind {
     Colon,
     Semicolon,
     RArrow,
+    Comma,
 }
 
 pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>) {
@@ -69,6 +70,7 @@ pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>)
             ';' => { chars.next(); tokens.push(Token::new(TokenKind::Semicolon, loc)) },
             '+' => { chars.next(); tokens.push(Token::new(TokenKind::Plus, loc)) },
             '*' => { chars.next(); tokens.push(Token::new(TokenKind::Star, loc)) },
+            ',' => { chars.next(); tokens.push(Token::new(TokenKind::Comma, loc)) },
             '=' => {
                 chars.next();
                 if chars.next_if(|(c, _)| *c == '=').is_some() {

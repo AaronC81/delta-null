@@ -263,13 +263,55 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         let mut expr = self.parse_atom()?;
 
         if let Some(&TokenKind::LParen) = self.tokens.peek().map(|t| &t.kind) {
+            let mut errors = Fallible::new_ok(());
             let Token { kind: _, loc } = self.tokens.next().unwrap();
 
-            // Arguments not yet supported
-            self.expect(TokenKind::RParen)?;
+            // Parse arguments, separated by commas
+            let mut arguments = vec![];
+            loop {
+                let Some(kind) = self.tokens.peek().map(|t| &t.kind) else {
+                    return Fallible::new_fatal(vec![
+                        ParseError::new("unexpected end-of-file while parsing argument list", loc),
+                    ]);
+                };
+                
+                // If it's a right-paren, end the list
+                if kind == &TokenKind::RParen {
+                    self.tokens.next();
+                    break;
+                }
+
+                // Anything else, parse an expression as the argument value
+                let arg = self.parse_expression()?.propagate(&mut errors);
+                arguments.push(arg);
+
+                // This should be followed by either...
+                match self.tokens.peek().map(|t| &t.kind) {
+                    // A comma...
+                    Some(&TokenKind::Comma) => { self.tokens.next(); },
+
+                    // Or a right-paren
+                    // (The next iteration will deal with this)
+                    Some(&TokenKind::RParen) => (),
+
+                    // The next iteration will give an error for the EOF case
+                    None => (),
+                    
+                    Some(_) => {
+                        let token = self.tokens.next().unwrap();
+                        errors.push_error(ParseError::new(
+                            &format!("unexpected token {:?} in argument list", token.kind), token.loc
+                        ))
+                    }
+                }
+            }
 
             expr = expr
-                .map(|target| Expression::new(ExpressionKind::Call { target: Box::new(target) }, loc));
+                .map(|target|
+                    Expression::new(ExpressionKind::Call {
+                        target: Box::new(target),
+                        arguments,
+                    }, loc));
         }
 
         expr.map(|e| e.into())
@@ -445,5 +487,32 @@ mod test {
                 ..
             }
         );
+
+        match parse_expression("a(1, c) + b(e, 2, 4,)") {
+            Expression {
+                kind: ExpressionKind::ArithmeticBinOp(
+                    ArithmeticBinOp::Add,
+                    box Expression { kind: ExpressionKind::Call {
+                        arguments: a_args, ..
+                    }, .. },
+                    box Expression { kind: ExpressionKind::Call {
+                        arguments: b_args, ..
+                    }, .. },
+                ),
+                ..
+            } => {
+                assert_matches!(a_args[..], [
+                    Expression { kind: ExpressionKind::Integer(_), .. },
+                    Expression { kind: ExpressionKind::Identifier(_), .. },
+                ]);
+                assert_matches!(b_args[..], [
+                    Expression { kind: ExpressionKind::Identifier(_), .. },
+                    Expression { kind: ExpressionKind::Integer(_), .. },
+                    Expression { kind: ExpressionKind::Integer(_), .. },
+                ]);
+            }
+
+            _ => panic!("top match failed"),
+        }
     }
 }

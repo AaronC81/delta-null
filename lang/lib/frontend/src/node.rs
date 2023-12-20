@@ -121,6 +121,7 @@ pub enum ExpressionKind<ED> {
 
     Call {
         target: Box<Expression<ED>>,
+        arguments: Vec<Expression<ED>>,
     },
 
     ArithmeticBinOp(ArithmeticBinOp, Box<Expression<ED>>, Box<Expression<ED>>),

@@ -215,19 +215,21 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
                 }
             },
 
-            ExpressionKind::Call { target } => {
+            ExpressionKind::Call { target, arguments } => {
+                if !arguments.is_empty() { panic!("arguments nyi") }
+
                 let target = type_check_expression(*target, ctx).propagate(&mut errors);
 
                 match &target.data {
                     Type::Direct(ir::Type::FunctionReference { return_type }) => {
                         let ty = Type::Direct(*return_type.clone());
-                        (ExpressionKind::Call { target: Box::new(target) }, ty)
+                        (ExpressionKind::Call { target: Box::new(target), arguments: todo!() }, ty)
                     },
                     _ => {
                         errors.push_error(TypeError::new(
                             &format!("cannot call non-function value of type `{}`", target.data), loc
                         ));
-                        (ExpressionKind::Call { target: Box::new(target) }, Type::Unknown)
+                        (ExpressionKind::Call { target: Box::new(target), arguments: todo!() }, Type::Unknown)
                     },
                 }
             }

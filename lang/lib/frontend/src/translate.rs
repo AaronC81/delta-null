@@ -359,12 +359,15 @@ impl<'c> FunctionTranslator<'c> {
                             ir::Instruction::new(ir::InstructionKind::Equals(l, r))
                         ).into()),
 
-            node::ExpressionKind::Call { target } =>
+            node::ExpressionKind::Call { target, arguments } => {
+                if !arguments.is_empty() { panic!("arguments nyi") }
+
                 self.translate_expression(target)?
                     .map(|t|
                         self.target_mut().add_instruction(
                             ir::Instruction::new(ir::InstructionKind::Call(t))
-                        ).into()),
+                        ).into())
+            }
         }
     }
 
