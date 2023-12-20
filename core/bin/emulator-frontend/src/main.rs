@@ -133,7 +133,7 @@ fn draw_core_view(f: &mut Frame, rect: Rect, state: &ApplicationState) {
         .split(rect);
 
     draw_instruction_view(f, layout[0], state);
-    draw_register_view(f, layout[1], state);
+    draw_state_view(f, layout[1], state);
 }
 
 fn draw_instruction_view(f: &mut Frame, rect: Rect, state: &ApplicationState) {
@@ -162,7 +162,7 @@ fn draw_instruction_view(f: &mut Frame, rect: Rect, state: &ApplicationState) {
     }
 
     let table = Table::new(rows)
-        .widths(&[Constraint::Length(1), Constraint::Length(4), Constraint::Length(4), Constraint::Min(12)]);
+        .widths(&[Constraint::Length(1), Constraint::Length(4), Constraint::Length(4), Constraint::Min(16)]);
 
     f.render_widget(
         table.block(Block::default().borders(Borders::ALL).title("Instructions")),
@@ -170,10 +170,10 @@ fn draw_instruction_view(f: &mut Frame, rect: Rect, state: &ApplicationState) {
     );
 }
 
-fn draw_register_view(f: &mut Frame, rect: Rect, state: &ApplicationState) {
+fn draw_state_view(f: &mut Frame, rect: Rect, state: &ApplicationState) {
     let layout = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Length(9), Constraint::Length(9), Constraint::Min(0)])
+        .constraints([Constraint::Length(9), Constraint::Length(9), Constraint::Length(13), Constraint::Min(0)])
         .split(rect);
 
     f.render_widget(
@@ -183,6 +183,10 @@ fn draw_register_view(f: &mut Frame, rect: Rect, state: &ApplicationState) {
     f.render_widget(
         spr_table(state)
             .block(Block::default().borders(Borders::ALL).title("SPRs")), layout[1]
+    );
+    f.render_widget(
+        stack_list(state, layout[2])
+            .block(Block::default().borders(Borders::ALL).title("Stack")), layout[2]
     );
 }
 
@@ -234,6 +238,30 @@ fn spr_table(state: &ApplicationState) -> Table<'static> {
         .widths(&[Constraint::Length(2), Constraint::Length(4)]); 
 
     table 
+}
+
+fn stack_list(state: &ApplicationState, rect: Rect) -> Table<'static> {
+    // Fetch as much stack data as we can show
+    // TODO: scroll to fit sp
+    let mut stack_data = vec![];
+    for i in ((0xFFFFu16.saturating_sub(rect.height))..=0xFFFF).rev() {
+        stack_data.push((i, state.socket.read_memory(i).ok()))
+    }
+
+    let mut rows = vec![];
+    for (addr, datum) in stack_data {
+        rows.push(Row::new(vec![
+            Cell::from(if state.emulator.sp == addr { ">" } else { " " }),
+            Cell::from(format!("{addr:04x}")).style(REGISTER_NAME_STYLE),
+            Cell::from(match datum {
+                Some(datum) => format!("{datum:04x}"),
+                None => "????".to_string(),
+            }).style(REGISTER_VALUE_STYLE),
+        ]))
+    }
+
+    Table::new(rows)
+        .widths(&[Constraint::Length(1), Constraint::Length(4), Constraint::Length(4)])
 }
 
 fn draw_controls(f: &mut Frame, rect: Rect, state: &ApplicationState) {
