@@ -67,7 +67,10 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
                 };
                 module_ctx.globals.insert(
                     name.clone(),
-                    Type::Direct(ir::Type::FunctionReference { return_type: Box::new(return_type) }),
+                    Type::Direct(ir::Type::FunctionReference {
+                        argument_types: vec![], // TODO
+                        return_type: Box::new(return_type)
+                    }),
                 );
             },
         }
@@ -219,17 +222,37 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
                 if !arguments.is_empty() { panic!("arguments nyi") }
 
                 let target = type_check_expression(*target, ctx).propagate(&mut errors);
+                let arguments = arguments.into_iter()
+                    .map(|arg| type_check_expression(arg, ctx).propagate(&mut errors))
+                    .collect::<Vec<_>>();
 
                 match &target.data {
-                    Type::Direct(ir::Type::FunctionReference { return_type }) => {
+                    Type::Direct(ir::Type::FunctionReference { argument_types, return_type }) => {
+                        // Check argument count
+                        if argument_types.len() != arguments.len() {
+                            errors.push_error(TypeError::new(
+                                &format!("wrong number of arguments - expected {}, got {}", argument_types.len(), arguments.len()), loc.clone()
+                            ));
+                        }
+
+                        // Check argument types
+                        for (i, (ty, arg)) in argument_types.iter().zip(arguments.iter()).enumerate() {
+                            if !types_are_assignable(&Type::Direct(ty.clone()), &arg.data) {
+                                errors.push_error(TypeError::new(
+                                    &format!("invalid type for argument {} - expected `{}`, got `{}`",
+                                        i + 1, ty, &arg.data), loc.clone()
+                                ));
+                            }
+                        }
+
                         let ty = Type::Direct(*return_type.clone());
-                        (ExpressionKind::Call { target: Box::new(target), arguments: todo!() }, ty)
+                        (ExpressionKind::Call { target: Box::new(target), arguments }, ty)
                     },
                     _ => {
                         errors.push_error(TypeError::new(
                             &format!("cannot call non-function value of type `{}`", target.data), loc
                         ));
-                        (ExpressionKind::Call { target: Box::new(target), arguments: todo!() }, Type::Unknown)
+                        (ExpressionKind::Call { target: Box::new(target), arguments }, Type::Unknown)
                     },
                 }
             }

@@ -263,6 +263,7 @@ pub enum Type {
     Boolean,
     Void,
     FunctionReference {
+        argument_types: Vec<Type>,
         return_type: Box<Type>,
     }
 }
@@ -287,7 +288,9 @@ impl Display for Type {
             Type::SignedInteger(s) => write!(f, "s{}", s),
             Type::Boolean => write!(f, "bool"),
             Type::Void => write!(f, "void"),
-            Type::FunctionReference { return_type } => write!(f, "fn() -> {return_type}")
+            Type::FunctionReference { argument_types, return_type } =>
+                write!(f, "fn({}) -> {return_type}",
+                    argument_types.iter().map(|a| a.to_string()).collect::<Vec<_>>().join(", "))
         }
     }
 }

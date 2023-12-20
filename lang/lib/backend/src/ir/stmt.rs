@@ -191,7 +191,7 @@ impl Instruction {
 
             InstructionKind::Call(target) => {
                 let target_ty = &vars.get_variable(*target).ty;
-                let Type::FunctionReference { return_type } = target_ty else {
+                let Type::FunctionReference { argument_types: _, return_type } = target_ty else {
                     return Err(TypeError::new("`Call` is only valid on a `FunctionReference`"));
                 };
 

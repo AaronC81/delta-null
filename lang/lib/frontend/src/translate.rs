@@ -32,6 +32,7 @@ impl ModuleTranslator {
                 functions.insert(
                     name.to_owned(),
                     ir::Type::FunctionReference {
+                        argument_types: vec![], // TODO
                         return_type: Box::new(return_type),
                     }
                 );
