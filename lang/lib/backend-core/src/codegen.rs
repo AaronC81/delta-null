@@ -298,8 +298,8 @@ impl<'f> FunctionGenerator<'f> {
     /// Prepends all code required for a function preamble to the instruction buffer, to be executed
     /// when the function is first entered.
     fn prepend_preamble(&self, buffer: &mut Vec<AssemblyItem>) {
-        self.prepend_callee_saved_register_save_instructions(buffer);
         self.prepend_stack_allocation_instructions(buffer);
+        self.prepend_callee_saved_register_save_instructions(buffer);
     }
 
     /// Inserts all code required for a graceful function postamble, before a return.
