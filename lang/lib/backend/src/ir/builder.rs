@@ -48,12 +48,12 @@ impl LocalRepository for FunctionBuilderState {
 
 pub struct FunctionBuilder {
     name: String,
-    arguments: Vec<VariableId>,
+    arguments: Vec<(String, VariableId)>,
     state: ShareCell<FunctionBuilderState>,
 }
 
 impl FunctionBuilder {
-    pub fn new(name: &str, arguments: &[Type]) -> Self {
+    pub fn new(name: &str, arguments: &[(String, Type)]) -> Self {
         let mut builder = Self {
             name: name.to_string(),
             arguments: vec![],
@@ -61,9 +61,9 @@ impl FunctionBuilder {
         };
 
         // Add variables for arguments
-        for ty in arguments {
+        for (name, ty) in arguments {
             let var = builder.state.borrow_mut().new_variable(ty.clone());
-            builder.arguments.push(var);
+            builder.arguments.push((name.to_owned(), var));
         }
 
         builder
@@ -118,7 +118,7 @@ impl FunctionBuilder {
                     (id, blk.expect(&format!("block {id:?} should have been finalized")))
                 )
                 .collect(),
-            arguments: self.arguments,
+            arguments: self.arguments.iter().map(|(_, ty)| *ty).collect(),
             variables: state.variables,
             locals: state.locals,
         }
@@ -128,6 +128,12 @@ impl FunctionBuilder {
         for block in blocks {
             block.finalize()
         }
+    }
+
+    pub fn get_argument(&self, name: &str) -> Option<VariableId> {
+        self.arguments.iter()
+            .find(|(n, _)| n == name)
+            .map(|(_, id)| *id)
     }
 }
 

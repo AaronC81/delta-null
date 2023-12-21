@@ -32,8 +32,22 @@ pub struct Context<'m> {
 }
 
 impl<'m> Context<'m> {
-    pub fn resolve_identifier(&self, id: &str) -> Option<&Type> {
-        self.local.variables.get(id).or_else(|| self.module.globals.get(id))
+    pub fn resolve_identifier(&self, id: &str, for_write: bool) -> Option<&Type> {
+        // Locals
+        if let Some(s) = self.local.variables.get(id) { return Some(s) };
+        
+        // Argument are only readable, not writeable
+        if let Some(s) = self.local.arguments.get(id) {
+            if for_write {
+                panic!("TODO - locals aren't writable") // TODO - proper error
+            }
+            return Some(s);
+        }
+
+        // Globals
+        if let Some(s) = self.module.globals.get(id) { return Some(s); }
+
+        None
     }
 }
 
@@ -49,6 +63,9 @@ pub struct ModuleContext {
 pub struct LocalContext {
     /// All defined, accessible local variables.
     variables: HashMap<String, Type>,
+
+    /// All defined, accessible arguments.
+    arguments: HashMap<String, Type>,
 
     /// The return type of the enclosing function.
     return_type: Type,
@@ -94,6 +111,12 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
                         module: &module_ctx,
                         local: LocalContext {
                             variables: HashMap::new(),
+                            arguments: parameters.iter()
+                                .map(|p| {
+                                    let ty = convert_node_type(&p.ty).propagate(&mut errors);
+                                    (p.name.clone(), ty)
+                                })
+                                .collect(),
                             return_type: convert_node_type(&return_type).propagate(&mut errors),
                         },
                     };
@@ -215,7 +238,7 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
     let result = expr.map(|kind, _| {
         match kind {
             ExpressionKind::Identifier(id) => {
-                if let Some(local_ty) = ctx.resolve_identifier(&id) {
+                if let Some(local_ty) = ctx.resolve_identifier(&id, false) {
                     (ExpressionKind::Identifier(id), local_ty.clone())
                 } else {
                     errors.push_error(TypeError::new(

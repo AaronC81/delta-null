@@ -58,11 +58,19 @@ impl ModuleTranslator {
                                     let type_check::Type::Direct(ty) = convert_node_type(&p.ty).propagate(&mut errors) else {
                                         panic!("indirect parameter type");
                                     };
-                                    ty
+                                    (p.name.clone(), ty)
                                 })
                                 .collect::<Vec<_>>(),
                         ),
                         &functions,
+                        parameters.iter()
+                            .map(|p| {
+                                let type_check::Type::Direct(ty) = convert_node_type(&p.ty).propagate(&mut errors) else {
+                                    panic!("indirect parameter type");
+                                };
+                                (p.name.clone(), ty)
+                            })
+                            .collect(),
                     );
                     func_trans.populate_locals(body)?;
 
@@ -117,16 +125,24 @@ pub struct FunctionTranslator<'c> {
 
     /// The types of defined functions.
     functions: &'c HashMap<String, ir::Type>,
+
+    /// The types of defined arguments.
+    arguments: HashMap<String, ir::Type>,
 }
 
 impl<'c> FunctionTranslator<'c> {
-    pub fn new(func: FunctionBuilder, functions: &'c HashMap<String, ir::Type>) -> Self {
+    pub fn new(
+        func: FunctionBuilder,
+        functions: &'c HashMap<String, ir::Type>,
+        arguments: HashMap<String, ir::Type>,
+    ) -> Self {
         Self {
             func,
             locals: HashMap::new(),
             target: None,
             break_target: None,
             functions,
+            arguments,
         }
     }
 
@@ -338,6 +354,8 @@ impl<'c> FunctionTranslator<'c> {
                             })
                         )
                     )
+                } else if let Some(ty) = self.arguments.get(id) {
+                    Fallible::new_ok(self.func.get_argument(id).unwrap())
                 } else {
                     Fallible::new_fatal(vec![
                         TranslateError::new(&format!("unknown item `{id}`")),
