@@ -128,6 +128,16 @@ pub fn liveness_analysis(func: &Function) -> LivenessAnalysis {
         
         // If we've found a fixed point, we're done!
         if previous_in_map == in_map && previous_out_map == out_map {
+            // One late addition we'll make - parameters need to come from _somewhere_, else we end
+            // up with weird inconsistencies between which variables exist.
+            // To make our life easy, let's pretend that function arguments are live all the time.
+            for arg in &func.arguments {
+                for stmt in func.statements() {
+                    in_map.get_mut(&stmt.id).unwrap().insert(*arg);
+                    out_map.get_mut(&stmt.id).unwrap().insert(*arg);
+                }
+            }
+
             return LivenessAnalysis {
                 live_in: in_map,
                 live_out: out_map,
