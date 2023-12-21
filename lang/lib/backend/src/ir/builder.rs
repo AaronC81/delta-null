@@ -48,15 +48,25 @@ impl LocalRepository for FunctionBuilderState {
 
 pub struct FunctionBuilder {
     name: String,
+    arguments: Vec<VariableId>,
     state: ShareCell<FunctionBuilderState>,
 }
 
 impl FunctionBuilder {
-    pub fn new(name: &str) -> Self {
-        Self {
+    pub fn new(name: &str, arguments: &[Type]) -> Self {
+        let mut builder = Self {
             name: name.to_string(),
+            arguments: vec![],
             state: ShareCell::new(FunctionBuilderState::new()),
+        };
+
+        // Add variables for arguments
+        for ty in arguments {
+            let var = builder.state.borrow_mut().new_variable(ty.clone());
+            builder.arguments.push(var);
         }
+
+        builder
     }
 
     pub fn new_local(&self, name: &str, ty: Type) -> LocalId {
@@ -108,6 +118,7 @@ impl FunctionBuilder {
                     (id, blk.expect(&format!("block {id:?} should have been finalized")))
                 )
                 .collect(),
+            arguments: self.arguments,
             variables: state.variables,
             locals: state.locals,
         }

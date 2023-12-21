@@ -36,6 +36,10 @@ pub struct Function {
     pub blocks: HashMap<BasicBlockId, BasicBlock>,
     pub variables: HashMap<VariableId, Variable>,
     pub locals: HashMap<LocalId, Local>,
+
+    /// An ordered list of arguments which this function accepts.
+    /// The corresponding [Variable] instances are available in the `variables` field.
+    pub arguments: Vec<VariableId>,
 }
 
 impl Function {
@@ -136,8 +140,12 @@ impl Function {
 
 impl PrintIR for Function {
     fn print_ir(&self, options: &PrintOptions) -> String {
-        format!("=== FUNC: {}\n\n{}",
+        format!("=== fn {}({})\n\n{}\n",
             self.name,
+            self.arguments.iter()
+                .map(|b| b.print_ir(options))
+                .collect::<Vec<_>>()
+                .join(", "),
             self.ordered_blocks()
                 .map(|b| b.print_ir(options))
                 .collect::<Vec<_>>()

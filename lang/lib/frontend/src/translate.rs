@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display, error::Error};
 
 use delta_null_lang_backend::ir::{Module, FunctionBuilder, LocalId, BasicBlockBuilder, VariableId, self, Instruction, BasicBlockId};
 
-use crate::{node::{TopLevelItem, TopLevelItemKind, self, Type}, fallible::{Fallible, MaybeFatal}, type_check::convert_node_type};
+use crate::{node::{TopLevelItem, TopLevelItemKind, self, Type}, fallible::{Fallible, MaybeFatal}, type_check::{convert_node_type, self}};
 
 type ExpressionData = crate::type_check::Type;
 
@@ -51,7 +51,17 @@ impl ModuleTranslator {
                 TopLevelItemKind::FunctionDefinition { name, parameters, return_type: _, body } => {
                     // Setup
                     let mut func_trans = FunctionTranslator::new(
-                        FunctionBuilder::new(name),
+                        FunctionBuilder::new(
+                            name,
+                            &parameters.iter()
+                                .map(|p| {
+                                    let type_check::Type::Direct(ty) = convert_node_type(&p.ty).propagate(&mut errors) else {
+                                        panic!("indirect parameter type");
+                                    };
+                                    ty
+                                })
+                                .collect::<Vec<_>>(),
+                        ),
                         &functions,
                     );
                     func_trans.populate_locals(body)?;

@@ -491,7 +491,7 @@ mod test {
 
     #[test]
     fn test_add() {
-        let func = FunctionBuilder::new("foo");
+        let func = FunctionBuilder::new("foo", &[]);
         let (_, mut block) = func.new_basic_block();
         let a = block.add_constant(ConstantValue::U16(0xAB));
         let b = block.add_constant(ConstantValue::U16(0x20));
@@ -509,7 +509,7 @@ mod test {
 
     #[test]
     fn test_unconditional_branch() {
-        let func = FunctionBuilder::new("foo");
+        let func = FunctionBuilder::new("foo", &[]);
         let (ids, mut blocks) = func.new_basic_blocks(6);
 
         // Each of the blocks (after the first) has a return statement, with a different value
@@ -530,7 +530,7 @@ mod test {
     #[test]
     fn test_conditional_branch() {
         fn make_test_with_value(b: bool) -> Core<impl Memory> {
-            let func = FunctionBuilder::new("foo");
+            let func = FunctionBuilder::new("foo", &[]);
             let (ids, mut blocks) = func.new_basic_blocks(3);
 
             // Conditional jump
@@ -562,7 +562,7 @@ mod test {
     #[test]
     fn test_phi() {
         fn make_test_with_value(b: bool) -> Core<impl Memory> {
-            let func = FunctionBuilder::new("foo");
+            let func = FunctionBuilder::new("foo", &[]);
             let (ids, mut blocks) = func.new_basic_blocks(4);
 
             // Conditional jump
@@ -604,7 +604,7 @@ mod test {
 
     #[test]
     fn test_locals() {
-        let func = FunctionBuilder::new("foo");
+        let func = FunctionBuilder::new("foo", &[]);
         let local_a = func.new_local("a", Type::UnsignedInteger(IntegerSize::Bits16));
         let local_b = func.new_local("b", Type::UnsignedInteger(IntegerSize::Bits16));
 

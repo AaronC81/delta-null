@@ -192,7 +192,7 @@ mod test {
 
     #[test]
     fn test_simple_flow() {
-        let func = FunctionBuilder::new("foo");
+        let func = FunctionBuilder::new("foo", &[]);
 
         // 0 -> 1 -> 2
         let (ids, mut blocks) = func.new_basic_blocks(3);
@@ -217,7 +217,7 @@ mod test {
 
     #[test]
     fn test_looping_flow() {
-        let func = FunctionBuilder::new("foo");
+        let func = FunctionBuilder::new("foo", &[]);
 
         // 0 -> 1 -> 2 -> 4 -> 6
         //      ^    v    v    ^
@@ -258,7 +258,7 @@ mod test {
 
     #[test]
     fn test_block_traversal_ordering() {
-        let func = FunctionBuilder::new("foo");
+        let func = FunctionBuilder::new("foo", &[]);
 
         // The graph will be         But the expected 
         // constructed like          ordering is...
