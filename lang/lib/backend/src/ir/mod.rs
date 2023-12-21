@@ -218,6 +218,10 @@ pub struct StatementId(BasicBlockId, usize);
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VariableId(usize);
 
+impl VariableId {
+    pub const ERROR: VariableId = VariableId(usize::MAX);
+}
+
 /// Uniquely identifies a [Local] within a [Function].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LocalId(usize);

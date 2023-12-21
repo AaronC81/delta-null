@@ -202,6 +202,15 @@ impl<T> MaybeFatal<T> {
             MaybeFatal::Fatal => panic!("called `MaybeFatal::unwrap` on a `Fatal` value"),
         }
     }
+
+    /// If this is a [MaybeFatal::Ok], consumes it to return the inner value, otherwise returns the
+    /// given default value.
+    pub fn unwrap_or(self, or: T) -> T {
+        match self {
+            MaybeFatal::Ok(v) => v,
+            MaybeFatal::Fatal => or,
+        }
+    }
 }
 
 impl<T, E> Fallible<MaybeFatal<T>, E> {

@@ -152,7 +152,9 @@ impl<'f> FunctionGenerator<'f> {
                 ));
             },
 
-            ir::InstructionKind::Call(target) => {
+            ir::InstructionKind::Call { target, arguments } => {
+                if !arguments.is_empty() { panic!("arguments codegen nyi"); }
+
                 // Fetch result register. The call puts its result in `r0`, so we'll copy it here
                 // later
                 let result = self.variable_reg(stmt.result.unwrap());

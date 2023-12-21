@@ -73,7 +73,10 @@ pub enum InstructionKind {
 
     /// Calls a different function, using the given [VariableId], which should hold a
     /// [Type::FunctionReference].
-    Call(VariableId),
+    Call {
+        target: VariableId,
+        arguments: Vec<VariableId>,
+    },
 
     /// Returns from the enclosing function, with a value if it is non-void.
     Return(Option<VariableId>),
@@ -145,7 +148,8 @@ impl Instruction {
             | InstructionKind::Subtract(l, r)
             | InstructionKind::Multiply(l, r)
             | InstructionKind::Equals(l, r) => hashset!{ *l, *r },
-            InstructionKind::Call(t) => hashset!{ *t },
+            InstructionKind::Call { target, arguments } =>
+                arguments.iter().copied().chain([*target]).collect(),
             InstructionKind::Return(r) => r.iter().copied().collect(),
             InstructionKind::Branch(_) => hashset!{},
             InstructionKind::ConditionalBranch { condition, .. } => hashset!{ *condition },
@@ -189,7 +193,7 @@ impl Instruction {
 
             InstructionKind::Equals(_, _) => Ok(Some(Type::Boolean)),
 
-            InstructionKind::Call(target) => {
+            InstructionKind::Call { target, arguments: _ } => {
                 let target_ty = &vars.get_variable(*target).ty;
                 let Type::FunctionReference { argument_types: _, return_type } = target_ty else {
                     return Err(TypeError::new("`Call` is only valid on a `FunctionReference`"));
@@ -237,7 +241,15 @@ impl PrintIR for Instruction {
             InstructionKind::Subtract(a, b) => format!("{} - {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::Multiply(a, b) => format!("{} * {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::Equals(a, b) => format!("{} == {}", a.print_ir(options), b.print_ir(options)),
-            InstructionKind::Call(t) => format!("call {}", t.print_ir(options)),
+            InstructionKind::Call { target, arguments } => 
+                format!(
+                    "call {} ({})",
+                    target.print_ir(options),
+                    arguments.iter()
+                        .map(|arg| arg.print_ir(options))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
             InstructionKind::Return(r) =>
                 if let Some(r) = r {
                     format!("return {}", r.print_ir(options))

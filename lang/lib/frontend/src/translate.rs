@@ -396,12 +396,22 @@ impl<'c> FunctionTranslator<'c> {
                         ).into()),
 
             node::ExpressionKind::Call { target, arguments } => {
-                if !arguments.is_empty() { panic!("arguments nyi") }
+                let target = self.translate_expression(target)?;
 
-                self.translate_expression(target)?
-                    .map(|t|
+                let arguments = arguments.iter()
+                    .map(|arg| self.translate_expression(arg))
+                    .collect::<Fallible<Vec<_>, _>>();
+                
+                target
+                    .combine(arguments)
+                    .map(|(target, arguments)|
                         self.target_mut().add_instruction(
-                            ir::Instruction::new(ir::InstructionKind::Call(t))
+                            ir::Instruction::new(ir::InstructionKind::Call {
+                                target,
+                                arguments: arguments.into_iter()
+                                    .map(|arg| arg.unwrap_or(VariableId::ERROR))
+                                    .collect()
+                            })
                         ).into())
             }
         }
