@@ -265,16 +265,16 @@ mod test {
         // Recursion
         assert_eq!(
             util::compile_and_execute("
-                fn fib(x: u16) -> u16 {
+                fn fact(x: u16) -> u16 {
                     if x == 1 {
                         return 1;
                     } else {
-                        return x * (fib(x - 1)); // TODO: parens shouldn't be needed here!
+                        return x * (fact(x - 1)); // TODO: parens shouldn't be needed here!
                     }
                 }
                 
                 fn main() -> u16 {
-                    return fib(5);
+                    return fact(5);
                 }
             ").unwrap(),
             5 * 4 * 3 * 2
@@ -283,19 +283,19 @@ mod test {
         // Recursion with locals
         assert_eq!(
             util::compile_and_execute("
-                fn fib(x: u16) -> u16 {
+                fn fact(x: u16) -> u16 {
                     var result: u16 = x;
                     if result == 1 {
                         // Remains as 1!
                     } else {
-                        result = result * (fib(result - 1)); // TODO: parens shouldn't be needed here!
+                        result = result * (fact(result - 1)); // TODO: parens shouldn't be needed here!
                     }
 
                     return result;
                 }
                 
                 fn main() -> u16 {
-                    return fib(5);
+                    return fact(5);
                 }
             ").unwrap(),
             5 * 4 * 3 * 2
