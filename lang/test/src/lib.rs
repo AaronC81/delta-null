@@ -247,5 +247,19 @@ mod test {
             ").unwrap(),
             (10 + 2 + 5) + (10 + 5) + 10
         );
+
+        // Parameter passing
+        assert_eq!(
+            util::compile_and_execute("
+                fn add(a: u16, b: u16) -> u16 {
+                    return a + b;
+                }
+                
+                fn main() -> u16 {
+                    return add(10, 20);
+                }
+            ").unwrap(),
+            10 + 20
+        )
     }
 }

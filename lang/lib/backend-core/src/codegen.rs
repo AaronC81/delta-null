@@ -153,8 +153,6 @@ impl<'f> FunctionGenerator<'f> {
             },
 
             ir::InstructionKind::Call { target, arguments } => {
-                if !arguments.is_empty() { panic!("arguments codegen nyi"); }
-
                 // Fetch result register. The call puts its result in `r0`, so we'll copy it here
                 // later
                 let result = self.variable_reg(stmt.result.unwrap());
@@ -176,15 +174,78 @@ impl<'f> FunctionGenerator<'f> {
                     }
                 }
 
-                // Call, and copy result (in `r0`) to result register
+                // Push function target onto the stack
+                // It might be in a register we're about to trash to pass parameters, so we need to
+                // do this early!
                 let target = self.variable_reg(*target);
                 buffer.push(AssemblyItem::new_instruction(
-                    InstructionOpcode::Call,
+                    InstructionOpcode::Push,
                     &[target.into()],
+                ));
+
+                // Push parameters into registers
+                // (The caller-saved registers are also used for parameter passing)
+                // TODO: this will break if registers end up being dependent on each other.
+                // for example, in a call to `a(1, 2)` where it ends up allocated that `r0 = 2` and
+                // `r1 = 1`.
+                // `mov r0, r1` to set up the first parameter will trash `r0`'s existing value, and
+                // we'll end up calling `a(1, 1)` instead.
+                // Maybe we could grab such values off the stack to be super-cautious?
+                let parameter_passing_registers = possible_caller_saved_registers;
+                if arguments.len() > parameter_passing_registers.len() {
+                    panic!(
+                        "too many parameters for EABI (found {} but maximum is {})",
+                        arguments.len(), parameter_passing_registers.len(),
+                    );
+                }
+                for (argument, reg) in arguments.iter().zip(parameter_passing_registers) {
+                    let source = self.generate_read(buffer, *argument);
+                    buffer.push(AssemblyItem::new_instruction(
+                        InstructionOpcode::Mov,
+                        &[reg.into(), source.into()],
+                    ));
+                }
+                
+                // Use `r4`, an arbitrarily-chosen (non-parameter-passing) register, to hold our
+                // target. Preserve it on the stack first, then read out the saved target
+                let true_target = GPR::R4;
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Push,
+                    &[true_target.into()],
+                ));
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Spread,
+                    &[true_target.into(), 1.into()],
+                ));
+
+                // Call, and copy result (in `r0`) to result register
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Call,
+                    &[true_target.into()],
                 ));
                 buffer.push(AssemblyItem::new_instruction(
                     InstructionOpcode::Mov,
                     &[result.into(), GPR::R0.into()],
+                ));
+
+                // Restore target register, unless it's the same as result register, in which case
+                // just discard it off the stack
+                if true_target != result {
+                    buffer.push(AssemblyItem::new_instruction(
+                        InstructionOpcode::Pop,
+                        &[true_target.into()],
+                    ));
+                } else {
+                    buffer.push(AssemblyItem::new_instruction(
+                        InstructionOpcode::Spinc,
+                        &[],
+                    ));
+                }
+
+                // Discard target
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Spinc,
+                    &[],
                 ));
 
                 // Restore registers
