@@ -278,6 +278,27 @@ mod test {
                 }
             ").unwrap(),
             5 * 4 * 3 * 2
-        )
+        );
+
+        // Recursion with locals
+        assert_eq!(
+            util::compile_and_execute("
+                fn fib(x: u16) -> u16 {
+                    var result: u16 = x;
+                    if result == 1 {
+                        // Remains as 1!
+                    } else {
+                        result = result * (fib(result - 1)); // TODO: parens shouldn't be needed here!
+                    }
+
+                    return result;
+                }
+                
+                fn main() -> u16 {
+                    return fib(5);
+                }
+            ").unwrap(),
+            5 * 4 * 3 * 2
+        );
     }
 }
