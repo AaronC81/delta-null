@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display, error::Error};
 
 use delta_null_lang_backend::ir::{Module, FunctionBuilder, LocalId, BasicBlockBuilder, VariableId, self, Instruction, BasicBlockId};
 
-use crate::{node::{TopLevelItem, TopLevelItemKind, self, Type}, fallible::{Fallible, MaybeFatal}, type_check::{convert_node_type, self}};
+use crate::{node::{TopLevelItem, TopLevelItemKind, self, Type}, fallible::{Fallible, MaybeFatal}, type_check::primitive_type_name_to_ir_type};
 
 type ExpressionData = crate::type_check::Type;
 
@@ -26,19 +26,12 @@ impl ModuleTranslator {
         for item in items {
             if let TopLevelItemKind::FunctionDefinition { name, parameters, return_type, body: _ } = &item.kind {
                 // TODO: crap that we're still converting here
-                let super::type_check::Type::Direct(return_type) = convert_node_type(return_type).propagate(&mut errors) else {
-                    panic!("indirect return type");
-                };
+                let return_type = node_type_to_ir_type(return_type).propagate(&mut errors);
                 functions.insert(
                     name.to_owned(),
                     ir::Type::FunctionReference {
                         argument_types: parameters.iter()
-                            .map(|p| {
-                                let super::type_check::Type::Direct(ty) = convert_node_type(&p.ty).propagate(&mut errors) else {
-                                    panic!("indirect parameter type");
-                                };
-                                ty
-                            })
+                            .map(|p| node_type_to_ir_type(&p.ty).propagate(&mut errors))
                             .collect(),
                         return_type: Box::new(return_type),
                     }
@@ -55,9 +48,7 @@ impl ModuleTranslator {
                             name,
                             &parameters.iter()
                                 .map(|p| {
-                                    let type_check::Type::Direct(ty) = convert_node_type(&p.ty).propagate(&mut errors) else {
-                                        panic!("indirect parameter type");
-                                    };
+                                    let ty = node_type_to_ir_type(&p.ty).propagate(&mut errors);
                                     (p.name.clone(), ty)
                                 })
                                 .collect::<Vec<_>>(),
@@ -65,9 +56,7 @@ impl ModuleTranslator {
                         &functions,
                         parameters.iter()
                             .map(|p| {
-                                let type_check::Type::Direct(ty) = convert_node_type(&p.ty).propagate(&mut errors) else {
-                                    panic!("indirect parameter type");
-                                };
+                                let ty = node_type_to_ir_type(&p.ty).propagate(&mut errors);
                                 (p.name.clone(), ty)
                             })
                             .collect(),
@@ -156,7 +145,7 @@ impl<'c> FunctionTranslator<'c> {
         match &stmt.kind {
             // We're looking for these!
             node::StatementKind::VariableDeclaration { name, ty, .. } => {
-                let ty = self.node_type_to_ir_type(ty)?.propagate(&mut result);
+                let ty = node_type_to_ir_type(ty).propagate(&mut result);
                 let id = self.func.new_local(name, ty);
                 self.locals.insert(name.to_owned(), id);
             },
@@ -417,23 +406,6 @@ impl<'c> FunctionTranslator<'c> {
         }
     }
 
-    /// Translates a [Type] to an [ir::Type].
-    #[must_use]
-    pub fn node_type_to_ir_type(&self, ty: &Type) -> Fallible<MaybeFatal<ir::Type>, TranslateError> {
-        match &ty.kind {
-            node::TypeKind::Name(t) => match t.as_ref() {
-                "u16" => Fallible::new_ok(ir::Type::UnsignedInteger(ir::IntegerSize::Bits16)),
-                "i16" => Fallible::new_ok(ir::Type::SignedInteger(ir::IntegerSize::Bits16)),
-                "bool" => Fallible::new_ok(ir::Type::Boolean),
-                _ => Fallible::new_fatal(vec![
-                    TranslateError::new(&format!("unknown type `{t}`")),
-                ]),
-            },
-            node::TypeKind::Pointer(_) => Fallible::new_ok(ir::Type::Pointer),
-            node::TypeKind::Void => Fallible::new_ok(ir::Type::Void),
-        }
-    }
-
     /// Gets a reference to the current basic block where instructions are being generated.
     #[must_use]
     pub fn target_mut(&mut self) -> &mut BasicBlockBuilder {
@@ -470,6 +442,20 @@ impl<'c> FunctionTranslator<'c> {
     pub fn replace_target(&mut self, new: BasicBlockBuilder) {
         self.finalize_target();
         self.target = Some(new);
+    }
+}
+
+
+/// Translates a [Type] to an [ir::Type].
+#[must_use]
+pub fn node_type_to_ir_type(ty: &Type) -> Fallible<ir::Type, TranslateError> {
+    match &ty.kind {
+        node::TypeKind::Name(t) => Fallible::new(
+            primitive_type_name_to_ir_type(t)
+                .expect("undefined type in translation")
+        ),
+        node::TypeKind::Pointer(_) => Fallible::new(ir::Type::Pointer),
+        node::TypeKind::Void => Fallible::new(ir::Type::Void),
     }
 }
 

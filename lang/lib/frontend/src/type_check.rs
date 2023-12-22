@@ -414,20 +414,27 @@ pub fn find_statement<'s, T>(stmt: &'s Statement<T>, predicate: &impl Fn(&Statem
 
 /// Translates a [node::Type] to an [Type].
 #[must_use]
-pub fn convert_node_type(ty: &node::Type) -> Fallible<Type, TypeError> {
+fn convert_node_type(ty: &node::Type) -> Fallible<Type, TypeError> {
     match &ty.kind {
-        node::TypeKind::Name(t) => match t.as_ref() {
-            "u16" => Fallible::new(Type::Direct(ir::Type::UnsignedInteger(ir::IntegerSize::Bits16))),
-            "i16" => Fallible::new(Type::Direct(ir::Type::SignedInteger(ir::IntegerSize::Bits16))),
-            "bool" => Fallible::new(Type::Direct(ir::Type::Boolean)),
-            _ => Fallible::new_with_errors(
-                Type::Unknown,
-                vec![TypeError::new(&format!("unknown type `{t}`"), ty.loc.clone())]
-            ),
-        },
+        node::TypeKind::Name(t) => 
+            match primitive_type_name_to_ir_type(t) {
+                Some(v) => Fallible::new(Type::Direct(v)),
+                None => Fallible::new_with_errors(Type::Unknown,
+                    vec![TypeError::new(&format!("unknown type `{t}`"), ty.loc.clone())])
+            },
         node::TypeKind::Pointer(ty) =>
             convert_node_type(ty).map(|ty| Type::Pointer(Box::new(ty))),
         node::TypeKind::Void => Fallible::new(Type::Direct(ir::Type::Void)),
+    }
+}
+
+/// Returns an [ir::Type] for a given primitive type name `u16`, if one exists.
+pub fn primitive_type_name_to_ir_type(name: &str) -> Option<ir::Type> {
+    match name {
+        "u16" => Some(ir::Type::UnsignedInteger(ir::IntegerSize::Bits16)),
+        "i16" => Some(ir::Type::SignedInteger(ir::IntegerSize::Bits16)),
+        "bool" => Some(ir::Type::Boolean),
+        _ => None,
     }
 }
 
