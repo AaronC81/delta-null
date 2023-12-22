@@ -352,6 +352,16 @@ impl<'c> FunctionTranslator<'c> {
                 }
             },
 
+            node::ExpressionKind::PointerTake(ptr) => {
+                todo!("pointer take translate nyi")
+            }
+
+            node::ExpressionKind::PointerDereference(ptr) => {
+                // Assuming a `PointerDereference` in this position is a read.
+                // A write would be inside an assignment statement instead.
+                todo!("pointer deref read translate nyi")
+            }
+
             // TODO: what about other types?
             node::ExpressionKind::Integer(i) => Fallible::new_ok(
                 self.target_mut().add_constant(ir::ConstantValue::U16(i.parse().unwrap()))

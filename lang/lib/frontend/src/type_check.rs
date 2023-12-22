@@ -292,6 +292,29 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
                 }
             }
 
+            ExpressionKind::PointerTake(target) => {
+                let target = type_check_expression(*target, ctx).propagate(&mut errors);
+
+                let ty = Type::Pointer(Box::new(target.data.clone()));
+                (ExpressionKind::PointerTake(Box::new(target)), ty)
+            }
+
+            ExpressionKind::PointerDereference(ptr) => {
+                let ptr = type_check_expression(*ptr, ctx).propagate(&mut errors);
+
+                let ty =
+                    if let Type::Pointer(pointee) = &ptr.data {
+                        *pointee.clone()
+                    } else {
+                        errors.push_error(TypeError::new(
+                            &format!("cannot dereference non-pointer type `{}`", ptr.data), loc
+                        ));
+                        Type::Unknown
+                    };
+
+                (ExpressionKind::PointerDereference(Box::new(ptr)), ty)
+            }
+
             ExpressionKind::Integer(int) => {
                 if int.parse::<u16>().is_err() {
                     errors.push_error(TypeError::new(

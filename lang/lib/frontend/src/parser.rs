@@ -194,6 +194,8 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                     }
                 }
 
+                self.expect(TokenKind::Semicolon)?;
+
                 Fallible::new_ok(Statement::new(StatementKind::Expression(expr), loc))
             },
 
@@ -261,7 +263,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
     /// Parses a call.
     pub fn parse_call(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
-        let mut expr = self.parse_atom()?;
+        let mut expr = self.parse_pointer_ops()?;
 
         if let Some(&TokenKind::LParen) = self.tokens.peek().map(|t| &t.kind) {
             let mut errors = Fallible::new_ok(());
@@ -277,6 +279,44 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                         arguments,
                     }, loc)
                 });
+        }
+
+        expr.map(|e| e.into())
+    }
+
+    /// Parse a pointer take or dereference operation.
+    pub fn parse_pointer_ops(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
+        let mut wrap_in_take = false;
+        let mut wrap_in_deref = false;
+        match self.tokens.peek().map(|t| &t.kind) {
+            Some(&TokenKind::Ampersand) => {
+                self.tokens.next();
+                wrap_in_take = true;    
+            }
+
+            Some(&TokenKind::Star) => {
+                self.tokens.next();
+                wrap_in_deref = true;    
+            }
+
+            _ => (),
+        }
+
+        let mut expr = self.parse_atom()?;
+
+        if wrap_in_deref {
+            expr = expr
+                .map(|e| {
+                    let loc = e.loc.clone();
+                    Expression::new(ExpressionKind::PointerDereference(Box::new(e)), loc)
+                })
+        }
+        if wrap_in_take {
+            expr = expr
+                .map(|e| {
+                    let loc = e.loc.clone();
+                    Expression::new(ExpressionKind::PointerTake(Box::new(e)), loc)
+                })
         }
 
         expr.map(|e| e.into())

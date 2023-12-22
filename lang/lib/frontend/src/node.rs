@@ -130,6 +130,9 @@ pub enum ExpressionKind<ED> {
         arguments: Vec<Expression<ED>>,
     },
 
+    PointerTake(Box<Expression<ED>>),
+    PointerDereference(Box<Expression<ED>>),
+
     ArithmeticBinOp(ArithmeticBinOp, Box<Expression<ED>>, Box<Expression<ED>>),
     Equals(Box<Expression<ED>>, Box<Expression<ED>>),
 }
