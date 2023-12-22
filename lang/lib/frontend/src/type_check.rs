@@ -10,6 +10,13 @@ pub enum Type {
     /// A type which maps directly onto an IR-native [ir::Type].
     Direct(ir::Type),
 
+    /// A more specific version of [ir::Type::FunctionReference]j which retains additional detail
+    /// found in [Type].
+    FunctionReference {
+        argument_types: Vec<Type>,
+        return_type: Box<Type>,
+    },
+
     /// A pointer to another [Type].
     /// 
     /// [ir::Type] also has a `Pointer` type, but it does not store the type of the pointee, so this
@@ -25,6 +32,11 @@ impl Type {
     pub fn to_ir_type(&self) -> ir::Type {
         match self {
             Type::Direct(ty) => ty.clone(),
+            Type::FunctionReference { argument_types, return_type } =>
+                ir::Type::FunctionReference {
+                    argument_types: argument_types.iter().map(|a| a.to_ir_type()).collect(),
+                    return_type: Box::new(return_type.to_ir_type()),
+                },
             Type::Pointer(_) => ir::Type::Pointer,
             Type::Unknown => panic!(
                 "tried to convert `Unknown` type checker type to IR type; this only happens if something else went wrong which should've been caught!"
@@ -37,6 +49,9 @@ impl Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Type::Direct(d) => write!(f, "{d}"),
+            Type::FunctionReference { argument_types, return_type } =>
+                write!(f, "fn({}) -> {return_type}",
+                    argument_types.iter().map(|a| a.to_string()).collect::<Vec<_>>().join(", ")),
             Type::Pointer(ty) => write!(f, "*{ty}"),
             Type::Unknown => write!(f, "<unknown>"),
         }
@@ -98,16 +113,16 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
     for item in &items {
         match &item.kind {
             TopLevelItemKind::FunctionDefinition { name, parameters, return_type, body: _ } => {
-                let return_type = convert_node_type(return_type).propagate(&mut errors).to_ir_type();
+                let return_type = convert_node_type(return_type).propagate(&mut errors);
                 // TODO: need type_check::Type function refs. otherwise pointer args reduce to `ptr` which is too vague for us
                 module_ctx.globals.insert(
                     name.clone(),
-                    Type::Direct(ir::Type::FunctionReference {
+                    Type::FunctionReference {
                         argument_types: parameters.iter()
-                            .map(|p| convert_node_type(&p.ty).propagate(&mut errors).to_ir_type())
+                            .map(|p| convert_node_type(&p.ty).propagate(&mut errors))
                             .collect(),
                         return_type: Box::new(return_type)
-                    }),
+                    },
                 );
             },
         }
@@ -263,7 +278,7 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
                     .collect::<Vec<_>>();
 
                 match &target.data {
-                    Type::Direct(ir::Type::FunctionReference { argument_types, return_type }) => {
+                    Type::FunctionReference { argument_types, return_type } => {
                         // Check argument count
                         if argument_types.len() != arguments.len() {
                             errors.push_error(TypeError::new(
@@ -273,7 +288,7 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
 
                         // Check argument types
                         for (i, (ty, arg)) in argument_types.iter().zip(arguments.iter()).enumerate() {
-                            if !types_are_assignable(&Type::Direct(ty.clone()), &arg.data) {
+                            if !types_are_assignable(ty, &arg.data) {
                                 errors.push_error(TypeError::new(
                                     &format!("invalid type for argument {} - expected `{}`, got `{}`",
                                         i + 1, ty, &arg.data), loc.clone()
@@ -281,8 +296,8 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
                             }
                         }
 
-                        let ty = Type::Direct(*return_type.clone());
-                        (ExpressionKind::Call { target: Box::new(target), arguments }, ty)
+                        let ty = return_type.clone();
+                        (ExpressionKind::Call { target: Box::new(target), arguments }, *ty)
                     },
                     _ => {
                         errors.push_error(TypeError::new(
