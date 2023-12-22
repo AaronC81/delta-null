@@ -157,31 +157,31 @@ impl<'f> FunctionGenerator<'f> {
                 // later
                 let result = self.variable_reg(stmt.result.unwrap());
 
-                // Preserve caller-saved registers.
-                // In the future we could be more intelligent and only save ones which are actually
-                // in use, but this pessimistic approach works fine for now.
-                // We don't save:
-                //   - Any registers which aren't allocated to variables, because there's no reason
-                //     to care about their values
-                //   - The one thing we don't save is the result register, since we're going to
-                //     replace that after the function call
-                let possible_caller_saved_registers = [GPR::R0, GPR::R1, GPR::R2, GPR::R3];
-                let mut actual_saved = vec![];
-                for reg in &possible_caller_saved_registers {
-                    if reg != &result && self.is_register_allocated(*reg) {
-                        actual_saved.push(*reg);
-                        buffer.push(AssemblyItem::new_instruction(InstructionOpcode::Push, &[(*reg).into()]));
-                    }
-                }
+                // TODO
+                // There's quite a lot which needs to be done to prepare for a function call:
+                //   - Get the target, and move it away from the parameter-passing registers, which
+                //     we need to set to specific values
+                //   - Preserve any caller-saved registers which are in use
+                //   - Shuffle parameters around so that they're in the correct registers for the
+                //     call. This can be tricky in some scenarios (e.g. if parameter 1 was
+                //     calculated into `r1` and parameter 2 in `r0`, you need to "swap" them.)
+                //
+                // This is tricky to get right - instead, TEMPORARILY take an easier approach.
+                // We push the _entire set_ of GPRs to the stack, which has two functions:
+                //   - We can cherry-pick the registers we need back off this copy on the stack,
+                //     without worrying about that swapping problem.
+                //   - To preserve (most of) them for later. We don't want to restore over a
+                //     function call's return value though, so we won't restore whichever register
+                //     that gets stored in.
+                //
+                // This is horribly inefficient, but easy to implement, and trivially correct.
 
-                // Push function target onto the stack
-                // It might be in a register we're about to trash to pass parameters, so we need to
-                // do this early!
-                let target = self.variable_reg(*target);
-                buffer.push(AssemblyItem::new_instruction(
-                    InstructionOpcode::Push,
-                    &[target.into()],
-                ));
+                // Push all GPRs, so that R0 is on top
+                for reg in GPR::all().rev() {
+                    // TODO: don't need to push unallocated registers, although this makes indexing
+                    // more fiddly
+                    buffer.push(AssemblyItem::new_instruction(InstructionOpcode::Push, &[reg.into()]));
+                }
 
                 // Push parameters into registers
                 // (The caller-saved registers are also used for parameter passing)
@@ -191,7 +191,7 @@ impl<'f> FunctionGenerator<'f> {
                 // `mov r0, r1` to set up the first parameter will trash `r0`'s existing value, and
                 // we'll end up calling `a(1, 1)` instead.
                 // Maybe we could grab such values off the stack to be super-cautious?
-                let parameter_passing_registers = possible_caller_saved_registers;
+                let parameter_passing_registers = [GPR::R0, GPR::R1, GPR::R2, GPR::R3];
                 if arguments.len() > parameter_passing_registers.len() {
                     panic!(
                         "too many parameters for EABI (found {} but maximum is {})",
@@ -200,22 +200,21 @@ impl<'f> FunctionGenerator<'f> {
                 }
                 for (argument, reg) in arguments.iter().zip(parameter_passing_registers) {
                     let source = self.generate_read(buffer, *argument);
+
+                    // Generate `spread` to grab the parameter off our stack copy
                     buffer.push(AssemblyItem::new_instruction(
-                        InstructionOpcode::Mov,
-                        &[reg.into(), source.into()],
+                        InstructionOpcode::Spread,
+                        &[reg.into(), source.number().into()],
                     ));
                 }
                 
                 // Use `r4`, an arbitrarily-chosen (non-parameter-passing) register, to hold our
-                // target. Preserve it on the stack first, then read out the saved target
+                // target
+                let target = self.generate_read(buffer, *target);
                 let true_target = GPR::R4;
                 buffer.push(AssemblyItem::new_instruction(
-                    InstructionOpcode::Push,
-                    &[true_target.into()],
-                ));
-                buffer.push(AssemblyItem::new_instruction(
                     InstructionOpcode::Spread,
-                    &[true_target.into(), 1.into()],
+                    &[true_target.into(), target.number().into()],
                 ));
 
                 // Call, and copy result (in `r0`) to result register
@@ -228,29 +227,14 @@ impl<'f> FunctionGenerator<'f> {
                     &[result.into(), GPR::R0.into()],
                 ));
 
-                // Restore target register, unless it's the same as result register, in which case
-                // just discard it off the stack
-                if true_target != result {
-                    buffer.push(AssemblyItem::new_instruction(
-                        InstructionOpcode::Pop,
-                        &[true_target.into()],
-                    ));
-                } else {
-                    buffer.push(AssemblyItem::new_instruction(
-                        InstructionOpcode::Spinc,
-                        &[],
-                    ));
-                }
-
-                // Discard target
-                buffer.push(AssemblyItem::new_instruction(
-                    InstructionOpcode::Spinc,
-                    &[],
-                ));
-
                 // Restore registers
-                for reg in actual_saved.iter().rev() {
-                    buffer.push(AssemblyItem::new_instruction(InstructionOpcode::Pop, &[(*reg).into()]));
+                for reg in GPR::all() {
+                    // ...except result register
+                    if reg == result {
+                        buffer.push(AssemblyItem::new_instruction(InstructionOpcode::Spinc, &[]));
+                    } else {
+                        buffer.push(AssemblyItem::new_instruction(InstructionOpcode::Pop, &[reg.into()]));
+                    }
                 }
             },
 

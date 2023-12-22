@@ -8,8 +8,13 @@ pub type GPR = GeneralPurposeRegister;
 
 impl GeneralPurposeRegister {
     /// All GPRs, from R0 to R7 in order.
-    pub fn all() -> impl DoubleEndedIterator<Item = Self> {
+    pub fn all() -> impl DoubleEndedIterator<Item = Self> + ExactSizeIterator {
         [Self::R0, Self::R1, Self::R2, Self::R3, Self::R4, Self::R5, Self::R6, Self::R7].into_iter()
+    }
+
+    /// Gets the number of this GPR, e.g. `r1` returns 1.
+    pub fn number(self) -> u16 {
+        self.encode() // impl happens to be the same, currently
     }
 }
 
