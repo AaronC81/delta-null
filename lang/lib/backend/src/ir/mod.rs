@@ -298,6 +298,7 @@ pub enum Type {
     SignedInteger(IntegerSize),
     Boolean,
     Void,
+    Pointer,
     FunctionReference {
         argument_types: Vec<Type>,
         return_type: Box<Type>,
@@ -312,6 +313,7 @@ impl Type {
             Type::SignedInteger(_) => 1,
             Type::Boolean => 1,
             Type::Void => 0,
+            Type::Pointer => 1,
             Type::FunctionReference { .. } => 1,
         }
     }
@@ -324,6 +326,7 @@ impl Display for Type {
             Type::SignedInteger(s) => write!(f, "s{}", s),
             Type::Boolean => write!(f, "bool"),
             Type::Void => write!(f, "void"),
+            Type::Pointer => write!(f, "ptr"),
             Type::FunctionReference { argument_types, return_type } =>
                 write!(f, "fn({}) -> {return_type}",
                     argument_types.iter().map(|a| a.to_string()).collect::<Vec<_>>().join(", "))

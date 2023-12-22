@@ -168,4 +168,5 @@ impl Type {
 pub enum TypeKind {
     Name(String),
     Void,
+    Pointer(Box<Type>),
 }

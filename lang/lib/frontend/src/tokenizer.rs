@@ -35,6 +35,7 @@ pub enum TokenKind {
     ForwardSlash,
     Equals,
     DoubleEquals,
+    Ampersand,
 
     LBrace,
     RBrace,
@@ -71,6 +72,7 @@ pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>)
             '+' => { chars.next(); tokens.push(Token::new(TokenKind::Plus, loc)) },
             '*' => { chars.next(); tokens.push(Token::new(TokenKind::Star, loc)) },
             ',' => { chars.next(); tokens.push(Token::new(TokenKind::Comma, loc)) },
+            '&' => { chars.next(); tokens.push(Token::new(TokenKind::Ampersand, loc)) },
             '=' => {
                 chars.next();
                 if chars.next_if(|(c, _)| *c == '=').is_some() {

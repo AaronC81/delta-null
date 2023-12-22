@@ -10,6 +10,12 @@ pub enum Type {
     /// A type which maps directly onto an IR-native [ir::Type].
     Direct(ir::Type),
 
+    /// A pointer to another [Type].
+    /// 
+    /// [ir::Type] also has a `Pointer` type, but it does not store the type of the pointee, so this
+    /// more-specific type is used instead.
+    Pointer(Box<Type>),
+
     /// The type of this expression couldn't be determined. This will come along with some type
     /// errors.
     Unknown,
@@ -19,6 +25,7 @@ impl Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Type::Direct(d) => write!(f, "{d}"),
+            Type::Pointer(ty) => write!(f, "*{ty}"),
             Type::Unknown => write!(f, "<unknown>"),
         }
     }
@@ -418,6 +425,8 @@ pub fn convert_node_type(ty: &node::Type) -> Fallible<Type, TypeError> {
                 vec![TypeError::new(&format!("unknown type `{t}`"), ty.loc.clone())]
             ),
         },
+        node::TypeKind::Pointer(ty) =>
+            convert_node_type(ty).map(|ty| Type::Pointer(Box::new(ty))),
         node::TypeKind::Void => Fallible::new(Type::Direct(ir::Type::Void)),
     }
 }

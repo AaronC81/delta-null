@@ -330,6 +330,11 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 Type::new(TypeKind::Name(i.to_owned()), token.unwrap().loc)
             ),
 
+            Some(TokenKind::Star) =>
+                self.parse_type()
+                    .map_inner(|ty|
+                        Type::new(TypeKind::Pointer(Box::new(ty)), token.unwrap().loc)),
+
             Some(k) => {
                 Fallible::new_fatal(vec![
                     ParseError::new(&format!("expected type, got {k:?}"), token.unwrap().loc)

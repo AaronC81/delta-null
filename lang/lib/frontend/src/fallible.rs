@@ -211,6 +211,14 @@ impl<T> MaybeFatal<T> {
             MaybeFatal::Fatal => or,
         }
     }
+
+    /// Applies a function to the item inside this [MaybeFatal], if there is any.
+    pub fn map<R>(self, func: impl FnOnce(T) -> R) -> MaybeFatal<R> {
+        match self {
+            MaybeFatal::Ok(v) => MaybeFatal::Ok(func(v)),
+            MaybeFatal::Fatal => MaybeFatal::Fatal,
+        }
+    }
 }
 
 impl<T, E> Fallible<MaybeFatal<T>, E> {
@@ -232,6 +240,11 @@ impl<T, E> Fallible<MaybeFatal<T>, E> {
         if let MaybeFatal::Ok(item) = self.item {
             func(&mut upper.item, item)
         }
+    }
+
+    /// Applies a function to the item inside this [Fallible]'s [MaybeFatal], if there is any.
+    pub fn map_inner<R>(self, func: impl FnOnce(T) -> R) -> Fallible<MaybeFatal<R>, E> {
+        self.map(|v| v.map(func))
     }
 }
 

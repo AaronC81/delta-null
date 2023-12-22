@@ -428,7 +428,8 @@ impl<'c> FunctionTranslator<'c> {
                 _ => Fallible::new_fatal(vec![
                     TranslateError::new(&format!("unknown type `{t}`")),
                 ]),
-            }
+            },
+            node::TypeKind::Pointer(_) => Fallible::new_ok(ir::Type::Pointer),
             node::TypeKind::Void => Fallible::new_ok(ir::Type::Void),
         }
     }
