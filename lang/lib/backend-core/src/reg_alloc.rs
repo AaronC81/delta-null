@@ -23,7 +23,7 @@ pub enum Allocation {
 /// This is an implementation of linear scanning, as described by this journal article:
 ///   http://web.cs.ucla.edu/~palsberg/course/cs132/linearscan.pdf
 /// Specifically following the pseudocode in §4.1.
-pub fn allocate(_func: &Function, cfg: &ControlFlowGraph, liveness: &LivenessAnalysis) -> HashMap<VariableId, Allocation> {
+pub fn allocate(func: &Function, cfg: &ControlFlowGraph, liveness: &LivenessAnalysis) -> HashMap<VariableId, Allocation> {
     let intervals = liveness.live_intervals(cfg);
     let indexes = cfg.statement_ordering();
 
@@ -40,6 +40,17 @@ pub fn allocate(_func: &Function, cfg: &ControlFlowGraph, liveness: &LivenessAna
 
     // Reverse iterator, so we start with R0
     let mut free_registers = GPR::all().rev().collect::<Vec<_>>();
+
+    // Remove any registers which are reserved for parameters.
+    // Currently, parameters always live in their registers, reserved there for the entirety of the
+    // function - it makes accessing them easier!
+    let parameter_passing_registers = [GPR::R0, GPR::R1, GPR::R2, GPR::R3];
+    for (var, reg) in func.arguments.iter().zip(parameter_passing_registers) {
+        free_registers.drain_filter(|r| r == &reg);
+        mapping.insert(*var, Allocation::Register(reg));
+        internals_by_increasing_start.drain_filter(|(v, _)| v == &var);
+    }
+
     let mut active = vec![];
     for (var, (start, end)) in internals_by_increasing_start {
         // Expire old intervals
