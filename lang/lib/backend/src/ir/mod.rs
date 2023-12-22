@@ -1,7 +1,7 @@
 //! Encodes an intermediate representation for code, expressed in
 //! [SSA form](https://en.wikipedia.org/wiki/Static_single-assignment_form).
 
-use std::{collections::HashMap, fmt::Display};
+use std::{collections::{HashMap, hash_map::DefaultHasher}, fmt::Display, hash::{Hasher, Hash}};
 
 mod stmt;
 pub use stmt::*;
@@ -26,6 +26,17 @@ pub struct Module {
 impl Module {
     pub fn new() -> Self {
         Module { functions: vec![], entry: None }
+    }
+
+    /// Outputs the GraphViz DOT source code for a `digraph` displaying each function's.
+    pub fn print_ir_as_graph(&self, options: &PrintOptions) -> String {
+        format!(
+            "digraph module {{\n{}\n}}",
+            self.functions.iter()
+                .map(|f| f.print_ir_as_graph(options))
+                .collect::<Vec<_>>()
+                .join("\n\n")
+        )
     }
 }
 
@@ -94,9 +105,16 @@ impl Function {
         unreachable!()
     }
 
-    /// Outputs the GraphViz DOT source code for a graph displaying this function's IR, with a node
-    /// for each basic block, and an edge representing possible control flow between blocks.
+    /// Outputs the GraphViz DOT source code for a digraph's `subgraph` displaying this function's
+    /// IR, with a node for each basic block, and an edge representing possible control flow between
+    /// blocks.
     pub fn print_ir_as_graph(&self, options: &PrintOptions) -> String {
+        // Calculate a numeric hash which we can use to represent this function.
+        // The name might contain characters which GraphViz doesn't like.
+        let mut hasher = DefaultHasher::new();
+        self.name.hash(&mut hasher);
+        let unique_id = hasher.finish();
+
         /// Escapes a string for use in a GraphViz label.
         fn escape(s: &str) -> String {
             // https://forum.graphviz.org/t/how-do-i-properly-escape-arbitrary-text-for-use-in-labels/1762/9
@@ -108,18 +126,24 @@ impl Function {
                 .replace('\t', "\\t")
         }
 
-        let mut source = "digraph cfg {\n".to_owned();
+        let mut source = format!(
+            "subgraph cluster_func{} {{\n  label=\"{} ({})\";\n",
+            unique_id,
+            self.name,
+            self.arguments.iter().map(|v| v.print_ir(options)).collect::<Vec<_>>().join(", ")
+        );
+
 
         // Create node for each block
         for block in self.ordered_blocks() {
             let ir = block.print_ir(options);
-            source.push_str(&format!("  block{} [shape=box label=\"{}\"];\n", block.id.0, escape(&ir)))
+            source.push_str(&format!("  func{}block{} [shape=box label=\"{}\"];\n", unique_id, block.id.0, escape(&ir)))
         }
 
         // Create edges between blocks
         for block in self.ordered_blocks() {
             for dest in block.terminator().instruction.branch_destinations() {
-                source.push_str(&format!("  block{} -> block{};\n", block.id.0, dest.0))
+                source.push_str(&format!("  func{}block{} -> func{}block{};\n", unique_id, block.id.0, unique_id, dest.0))
             }
         }
 

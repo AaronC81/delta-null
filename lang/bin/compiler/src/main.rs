@@ -51,15 +51,14 @@ fn main() {
 
     // `--ir` stops here
     if let Some(ir_format) = args.ir {
-        let lines = match ir_format {
+        let content = match ir_format {
             IrFormat::Text => module.functions.into_iter()
                 .map(|f| f.print_ir(&PrintOptions::new()))
-                .collect::<Vec<_>>(),
-            IrFormat::Dot => module.functions.into_iter()
-                .map(|f| f.print_ir_as_graph(&PrintOptions::new()))
-                .collect::<Vec<_>>(),
+                .collect::<Vec<_>>()
+                .join("\n"),
+            IrFormat::Dot => module.print_ir_as_graph(&PrintOptions::new()),
         };
-        println!("{}", lines.join("\n"));
+        println!("{}", content);
         exit(0)
     }
 
