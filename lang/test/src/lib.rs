@@ -260,6 +260,24 @@ mod test {
                 }
             ").unwrap(),
             10 + 20
+        );
+
+        // Recursion
+        assert_eq!(
+            util::compile_and_execute("
+                fn fib(x: u16) -> u16 {
+                    if x == 1 {
+                        return 1;
+                    } else {
+                        return x * (fib(x - 1)); // TODO: parens shouldn't be needed here!
+                    }
+                }
+                
+                fn main() -> u16 {
+                    return fib(5);
+                }
+            ").unwrap(),
+            5 * 4 * 3 * 2
         )
     }
 }
