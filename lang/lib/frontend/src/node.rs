@@ -77,7 +77,7 @@ pub enum StatementKind<D = ()> {
         value: Option<Expression<D>>,
     },
     Assignment {
-        name: String,
+        target: Expression<D>,
         value: Expression<D>,
     },
     Return(Option<Expression<D>>),

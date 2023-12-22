@@ -21,6 +21,18 @@ pub enum Type {
     Unknown,
 }
 
+impl Type {
+    pub fn to_ir_type(&self) -> ir::Type {
+        match self {
+            Type::Direct(ty) => ty.clone(),
+            Type::Pointer(_) => ir::Type::Pointer,
+            Type::Unknown => panic!(
+                "tried to convert `Unknown` type checker type to IR type; this only happens if something else went wrong which should've been caught!"
+            ),
+        }
+    }
+}
+
 impl Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -86,19 +98,13 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
     for item in &items {
         match &item.kind {
             TopLevelItemKind::FunctionDefinition { name, parameters, return_type, body: _ } => {
-                let Type::Direct(return_type) = convert_node_type(return_type).propagate(&mut errors) else {
-                    panic!("more advanced return type than anticipated!");
-                };
+                let return_type = convert_node_type(return_type).propagate(&mut errors).to_ir_type();
+                // TODO: need type_check::Type function refs. otherwise pointer args reduce to `ptr` which is too vague for us
                 module_ctx.globals.insert(
                     name.clone(),
                     Type::Direct(ir::Type::FunctionReference {
                         argument_types: parameters.iter()
-                            .map(|p| {
-                                let super::type_check::Type::Direct(ty) = convert_node_type(&p.ty).propagate(&mut errors) else {
-                                    panic!("indirect parameter type");
-                                };
-                                ty
-                            })
+                            .map(|p| convert_node_type(&p.ty).propagate(&mut errors).to_ir_type())
                             .collect(),
                         return_type: Box::new(return_type)
                     }),
@@ -185,18 +191,13 @@ pub fn type_check_statement(stmt: Statement<()>, ctx: &mut Context) -> Fallible<
                 StatementKind::VariableDeclaration { name, ty, value }
             },
 
-            StatementKind::Assignment { name, value } => {
+            StatementKind::Assignment { target, value } => {
+                let target = type_check_expression(target, ctx).propagate(&mut errors);
                 let value = type_check_expression(value, ctx).propagate(&mut errors);
 
-                if let Some(local_ty) = ctx.local.variables.get(&name) {
-                    check_types_are_assignable(local_ty, &value.data, loc).propagate(&mut errors);
-                } else {
-                    errors.push_error(TypeError::new(
-                        &format!("missing local variable `{name}`"), loc
-                    ));
-                }
+                check_types_are_assignable(&target.data, &value.data, loc).propagate(&mut errors);
 
-                StatementKind::Assignment { name, value }
+                StatementKind::Assignment { target, value }
             }
 
             StatementKind::Return(value) => {

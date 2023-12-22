@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display, error::Error};
 
 use delta_null_lang_backend::ir::{Module, FunctionBuilder, LocalId, BasicBlockBuilder, VariableId, self, Instruction, BasicBlockId};
 
-use crate::{node::{TopLevelItem, TopLevelItemKind, self, Type}, fallible::{Fallible, MaybeFatal}, type_check::primitive_type_name_to_ir_type};
+use crate::{node::{TopLevelItem, TopLevelItemKind, self, Type, ExpressionKind}, fallible::{Fallible, MaybeFatal}, type_check::primitive_type_name_to_ir_type};
 
 type ExpressionData = crate::type_check::Type;
 
@@ -206,18 +206,26 @@ impl<'c> FunctionTranslator<'c> {
                 }
             }
 
-            node::StatementKind::Assignment { name, value } => {
-                if let Some(local) = self.locals.get(name).copied() {
-                    self.translate_expression(value)?
-                        .map(|v| {
-                            self.target.as_mut().unwrap().add_void_instruction(
-                                ir::Instruction::new(ir::InstructionKind::WriteLocal(local, v))
-                            );
-                            
-                        });
-                } else {
-                    return Fallible::new_fatal(vec![
-                        TranslateError::new(&format!("unknown item `{name}`")),
+            node::StatementKind::Assignment { target, value } => {
+                match &target.kind {
+                    ExpressionKind::Identifier(name) => {
+                        if let Some(local) = self.locals.get(name).copied() {
+                            self.translate_expression(value)?
+                                .map(|v| {
+                                    self.target.as_mut().unwrap().add_void_instruction(
+                                        ir::Instruction::new(ir::InstructionKind::WriteLocal(local, v))
+                                    );
+                                    
+                                });
+                        } else {
+                            return Fallible::new_fatal(vec![
+                                TranslateError::new(&format!("unknown item `{name}`")),
+                            ])
+                        }
+                    }
+
+                    _ => return Fallible::new_fatal(vec![
+                        TranslateError::new(&format!("unsupported assignment target")),
                     ])
                 }
             }

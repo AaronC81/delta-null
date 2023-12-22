@@ -180,18 +180,15 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 }
                 let expr = expr.unwrap();
 
-                // If the expression is an identifier, and our next token is `=`, then we have an
-                // assignment!
-                if let ExpressionKind::Identifier(id) = &expr.kind {
-                    if self.tokens.peek().map(|t| &t.kind) == Some(&TokenKind::Equals) {
-                        self.tokens.next();
-                        return self.parse_expression()?
-                            .combine(self.expect(TokenKind::Semicolon)?)
-                            .map(|(value, _)| Statement::new(StatementKind::Assignment {
-                                name: id.to_owned(),
-                                value,
-                            }, loc).into());
-                    }
+                // If our next token is `=`, then we have an assignment!
+                if self.tokens.peek().map(|t| &t.kind) == Some(&TokenKind::Equals) {
+                    self.tokens.next();
+                    return self.parse_expression()?
+                        .combine(self.expect(TokenKind::Semicolon)?)
+                        .map(|(value, _)| Statement::new(StatementKind::Assignment {
+                            target: expr,
+                            value,
+                        }, loc).into());
                 }
 
                 self.expect(TokenKind::Semicolon)?;
