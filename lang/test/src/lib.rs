@@ -269,7 +269,7 @@ mod test {
                     if x == 1 {
                         return 1;
                     } else {
-                        return x * (fact(x - 1)); // TODO: parens shouldn't be needed here!
+                        return x * fact(x - 1);
                     }
                 }
                 
@@ -288,7 +288,7 @@ mod test {
                     if result == 1 {
                         // Remains as 1!
                     } else {
-                        result = result * (fact(result - 1)); // TODO: parens shouldn't be needed here!
+                        result = result * fact(result - 1);
                     }
 
                     return result;

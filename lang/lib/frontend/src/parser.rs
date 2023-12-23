@@ -250,7 +250,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             let Token { kind: _, loc } = self.tokens.next().unwrap();
             let op = ArithmeticBinOp::Multiply;
 
-            self.parse_atom()?
+            self.parse_call()?
                 .integrate(&mut expr, |lhs, rhs|
                     *lhs = Expression::new(ExpressionKind::ArithmeticBinOp(op, Box::new(lhs.clone()), Box::new(rhs)), loc));
         }
@@ -556,6 +556,31 @@ mod test {
                     kind: ExpressionKind::ArithmeticBinOp(ArithmeticBinOp::Add, _, _),
                     ..
                 }),
+                ..
+            }
+        );
+    }
+
+    #[test]
+    fn test_arithmetic_precedence() {
+        assert_matches!(
+            parse_expression("2 + 1 * 2 + 5 == 4"), // ((2 + (1 * 2)) + 5) == 4
+            Expression {
+                kind: ExpressionKind::Equals(box Expression { 
+                    kind: ExpressionKind::ArithmeticBinOp(ArithmeticBinOp::Add,
+                        box Expression {
+                            kind: ExpressionKind::ArithmeticBinOp(ArithmeticBinOp::Add,
+                                _,
+                                box Expression {
+                                    kind: ExpressionKind::ArithmeticBinOp(ArithmeticBinOp::Multiply, _, _),
+                                    ..
+                                },
+                            ),
+                            ..
+                        },
+                        _),
+                    ..
+                }, _),
                 ..
             }
         );
