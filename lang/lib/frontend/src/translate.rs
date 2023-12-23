@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display, error::Error};
 
 use delta_null_lang_backend::ir::{Module, FunctionBuilder, LocalId, BasicBlockBuilder, VariableId, self, Instruction, BasicBlockId};
 
-use crate::{node::{TopLevelItem, TopLevelItemKind, self, Type, ExpressionKind}, fallible::{Fallible, MaybeFatal}, type_check::primitive_type_name_to_ir_type};
+use crate::{node::{TopLevelItem, TopLevelItemKind, self, Type, ExpressionKind, TypeKind, Statement}, fallible::{Fallible, MaybeFatal}, type_check::primitive_type_name_to_ir_type};
 
 type ExpressionData = crate::type_check::Type;
 
@@ -41,7 +41,7 @@ impl ModuleTranslator {
 
         for item in items {
             match &item.kind {
-                TopLevelItemKind::FunctionDefinition { name, parameters, return_type: _, body } => {
+                TopLevelItemKind::FunctionDefinition { name, parameters, return_type, body } => {
                     // Setup
                     let mut func_trans = FunctionTranslator::new(
                         FunctionBuilder::new(
@@ -63,10 +63,24 @@ impl ModuleTranslator {
                     );
                     func_trans.populate_locals(body)?;
 
+                    // If the function returns `void`, then it's permitted not to have a `return` at
+                    // the end. But for consistent codegen, we'll insert one here ourselves.
+                    let mut body = body.clone();
+                    if return_type.kind == TypeKind::Void {
+                        let loc = body.loc.clone();
+                        body = Statement::new(node::StatementKind::Block {
+                            body: vec![
+                                body,
+                                Statement::new(node::StatementKind::Return(None), loc.clone()),
+                            ],
+                            trailing_return: false,
+                        }, loc.clone());
+                    }
+
                     // Translate
                     let (_, start_block) = func_trans.func.new_basic_block();
                     func_trans.target = Some(start_block);
-                    func_trans.translate_statement(body)?;
+                    func_trans.translate_statement(&body)?;
                     func_trans.finalize_target();
 
                     // Add to module
