@@ -106,6 +106,42 @@ impl<'f> FunctionGenerator<'f> {
                 ));
             },
 
+            ir::InstructionKind::AddressOfLocal(l) => {
+                let local_offset = self.local_access_map()[l];
+                let result = self.variable_reg(stmt.result.unwrap());
+
+                // Calculate sp + offset
+                // We need a random register to put the offset in - save it onto the stack
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Movso,
+                    &[result.into(), SPR::SP.into()]
+                ));
+                let offset_reg = if result == GPR::R0 { GPR::R1 } else { GPR::R0 };
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Push,
+                    &[offset_reg.into()]
+                ));
+                buffer.push(AssemblyItem::new_word_put(offset_reg, AssemblyOperand::Immediate(local_offset)));
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Add,
+                    &[result.into(), offset_reg.into()]
+                ));
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Pop,
+                    &[offset_reg.into()]
+                ));
+            }
+
+            ir::InstructionKind::WriteMemory { address, value } => {
+                let address = self.generate_read(buffer, *address);
+                let value = self.generate_read(buffer, *value);
+                
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Write,
+                    &[address.into(), value.into()],
+                ));
+            }
+
             ir::InstructionKind::Add(l, r) =>
                 self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Add),
             ir::InstructionKind::Subtract(l, r) =>

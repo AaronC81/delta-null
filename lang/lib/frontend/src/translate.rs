@@ -224,6 +224,19 @@ impl<'c> FunctionTranslator<'c> {
                         }
                     }
 
+                    ExpressionKind::PointerDereference(target) => {
+                        self.translate_expression(value)?
+                            .combine(self.translate_expression(target)?)
+                            .map(|(value, target)| {
+                                self.target.as_mut().unwrap().add_void_instruction(
+                                    ir::Instruction::new(ir::InstructionKind::WriteMemory {
+                                        address: target,
+                                        value,
+                                    })
+                                )
+                            });
+                    }
+
                     _ => return Fallible::new_fatal(vec![
                         TranslateError::new(&format!("unsupported assignment target")),
                     ])
@@ -360,8 +373,24 @@ impl<'c> FunctionTranslator<'c> {
                 }
             },
 
-            node::ExpressionKind::PointerTake(ptr) => {
-                todo!("pointer take translate nyi")
+            node::ExpressionKind::PointerTake(target) => {
+                match &target.kind {
+                    node::ExpressionKind::Identifier(name) => {
+                        if let Some(local) = self.locals.get(name).copied() {
+                            Fallible::new_ok(self.target.as_mut().unwrap().add_instruction(
+                                ir::Instruction::new(ir::InstructionKind::AddressOfLocal(local))
+                            ))
+                        } else {
+                            return Fallible::new_fatal(vec![
+                                TranslateError::new(&format!("unknown item `{name}`")),
+                            ])
+                        }
+                    }
+
+                    _ => return Fallible::new_fatal(vec![
+                        TranslateError::new(&format!("cannot take pointer to: {target:?}")),
+                    ])
+                }
             }
 
             node::ExpressionKind::PointerDereference(ptr) => {

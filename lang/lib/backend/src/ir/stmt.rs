@@ -59,6 +59,18 @@ pub enum InstructionKind {
     /// Writes a new value to a local.
     WriteLocal(LocalId, VariableId),
 
+    /// Retrieve the memory address of a local.
+    AddressOfLocal(LocalId),
+
+    /// Write a value to a memory address.
+    WriteMemory {
+        address: VariableId,
+        value: VariableId,
+    },
+
+    // TODO: reading memory presents a challenge, because we need to conjure a type out of nowhere.
+    //       save that for later!
+
     /// Adds together two integer values, of the same type.
     Add(VariableId, VariableId),
 
@@ -144,6 +156,8 @@ impl Instruction {
             InstructionKind::FunctionReference { .. } => hashset!{},
             InstructionKind::ReadLocal(_) => hashset!{},
             InstructionKind::WriteLocal(_, v) => hashset!{ *v },
+            InstructionKind::AddressOfLocal(_) => hashset!{},
+            InstructionKind::WriteMemory { address, value } => hashset!{ *address, *value },
             InstructionKind::Add(l, r)
             | InstructionKind::Subtract(l, r)
             | InstructionKind::Multiply(l, r)
@@ -178,6 +192,9 @@ impl Instruction {
 
             InstructionKind::ReadLocal(l) => Ok(Some(locals.get_local(*l).ty.clone())),
             InstructionKind::WriteLocal(_, _) => Ok(None),
+
+            InstructionKind::AddressOfLocal(_) => Ok(Some(Type::Pointer)),
+            InstructionKind::WriteMemory { .. } => Ok(None),
 
             InstructionKind::Add(a, b)
             | InstructionKind::Subtract(a, b)
@@ -237,6 +254,8 @@ impl PrintIR for Instruction {
                 format!("funcref `{name}` : {ty}"),
             InstructionKind::ReadLocal(l) => format!("read {}", l.print_ir(options)),
             InstructionKind::WriteLocal(l, v) => format!("write {} = {}", l.print_ir(options), v.print_ir(options)),
+            InstructionKind::AddressOfLocal(l) => format!("addrof {}", l.print_ir(options)),
+            InstructionKind::WriteMemory { address, value } => format!("write [{}] = {}", address.print_ir(options), value.print_ir(options)),
             InstructionKind::Add(a, b) => format!("{} + {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::Subtract(a, b) => format!("{} - {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::Multiply(a, b) => format!("{} * {}", a.print_ir(options), b.print_ir(options)),

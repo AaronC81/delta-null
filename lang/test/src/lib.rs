@@ -301,4 +301,23 @@ mod test {
             5 * 4 * 3 * 2
         );
     }
+    
+    #[test]
+    fn test_pointers() {
+        assert_eq!(
+            util::compile_and_execute("
+                fn write(ptr: *u16) -> u16 {
+                    *ptr = 3;
+                    return 15;
+                }
+                
+                fn main() -> u16 {
+                    var x: u16 = 0;
+                    var y: u16 = write(&x);
+                    return x + y;
+                }
+            ").unwrap(),
+            15 + 3,
+        )
+    }
 }
