@@ -236,20 +236,37 @@ impl<'f> FunctionGenerator<'f> {
                 //     calculated into `r1` and parameter 2 in `r0`, you need to "swap" them.)
                 //
                 // This is tricky to get right - instead, TEMPORARILY take an easier approach.
-                // We push the _entire set_ of GPRs to the stack, which has two functions:
+                // We push the _entire set_ of (used) GPRs to the stack, which has two functions:
                 //   - We can cherry-pick the registers we need back off this copy on the stack,
                 //     without worrying about that swapping problem.
                 //   - To preserve (most of) them for later. We don't want to restore over a
                 //     function call's return value though, so we won't restore whichever register
                 //     that gets stored in.
                 //
-                // This is horribly inefficient, but easy to implement, and trivially correct.
+                // This is inefficient, but easy to implement, and trivially correct.
 
-                // Push all GPRs, so that R0 is on top
-                for reg in GPR::all().rev() {
-                    // TODO: don't need to push unallocated registers, although this makes indexing
-                    // more fiddly
-                    buffer.push(AssemblyItem::new_instruction(InstructionOpcode::Push, &[reg.into()]));
+                // Find the set of GPRs which this function uses
+                let mut used_gprs = self.allocations.iter()
+                    .filter_map(|(_, alloc)| match alloc {
+                        Allocation::Register(r) => Some(*r),
+                        _ => None
+                    })
+                    .collect::<Vec<_>>();
+                used_gprs.sort_by_key(|r| r.number());
+
+                // Push all used GPRs
+                let mut gpr_stack_offsets = HashMap::new();
+                for reg in &used_gprs {
+                    buffer.push(AssemblyItem::new_instruction(InstructionOpcode::Push, &[(*reg).into()]));
+
+                    // There's now one more GPR on the stack, so you need to access one offset
+                    // deeper into the stack to retrieve the ones which were already pushed
+                    for (_, offset) in &mut gpr_stack_offsets {
+                        *offset += 1;
+                    }
+
+                    // Insert new item, which is now at the top of the stack
+                    gpr_stack_offsets.insert(reg, 0);
                 }
 
                 // Push parameters into registers
@@ -273,7 +290,7 @@ impl<'f> FunctionGenerator<'f> {
                     // Generate `spread` to grab the parameter off our stack copy
                     buffer.push(AssemblyItem::new_instruction(
                         InstructionOpcode::Spread,
-                        &[reg.into(), source.number().into()],
+                        &[reg.into(), gpr_stack_offsets[&source].into()],
                     ));
                 }
                 
@@ -283,7 +300,7 @@ impl<'f> FunctionGenerator<'f> {
                 let true_target = GPR::R4;
                 buffer.push(AssemblyItem::new_instruction(
                     InstructionOpcode::Spread,
-                    &[true_target.into(), target.number().into()],
+                    &[true_target.into(), gpr_stack_offsets[&target].into()],
                 ));
 
                 // Call, and copy result (in `r0`) to result register
@@ -299,12 +316,12 @@ impl<'f> FunctionGenerator<'f> {
                 }
 
                 // Restore registers
-                for reg in GPR::all() {
+                for reg in used_gprs.iter().rev() {
                     // ...except result register
-                    if Some(reg) == result {
+                    if Some(*reg) == result {
                         buffer.push(AssemblyItem::new_instruction(InstructionOpcode::Spinc, &[]));
                     } else {
-                        buffer.push(AssemblyItem::new_instruction(InstructionOpcode::Pop, &[reg.into()]));
+                        buffer.push(AssemblyItem::new_instruction(InstructionOpcode::Pop, &[(*reg).into()]));
                     }
                 }
             },
