@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use delta_null_core_assembler::{AssemblyItem, AssemblyOperand, LabelAccess};
 use delta_null_core_instructions::{GeneralPurposeRegister, GPR, InstructionOpcode, SPR};
@@ -251,6 +251,8 @@ impl<'f> FunctionGenerator<'f> {
                         Allocation::Register(r) => Some(*r),
                         _ => None
                     })
+                    .collect::<HashSet<_>>() // unique
+                    .into_iter()
                     .collect::<Vec<_>>();
                 used_gprs.sort_by_key(|r| r.number());
 
