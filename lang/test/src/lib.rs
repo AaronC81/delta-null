@@ -326,7 +326,7 @@ mod test {
             util::compile_and_execute("                
                 fn write(ptr: **u16) {
                     // TODO: ideally shouldn't need parens here
-                    *(*ptr) = 42;
+                    **ptr = 42;
                 }
                 
                 fn main() -> u16 {

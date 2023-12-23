@@ -283,40 +283,25 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
     /// Parse a pointer take or dereference operation.
     pub fn parse_pointer_ops(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
-        let mut wrap_in_take = false;
-        let mut wrap_in_deref = false;
         match self.tokens.peek().map(|t| &t.kind) {
             Some(&TokenKind::Ampersand) => {
                 self.tokens.next();
-                wrap_in_take = true;    
+                self.parse_pointer_ops()?.map(|e| {
+                    let loc = e.loc.clone();
+                    Expression::new(ExpressionKind::PointerTake(Box::new(e)), loc).into()
+                })
             }
 
             Some(&TokenKind::Star) => {
                 self.tokens.next();
-                wrap_in_deref = true;    
+                self.parse_pointer_ops()?.map(|e| {
+                    let loc = e.loc.clone();
+                    Expression::new(ExpressionKind::PointerDereference(Box::new(e)), loc).into()
+                })
             }
 
-            _ => (),
+            _ => self.parse_atom(),
         }
-
-        let mut expr = self.parse_atom()?;
-
-        if wrap_in_deref {
-            expr = expr
-                .map(|e| {
-                    let loc = e.loc.clone();
-                    Expression::new(ExpressionKind::PointerDereference(Box::new(e)), loc)
-                })
-        }
-        if wrap_in_take {
-            expr = expr
-                .map(|e| {
-                    let loc = e.loc.clone();
-                    Expression::new(ExpressionKind::PointerTake(Box::new(e)), loc)
-                })
-        }
-
-        expr.map(|e| e.into())
     }
 
     /// Parse an atom, the lowest-precedence form of expression - typically a single token like an
