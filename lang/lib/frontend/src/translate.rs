@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display, error::Error};
 
 use delta_null_lang_backend::ir::{Module, FunctionBuilder, LocalId, BasicBlockBuilder, VariableId, self, Instruction, BasicBlockId};
 
-use crate::{node::{TopLevelItem, TopLevelItemKind, self, Type, ExpressionKind, TypeKind, Statement}, fallible::{Fallible, MaybeFatal}, type_check::primitive_type_name_to_ir_type};
+use crate::{node::{TopLevelItem, TopLevelItemKind, self, Type, ExpressionKind, TypeKind, Statement}, fallible::{Fallible, MaybeFatal}, type_check::{primitive_type_name_to_ir_type, self}};
 
 type ExpressionData = crate::type_check::Type;
 
@@ -410,7 +410,16 @@ impl<'c> FunctionTranslator<'c> {
             node::ExpressionKind::PointerDereference(ptr) => {
                 // Assuming a `PointerDereference` in this position is a read.
                 // A write would be inside an assignment statement instead.
-                todo!("pointer deref read translate nyi")
+                let type_check::Type::Pointer(pointee_ty) = &ptr.data else {
+                    panic!("dereferencing non-pointer in translation");
+                };
+                self.translate_expression(ptr)?
+                    .map(|ptr|
+                        self.target_mut().add_instruction(Instruction::new(ir::InstructionKind::ReadMemory {
+                            address: ptr,
+                            ty: pointee_ty.to_ir_type(),
+                        })).into()
+                    )
             }
 
             // TODO: what about other types?

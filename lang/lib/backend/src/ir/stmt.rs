@@ -68,8 +68,11 @@ pub enum InstructionKind {
         value: VariableId,
     },
 
-    // TODO: reading memory presents a challenge, because we need to conjure a type out of nowhere.
-    //       save that for later!
+    /// Read a value of the given type from a memory address.
+    ReadMemory {
+        address: VariableId,
+        ty: Type,
+    },
 
     /// Adds together two integer values, of the same type.
     Add(VariableId, VariableId),
@@ -158,6 +161,7 @@ impl Instruction {
             InstructionKind::WriteLocal(_, v) => hashset!{ *v },
             InstructionKind::AddressOfLocal(_) => hashset!{},
             InstructionKind::WriteMemory { address, value } => hashset!{ *address, *value },
+            InstructionKind::ReadMemory { address, ty: _ } => hashset!{ *address },
             InstructionKind::Add(l, r)
             | InstructionKind::Subtract(l, r)
             | InstructionKind::Multiply(l, r)
@@ -195,6 +199,7 @@ impl Instruction {
 
             InstructionKind::AddressOfLocal(_) => Ok(Some(Type::Pointer)),
             InstructionKind::WriteMemory { .. } => Ok(None),
+            InstructionKind::ReadMemory { ty, .. } => Ok(Some(ty.clone())),
 
             InstructionKind::Add(a, b)
             | InstructionKind::Subtract(a, b)
@@ -256,6 +261,7 @@ impl PrintIR for Instruction {
             InstructionKind::WriteLocal(l, v) => format!("write {} = {}", l.print_ir(options), v.print_ir(options)),
             InstructionKind::AddressOfLocal(l) => format!("addrof {}", l.print_ir(options)),
             InstructionKind::WriteMemory { address, value } => format!("write [{}] = {}", address.print_ir(options), value.print_ir(options)),
+            InstructionKind::ReadMemory { address, ty } => format!("read [{}] (as {})", address.print_ir(options), ty),
             InstructionKind::Add(a, b) => format!("{} + {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::Subtract(a, b) => format!("{} - {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::Multiply(a, b) => format!("{} * {}", a.print_ir(options), b.print_ir(options)),

@@ -142,6 +142,20 @@ impl<'f> FunctionGenerator<'f> {
                 ));
             }
 
+            ir::InstructionKind::ReadMemory { address, ty } => {
+                let address = self.generate_read(buffer, *address);
+                let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return };
+
+                if ty.word_size() != 1 {
+                    panic!("reading non-word-sized types nyi");
+                }
+
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Read,
+                    &[result.into(), address.into()],
+                ));
+            }
+
             ir::InstructionKind::Add(l, r) =>
                 self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Add),
             ir::InstructionKind::Subtract(l, r) =>

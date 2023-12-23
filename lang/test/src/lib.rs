@@ -304,6 +304,7 @@ mod test {
     
     #[test]
     fn test_pointers() {
+        // Simple writing
         assert_eq!(
             util::compile_and_execute("
                 fn write(ptr: *u16) -> u16 {
@@ -318,7 +319,25 @@ mod test {
                 }
             ").unwrap(),
             15 + 3,
-        )
+        );
+
+        // Indirection
+        assert_eq!(
+            util::compile_and_execute("                
+                fn write(ptr: **u16) {
+                    // TODO: ideally shouldn't need parens here
+                    *(*ptr) = 42;
+                }
+                
+                fn main() -> u16 {
+                    var x: u16 = 0;
+                    var xptr: *u16 = &x;
+                    write(&xptr);
+                    return *xptr + x + 1;
+                }
+            ").unwrap(),
+            42 + 42 + 1,
+        );
     }
     
     #[test]
