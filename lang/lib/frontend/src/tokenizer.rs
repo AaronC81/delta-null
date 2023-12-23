@@ -28,6 +28,7 @@ pub enum TokenKind {
     KwElse,
     KwTrue,
     KwFalse,
+    KwAs,
 
     Plus,
     Minus,
@@ -113,6 +114,7 @@ pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>)
                     "else" => TokenKind::KwElse,
                     "true" => TokenKind::KwTrue,
                     "false" => TokenKind::KwFalse,
+                    "as" => TokenKind::KwAs,
                     _ => TokenKind::Identifier(buffer),
                 };
                 tokens.push(Token::new(kind, loc));

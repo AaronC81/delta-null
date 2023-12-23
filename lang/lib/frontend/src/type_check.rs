@@ -1,6 +1,6 @@
 use std::{fmt::Display, error::Error, collections::HashMap};
 
-use delta_null_lang_backend::ir;
+use delta_null_lang_backend::ir::{self, IntegerSize};
 
 use crate::{source::SourceLocation, node::{Statement, Expression, StatementKind, self, ExpressionKind, TopLevelItem, TopLevelItemKind}, fallible::Fallible, frontend_error};
 
@@ -306,6 +306,33 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
                         (ExpressionKind::Call { target: Box::new(target), arguments }, Type::Unknown)
                     },
                 }
+            }
+
+            ExpressionKind::Cast(value, ty) => {
+                let value = type_check_expression(*value, ctx).propagate(&mut errors);
+                let target_ty = convert_node_type(&ty).propagate(&mut errors);
+
+                // Is a cast possible?
+                let is_castable = match (&value.data, &target_ty) {
+                    // The backend already has a utility method to see if two IR types are
+                    // reinterpret-castable. Recycle that for conversions like `u16 -> i16`
+                    (Type::Direct(src), Type::Direct(tgt))
+                        if src.is_reinterpret_castable_to(tgt) => true,
+
+                    (Type::Pointer(_), Type::Direct(ir::Type::UnsignedInteger(IntegerSize::Bits16)))
+                    | (Type::Direct(ir::Type::UnsignedInteger(IntegerSize::Bits16)), Type::Pointer(_))
+                        => true,
+
+                    _ => false,
+                };
+
+                if !is_castable {
+                    errors.push_error(TypeError::new(
+                        &format!("cannot cast `{}` to `{}`", value.data, target_ty), loc
+                    ));
+                }
+                
+                (ExpressionKind::Cast(Box::new(value), ty), target_ty)
             }
 
             ExpressionKind::PointerTake(target) => {

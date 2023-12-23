@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use delta_null_core_assembler::{AssemblyItem, AssemblyOperand, LabelAccess};
 use delta_null_core_instructions::{GeneralPurposeRegister, GPR, InstructionOpcode, SPR};
-use delta_null_lang_backend::ir::{Function, VariableId, self, BasicBlockId, InstructionKind, LocalId};
+use delta_null_lang_backend::ir::{Function, VariableId, self, BasicBlockId, InstructionKind, LocalId, VariableRepository};
 
 use crate::reg_alloc::Allocation;
 
@@ -77,6 +77,21 @@ impl<'f> FunctionGenerator<'f> {
 
                 buffer.push(AssemblyItem::new_word_put(reg, imm.into()));
             },
+
+            ir::InstructionKind::CastReinterpret { value, ty } => {
+                let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return };
+
+                let source_ty = &self.func.get_variable(*value).ty;
+                if source_ty.word_size() != ty.word_size() {
+                    panic!("cannot `CastReinterpret` {source_ty} to {ty} because the types are different sizes");
+                }
+
+                let value = self.generate_read(buffer, *value);
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Mov,
+                    &[result.into(), value.into()],
+                ));
+            }
 
             ir::InstructionKind::FunctionReference { name, .. } => {
                 let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return };

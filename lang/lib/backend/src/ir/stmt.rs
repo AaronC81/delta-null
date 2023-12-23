@@ -46,6 +46,13 @@ pub enum InstructionKind {
     /// Evaluates to a constant value.
     Constant(ConstantValue),
 
+    /// Converts a value from one type to another type of the same size, by simply reinterpreting
+    /// the bits without any extra processing.
+    CastReinterpret {
+        value: VariableId,
+        ty: Type,
+    },
+
     /// Acquires a [Type::FunctionReference], given the name of a function, and the type of the
     /// expected reference.
     FunctionReference {
@@ -156,6 +163,7 @@ impl Instruction {
     pub fn referenced_variables(&self) -> HashSet<VariableId> {
         match &self.kind {
             InstructionKind::Constant(_) => hashset!{},
+            InstructionKind::CastReinterpret { value, ty: _ } => hashset!{ *value },
             InstructionKind::FunctionReference { .. } => hashset!{},
             InstructionKind::ReadLocal(_) => hashset!{},
             InstructionKind::WriteLocal(_, v) => hashset!{ *v },
@@ -192,6 +200,7 @@ impl Instruction {
     ) -> Result<Option<Type>, TypeError> {
         match &self.kind {
             InstructionKind::Constant(v) => Ok(Some(v.ty())),
+            InstructionKind::CastReinterpret { value: _, ty } => Ok(Some(ty.clone())),
             InstructionKind::FunctionReference { ty, .. } => Ok(Some(ty.clone())),
 
             InstructionKind::ReadLocal(l) => Ok(Some(locals.get_local(*l).ty.clone())),
@@ -255,6 +264,8 @@ impl PrintIR for Instruction {
     fn print_ir(&self, options: &super::PrintOptions) -> String {
         match &self.kind {
             InstructionKind::Constant(c) => c.print_ir(options),
+            InstructionKind::CastReinterpret { value, ty } =>
+                format!("cast (reinterpret) {} as {}", value.print_ir(options), ty),
             InstructionKind::FunctionReference { name, ty } =>
                 format!("funcref `{name}` : {ty}"),
             InstructionKind::ReadLocal(l) => format!("read {}", l.print_ir(options)),

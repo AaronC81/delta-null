@@ -472,6 +472,22 @@ impl<'c> FunctionTranslator<'c> {
                                     .collect()
                             })
                         ).into())
+            },
+
+            node::ExpressionKind::Cast(value, ty) => {
+                self.translate_expression(&value)?.map(|source| {
+                    let source_ty = self.func.get_variable_type(source);
+                    let target_ty = node_type_to_ir_type(ty).unwrap();
+
+                    if source_ty.is_reinterpret_castable_to(&target_ty) {
+                        self.target_mut().add_instruction(Instruction::new(ir::InstructionKind::CastReinterpret {
+                            value: source,
+                            ty: target_ty,
+                        })).into()
+                    } else {
+                        panic!("cannot cast {source_ty} to {target_ty}")
+                    }
+                })
             }
         }
     }

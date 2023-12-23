@@ -130,6 +130,8 @@ pub enum ExpressionKind<ED> {
         arguments: Vec<Expression<ED>>,
     },
 
+    Cast(Box<Expression<ED>>, Type),
+
     PointerTake(Box<Expression<ED>>),
     PointerDereference(Box<Expression<ED>>),
 

@@ -244,15 +244,30 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
     /// Parse a usage of the `*` binary operator, or any expression with higher precedence.
     pub fn parse_mul(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
-        let mut expr = self.parse_call()?;
+        let mut expr = self.parse_cast()?;
 
         while let Some(&TokenKind::Star) = self.tokens.peek().map(|t| &t.kind) {
             let Token { kind: _, loc } = self.tokens.next().unwrap();
             let op = ArithmeticBinOp::Multiply;
 
-            self.parse_call()?
+            self.parse_cast()?
                 .integrate(&mut expr, |lhs, rhs|
                     *lhs = Expression::new(ExpressionKind::ArithmeticBinOp(op, Box::new(lhs.clone()), Box::new(rhs)), loc));
+        }
+
+        expr.map(|e| e.into())
+    }
+
+    /// Parses a cast with an `as` infix.
+    pub fn parse_cast(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
+        let mut expr = self.parse_call()?;
+
+        while let Some(&TokenKind::KwAs) = self.tokens.peek().map(|t| &t.kind) {
+            let Token { kind: _, loc } = self.tokens.next().unwrap();
+
+            self.parse_type()?
+                .integrate(&mut expr, |e, ty|
+                    *e = Expression::new(ExpressionKind::Cast(Box::new(e.clone()), ty), loc))
         }
 
         expr.map(|e| e.into())

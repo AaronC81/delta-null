@@ -135,6 +135,10 @@ impl FunctionBuilder {
             .find(|(n, _)| n == name)
             .map(|(_, id)| *id)
     }
+
+    pub fn get_variable_type(&self, id: VariableId) -> Type {
+        self.state.borrow().get_variable(id).ty.clone()
+    }
 }
 
 pub struct BasicBlockBuilder {

@@ -360,4 +360,21 @@ mod test {
             2,
         )
     }
+
+    #[test]
+    fn test_cast() {
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    var x: u16 = 0;
+                    var y: u16 = 0;
+                    var z: u16 = 0;
+
+                    // This is a very crappy test, but hey! It works! For now!
+                    return (&z as u16) - (&x as u16);
+                }
+            ").unwrap(),
+            2,
+        )
+    }
 }

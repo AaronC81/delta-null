@@ -317,6 +317,24 @@ impl Type {
             Type::FunctionReference { .. } => 1,
         }
     }
+
+    /// Determines whether this type can be [InstructionKind::CastReinterpret]'ed to another type.
+    pub fn is_reinterpret_castable_to(&self, other: &Type) -> bool {
+        match (self, other) {
+            // Identically-sized integer types
+            (Type::SignedInteger(s1), Type::SignedInteger(s2))
+            | (Type::UnsignedInteger(s1), Type::UnsignedInteger(s2))
+            | (Type::SignedInteger(s1), Type::UnsignedInteger(s2))
+            | (Type::UnsignedInteger(s1), Type::SignedInteger(s2))
+                if s1 == s2 => true,
+
+            // Integer/pointer conversions
+            (Type::UnsignedInteger(IntegerSize::Bits16), Type::Pointer) => true,
+            (Type::Pointer, Type::UnsignedInteger(IntegerSize::Bits16)) => true,
+
+            _ => false,
+        }
+    }
 }
 
 impl Display for Type {
