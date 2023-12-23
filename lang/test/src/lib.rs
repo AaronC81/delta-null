@@ -325,7 +325,6 @@ mod test {
         assert_eq!(
             util::compile_and_execute("                
                 fn write(ptr: **u16) {
-                    // TODO: ideally shouldn't need parens here
                     **ptr = 42;
                 }
                 
