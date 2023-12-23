@@ -320,4 +320,26 @@ mod test {
             15 + 3,
         )
     }
+    
+    #[test]
+    fn test_discard() {
+        assert_eq!(
+            util::compile_and_execute("
+                fn do() {
+                    // Blank!
+                }
+
+                fn val() -> u16 {
+                    return 5;
+                }
+                
+                fn main() -> u16 {
+                    do();
+                    val();
+                    return 2;
+                }
+            ").unwrap(),
+            2,
+        )
+    }
 }
