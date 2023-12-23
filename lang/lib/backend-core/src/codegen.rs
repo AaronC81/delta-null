@@ -67,7 +67,7 @@ impl<'f> FunctionGenerator<'f> {
     pub fn ir_statement_to_assembly(&self, buffer: &mut Vec<AssemblyItem>, stmt: &ir::Statement) {
         match &stmt.instruction.kind {
             ir::InstructionKind::Constant(c) => {
-                let reg = self.variable_reg(stmt.result.unwrap());
+                let Some(reg) = self.variable_reg(stmt.result.unwrap()) else { return };
                 
                 let imm = match c {
                     ir::ConstantValue::U16(v) => *v,
@@ -79,7 +79,7 @@ impl<'f> FunctionGenerator<'f> {
             },
 
             ir::InstructionKind::FunctionReference { name, .. } => {
-                let result = self.variable_reg(stmt.result.unwrap());
+                let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return };
                 buffer.push(AssemblyItem::new_word_put(
                     result,
                     AssemblyOperand::Label { name: name.clone(), access: None }
@@ -88,7 +88,7 @@ impl<'f> FunctionGenerator<'f> {
 
             ir::InstructionKind::ReadLocal(l) => {
                 let local_offset = self.local_access_map()[l];
-                let result = self.variable_reg(stmt.result.unwrap());
+                let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return };
 
                 buffer.push(AssemblyItem::new_instruction(
                     InstructionOpcode::Spread,
@@ -108,7 +108,7 @@ impl<'f> FunctionGenerator<'f> {
 
             ir::InstructionKind::AddressOfLocal(l) => {
                 let local_offset = self.local_access_map()[l];
-                let result = self.variable_reg(stmt.result.unwrap());
+                let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return };
 
                 // Calculate sp + offset
                 // We need a random register to put the offset in - save it onto the stack
@@ -153,7 +153,7 @@ impl<'f> FunctionGenerator<'f> {
                 let l = self.generate_read(buffer, *l);
                 let r = self.generate_read(buffer, *r);
 
-                let result = self.variable_reg(stmt.result.unwrap());
+                let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return };
 
                 // Do comparison - this puts result in `ef`
                 buffer.push(AssemblyItem::new_instruction(
@@ -190,7 +190,11 @@ impl<'f> FunctionGenerator<'f> {
 
             ir::InstructionKind::Call { target, arguments } => {
                 // Fetch result register. The call puts its result in `r0`, so we'll copy it here
-                // later
+                // later.
+                //
+                // This might be `None`, which means that the return value of the call was never
+                // used. Unlike many instructions, we still need to perform codegen in this case,
+                // because the call probably has side effects.
                 let result = self.variable_reg(stmt.result.unwrap());
 
                 // TODO
@@ -258,15 +262,17 @@ impl<'f> FunctionGenerator<'f> {
                     InstructionOpcode::Call,
                     &[true_target.into()],
                 ));
-                buffer.push(AssemblyItem::new_instruction(
-                    InstructionOpcode::Mov,
-                    &[result.into(), GPR::R0.into()],
-                ));
+                if let Some(result) = result {
+                    buffer.push(AssemblyItem::new_instruction(
+                        InstructionOpcode::Mov,
+                        &[result.into(), GPR::R0.into()],
+                    ));
+                }
 
                 // Restore registers
                 for reg in GPR::all() {
                     // ...except result register
-                    if reg == result {
+                    if Some(reg) == result {
                         buffer.push(AssemblyItem::new_instruction(InstructionOpcode::Spinc, &[]));
                     } else {
                         buffer.push(AssemblyItem::new_instruction(InstructionOpcode::Pop, &[reg.into()]));
@@ -354,7 +360,7 @@ impl<'f> FunctionGenerator<'f> {
         for block in self.func.blocks.values() {
             let first_stmt = block.first_statement();
             if let InstructionKind::Phi { choices } = &first_stmt.instruction.kind {
-                let phi_result = self.variable_reg(first_stmt.result.unwrap());
+                let Some(phi_result) = self.variable_reg(first_stmt.result.unwrap()) else { return };
 
                 // It does contain a phi. Iterate over the possible incoming blocks, and insert a
                 // move instruction to populate the phi's result from that block.
@@ -507,10 +513,14 @@ impl<'f> FunctionGenerator<'f> {
     }
 
     /// Gets the register to use for a variable.
-    fn variable_reg(&self, var: VariableId) -> GeneralPurposeRegister {
-        match &self.allocations[&var] {
-            Allocation::Register(r) => *r,
-            Allocation::Spill(_) => todo!("spilling not yet supported"),
+    /// 
+    /// Returns [None] if the variable was never allocated by the allocator, typically because it is
+    /// unused.
+    fn variable_reg(&self, var: VariableId) -> Option<GeneralPurposeRegister> {
+        match self.allocations.get(&var) {
+            Some(Allocation::Register(r)) => Some(*r),
+            Some(Allocation::Spill(_)) => todo!("spilling not yet supported"),
+            None => None,
         }
     }
 
@@ -529,7 +539,7 @@ impl<'f> FunctionGenerator<'f> {
         let l = self.generate_read(buffer, l);
         let r = self.generate_read(buffer, r);
 
-        let result = self.variable_reg(stmt.result.unwrap());
+        let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return };
 
         // Our binop instructions are "mutating" - for example, `add` acts like a `+=`.
         // So copy one of the values into the result register, then add onto that
