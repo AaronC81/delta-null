@@ -272,13 +272,6 @@ impl<'f> FunctionGenerator<'f> {
                 }
 
                 // Push parameters into registers
-                // (The caller-saved registers are also used for parameter passing)
-                // TODO: this will break if registers end up being dependent on each other.
-                // for example, in a call to `a(1, 2)` where it ends up allocated that `r0 = 2` and
-                // `r1 = 1`.
-                // `mov r0, r1` to set up the first parameter will trash `r0`'s existing value, and
-                // we'll end up calling `a(1, 1)` instead.
-                // Maybe we could grab such values off the stack to be super-cautious?
                 let parameter_passing_registers = [GPR::R0, GPR::R1, GPR::R2, GPR::R3];
                 if arguments.len() > parameter_passing_registers.len() {
                     panic!(
