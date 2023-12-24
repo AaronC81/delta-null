@@ -53,8 +53,17 @@ impl<'f> FunctionGenerator<'f> {
     /// second pass after initial generation.
     pub fn ir_block_to_assembly(&self, block: &ir::BasicBlock) -> Vec<AssemblyItem> {
         let mut buffer = vec![];
-        for stmt in &block.statements {
-            self.ir_statement_to_assembly(&mut buffer, stmt);
+        let mut skip_amount = 0;
+        for (i, stmt) in block.statements.iter().enumerate() {
+            // Statement translation might have told us to skip a particular number of following
+            // statements, because it's been able to optimise them out
+            if skip_amount > 0 {
+                skip_amount -= 1;
+                continue;
+            }
+
+            let after = &block.statements[i+1..];
+            skip_amount = self.ir_statement_to_assembly(&mut buffer, stmt, after);
         }
 
         // Add label to first instruction of the block
@@ -64,10 +73,13 @@ impl<'f> FunctionGenerator<'f> {
     }
 
     /// Generates the Assembly instructions to implement a single IR statement.
-    pub fn ir_statement_to_assembly(&self, buffer: &mut Vec<AssemblyItem>, stmt: &ir::Statement) {
+    /// 
+    /// Returns the number of statements after `stmt` to skip code generation for, in case this has
+    /// been able to optimise them out. (If it hasn't, this should be 0.)
+    pub fn ir_statement_to_assembly(&self, buffer: &mut Vec<AssemblyItem>, stmt: &ir::Statement, after: &[ir::Statement]) -> usize {
         match &stmt.instruction.kind {
             ir::InstructionKind::Constant(c) => {
-                let Some(reg) = self.variable_reg(stmt.result.unwrap()) else { return };
+                let Some(reg) = self.variable_reg(stmt.result.unwrap()) else { return 0 };
                 
                 let imm = match c {
                     ir::ConstantValue::U16(v) => *v,
@@ -79,7 +91,7 @@ impl<'f> FunctionGenerator<'f> {
             },
 
             ir::InstructionKind::CastReinterpret { value, ty } => {
-                let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return };
+                let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return 0 };
 
                 let source_ty = &self.func.get_variable(*value).ty;
                 if source_ty.word_size() != ty.word_size() {
@@ -94,7 +106,7 @@ impl<'f> FunctionGenerator<'f> {
             }
 
             ir::InstructionKind::FunctionReference { name, .. } => {
-                let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return };
+                let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return 0 };
                 buffer.push(AssemblyItem::new_word_put(
                     result,
                     AssemblyOperand::Label { name: name.clone(), access: None }
@@ -103,7 +115,7 @@ impl<'f> FunctionGenerator<'f> {
 
             ir::InstructionKind::ReadLocal(l) => {
                 let local_offset = self.local_access_map()[l];
-                let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return };
+                let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return 0 };
 
                 buffer.push(AssemblyItem::new_instruction(
                     InstructionOpcode::Spread,
@@ -123,7 +135,7 @@ impl<'f> FunctionGenerator<'f> {
 
             ir::InstructionKind::AddressOfLocal(l) => {
                 let local_offset = self.local_access_map()[l];
-                let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return };
+                let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return 0 };
 
                 // Calculate sp + offset
                 // We need a random register to put the offset in - save it onto the stack
@@ -159,7 +171,7 @@ impl<'f> FunctionGenerator<'f> {
 
             ir::InstructionKind::ReadMemory { address, ty } => {
                 let address = self.generate_read(buffer, *address);
-                let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return };
+                let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return 0 };
 
                 if ty.word_size() != 1 {
                     panic!("reading non-word-sized types nyi");
@@ -182,13 +194,46 @@ impl<'f> FunctionGenerator<'f> {
                 let l = self.generate_read(buffer, *l);
                 let r = self.generate_read(buffer, *r);
 
-                let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return };
+                let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return 0 };
 
                 // Do comparison - this puts result in `ef`
                 buffer.push(AssemblyItem::new_instruction(
                     InstructionOpcode::Eq,
                     &[l.into(), r.into()]
                 ));
+
+                // Optimisation check! If this equality test:
+                //   - Is followed by a `ConditionalBranch`
+                //   - Has the result variable used only by that `ConditionalBranch`
+                // then we can skip extracting `ef`'s condition bit into a variable, and just branch
+                // right now.
+                if let Some(InstructionKind::ConditionalBranch { condition, true_block, false_block })
+                    = after.get(0).map(|s| &s.instruction.kind)
+                {
+                    if *condition == stmt.result.unwrap()
+                        && self.func.variable_references()[condition].len() == 1 // only used as that condition
+                    {
+                        // TODO: dedup with `ConditionalBranch`
+                        // (Although the branches here are the other way round, so be careful!)
+                        buffer.push(AssemblyItem::new_instruction(
+                            InstructionOpcode::Cjmpoff,
+                            &[AssemblyOperand::Label {
+                                name: self.basic_block_label(true_block), 
+                                access: Some(LabelAccess::Offset),
+                            }]
+                        ));
+                        buffer.push(AssemblyItem::new_instruction(
+                            InstructionOpcode::Jmpoff,
+                            &[AssemblyOperand::Label {
+                                name: self.basic_block_label(false_block), 
+                                access: Some(LabelAccess::Offset),
+                            }]
+                        ));
+
+                        // Skip codegen for the `ConditionalBranch` instruction
+                        return 1;
+                    }
+                }
 
                 // Copy entire `ef` register out into result
                 buffer.push(AssemblyItem::new_instruction(
@@ -401,6 +446,8 @@ impl<'f> FunctionGenerator<'f> {
                 ));
             }
         }
+
+        0 // Assume no optimisation, unless a branch of the `match` returns before
     }
 
     /// Inserts instructions at the end of each basic block to fulfill phi instructions in other

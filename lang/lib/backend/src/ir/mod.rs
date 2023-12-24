@@ -160,6 +160,21 @@ impl Function {
         ids.sort();
         ids.into_iter().map(|id| &self.blocks[&id])
     }
+
+    /// Returns a map of [VariableId]s to the [StatementId]s which reference those variables.
+    /// 
+    /// (As with other uses of "references", this does not include results.)
+    pub fn variable_references(&self) -> HashMap<VariableId, Vec<StatementId>> {
+        let mut result = HashMap::new();
+
+        for stmt in self.statements() {
+            for var in stmt.instruction.referenced_variables() {
+                result.entry(var).or_insert(vec![]).push(stmt.id);
+            }
+        }
+
+        result
+    }
 }
 
 impl PrintIR for Function {
