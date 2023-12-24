@@ -27,7 +27,7 @@
       "filterFileRegex": ".*\\.dna",
       "regexFlags": "g"
     },
-    "\\b(nop|hlt|mov|d_mov|putl|puth|read|write|spread|spwrite|d_read|d_write|movso|movsi|spadd|spinc|spdec|not|and|or|xor|shl|shr|neg|inc|dec|add|sub|mul|inv|eqz|eq|gt|gteq|jmpoff|cjmpoff|cjmp|call|ret)\\b": {
+    "\\b(nop|hlt|mov|d_mov|putl|puth|read|write|spread|spwrite|d_read|d_write|push|pop|movso|movsi|spadd|spinc|spdec|not|and|or|xor|shl|shr|neg|inc|dec|add|sub|mul|inv|eqz|eq|gt|gteq|jmpoff|cjmpoff|cjmp|call|ret)\\b": {
       "decorations": [
         {
           "color": "cornflowerblue"
