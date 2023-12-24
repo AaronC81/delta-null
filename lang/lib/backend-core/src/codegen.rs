@@ -213,22 +213,7 @@ impl<'f> FunctionGenerator<'f> {
                     if *condition == stmt.result.unwrap()
                         && self.func.variable_references()[condition].len() == 1 // only used as that condition
                     {
-                        // TODO: dedup with `ConditionalBranch`
-                        // (Although the branches here are the other way round, so be careful!)
-                        buffer.push(AssemblyItem::new_instruction(
-                            InstructionOpcode::Cjmpoff,
-                            &[AssemblyOperand::Label {
-                                name: self.basic_block_label(true_block), 
-                                access: Some(LabelAccess::Offset),
-                            }]
-                        ));
-                        buffer.push(AssemblyItem::new_instruction(
-                            InstructionOpcode::Jmpoff,
-                            &[AssemblyOperand::Label {
-                                name: self.basic_block_label(false_block), 
-                                access: Some(LabelAccess::Offset),
-                            }]
-                        ));
+                        self.insert_bidirectional_branch_instructions(buffer, *true_block, *false_block);
 
                         // Skip codegen for the `ConditionalBranch` instruction
                         return 1;
@@ -414,22 +399,10 @@ impl<'f> FunctionGenerator<'f> {
                     InstructionOpcode::Eqz,
                     &[condition.into()]
                 ));
-                buffer.push(AssemblyItem::new_instruction(
-                    InstructionOpcode::Cjmpoff,
-                    &[AssemblyOperand::Label {
-                        // We used `eqz`, so conditional-jump to the false block if that condition
-                        // was met, because 0 is false
-                        name: self.basic_block_label(false_block), 
-                        access: Some(LabelAccess::Offset),
-                    }]
-                ));
-                buffer.push(AssemblyItem::new_instruction(
-                    InstructionOpcode::Jmpoff,
-                    &[AssemblyOperand::Label {
-                        name: self.basic_block_label(true_block), 
-                        access: Some(LabelAccess::Offset),
-                    }]
-                ));
+
+                // We used `eqz`, so conditional-jump to the false block if that condition was met,
+                // because 0 is false
+                self.insert_bidirectional_branch_instructions(buffer, *false_block, *true_block);
             }
 
             ir::InstructionKind::Phi { .. } => {
@@ -575,6 +548,26 @@ impl<'f> FunctionGenerator<'f> {
             }
         }
     }
+
+    /// Inserts instructions to branch to a particular block if the condition flag is set, or a
+    /// different block if it is not set.
+    fn insert_bidirectional_branch_instructions(&self, buffer: &mut Vec<AssemblyItem>, set_block: BasicBlockId, unset_block: BasicBlockId) {
+        buffer.push(AssemblyItem::new_instruction(
+            InstructionOpcode::Cjmpoff,
+            &[AssemblyOperand::Label {
+                name: self.basic_block_label(&set_block), 
+                access: Some(LabelAccess::Offset),
+            }]
+        ));
+        buffer.push(AssemblyItem::new_instruction(
+            InstructionOpcode::Jmpoff,
+            &[AssemblyOperand::Label {
+                name: self.basic_block_label(&unset_block), 
+                access: Some(LabelAccess::Offset),
+            }]
+        ));
+    }
+
 
     /// Calculates the amount of stack space required throughout this function.
     /// 
