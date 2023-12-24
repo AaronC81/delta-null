@@ -181,7 +181,8 @@ impl<'c> FunctionTranslator<'c> {
             node::StatementKind::Return(_)
             | node::StatementKind::Expression(_)
             | node::StatementKind::Assignment { .. }
-            | node::StatementKind::Break => (),
+            | node::StatementKind::Break
+            | node::StatementKind::InlineAssembly(_) => (),
         }
 
         result
@@ -351,6 +352,10 @@ impl<'c> FunctionTranslator<'c> {
                 self.replace_target(cont_block);
 
                 return errors.map(|f| f.into());
+            }
+
+            node::StatementKind::InlineAssembly(contents) => {
+                self.target_mut().add_void_instruction(Instruction::new(ir::InstructionKind::InlineAssembly(contents.clone())))
             }
         }
 

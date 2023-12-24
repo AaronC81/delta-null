@@ -46,6 +46,8 @@ pub enum TokenKind {
     Semicolon,
     RArrow,
     Comma,
+
+    InlineAssemblyFragment(String),
 }
 
 pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>) {
@@ -103,8 +105,32 @@ pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>)
                     buffer.push(next);
                 }
 
-                // Check if this identifier is actually a keyword
+                // Check if this identifier is actually something special
                 let kind = match buffer.as_ref() {
+                    // Inline assembly fragment!
+                    "asm" => {
+                        // Skip whitespace
+                        while let Some(_) = chars.next_if(|(c, _)| c.is_whitespace()) {}
+
+                        // Take opening {
+                        let Some(('{', _)) = chars.next() else {
+                            errors.push(TokenizeError::new("expected { after `asm`", loc));
+                            continue;
+                        };
+
+                        // Take contents until closing }
+                        let mut contents = String::new();
+                        while let Some((next, _)) = chars.next() {
+                            if next == '}' {
+                                break;
+                            }
+                            contents.push(next);
+                        }
+
+                        TokenKind::InlineAssemblyFragment(contents)
+                    },
+
+                    // Normal keyword
                     "fn" => TokenKind::KwFn,
                     "var" => TokenKind::KwVar,
                     "return" => TokenKind::KwReturn,
@@ -115,6 +141,8 @@ pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>)
                     "true" => TokenKind::KwTrue,
                     "false" => TokenKind::KwFalse,
                     "as" => TokenKind::KwAs,
+
+                    // Just an identifier
                     _ => TokenKind::Identifier(buffer),
                 };
                 tokens.push(Token::new(kind, loc));

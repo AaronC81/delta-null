@@ -377,4 +377,25 @@ mod test {
             2,
         )
     }
+
+    #[test]
+    fn test_inline_assembly() {
+        assert_eq!(
+            util::compile_and_execute("
+                fn value() -> u16 {
+                    asm {
+                        .put r0, 0x1234
+                        spinc ; pop preserved rp
+                        ret
+                    }
+                    return 0; // satisfy tc
+                }
+
+                fn main() -> u16 {
+                    return value() + 1;
+                }
+            ").unwrap(),
+            0x1234 + 1,
+        )
+    }
 }

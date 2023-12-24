@@ -169,6 +169,13 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                     }, loc).into())
             }
 
+            Some(TokenKind::InlineAssemblyFragment(contents)) => {
+                let contents = contents.clone();
+                self.tokens.next();
+
+                Fallible::new_ok(Statement::new(StatementKind::InlineAssembly(contents), loc))
+            }
+
             Some(_) => {
                 // Let's assume this is an expression
                 let expr = self.parse_expression()?;

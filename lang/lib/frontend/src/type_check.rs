@@ -215,6 +215,8 @@ pub fn type_check_statement(stmt: Statement<()>, ctx: &mut Context) -> Fallible<
                 StatementKind::Assignment { target, value }
             }
 
+            StatementKind::InlineAssembly(contents) => StatementKind::InlineAssembly(contents),
+
             StatementKind::Return(value) => {
                 let value = value.map(|e| type_check_expression(e, ctx).propagate(&mut errors));
 
@@ -452,7 +454,8 @@ pub fn do_all_paths_diverge(body: &Statement<Type>) -> bool {
         StatementKind::VariableDeclaration { .. } 
         | StatementKind::Assignment { .. }
         | StatementKind::Break
-        | StatementKind::Expression(_) => false,
+        | StatementKind::Expression(_)
+        | StatementKind::InlineAssembly(_) => false,
     }
 }
 
@@ -474,7 +477,8 @@ pub fn find_statement<'s, T>(stmt: &'s Statement<T>, predicate: &impl Fn(&Statem
         | StatementKind::Expression(_)
         | StatementKind::Return(_)
         | StatementKind::Loop(_)
-        | StatementKind::Break => None,
+        | StatementKind::Break
+        | StatementKind::InlineAssembly(_) => None,
     }
 }
 

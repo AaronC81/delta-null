@@ -100,6 +100,9 @@ pub enum InstructionKind {
         arguments: Vec<VariableId>,
     },
 
+    /// Include some target-specific inline assembly at this point in the compiled code.
+    InlineAssembly(String),
+
     /// Returns from the enclosing function, with a value if it is non-void.
     Return(Option<VariableId>),
 
@@ -176,6 +179,7 @@ impl Instruction {
             | InstructionKind::Equals(l, r) => hashset!{ *l, *r },
             InstructionKind::Call { target, arguments } =>
                 arguments.iter().copied().chain([*target]).collect(),
+            InstructionKind::InlineAssembly(_) => hashset!{},
             InstructionKind::Return(r) => r.iter().copied().collect(),
             InstructionKind::Branch(_) => hashset!{},
             InstructionKind::ConditionalBranch { condition, .. } => hashset!{ *condition },
@@ -232,6 +236,8 @@ impl Instruction {
 
                 Ok(Some(*return_type.clone()))
             }
+
+            InstructionKind::InlineAssembly(_) => Ok(None),
             
             InstructionKind::Return(_)
             | InstructionKind::Branch(_)
@@ -286,6 +292,7 @@ impl PrintIR for Instruction {
                         .collect::<Vec<_>>()
                         .join(", ")
                 ),
+            InstructionKind::InlineAssembly(_) => "<inline asm>".to_owned(),
             InstructionKind::Return(r) =>
                 if let Some(r) = r {
                     format!("return {}", r.print_ir(options))

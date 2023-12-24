@@ -87,7 +87,8 @@ pub enum StatementKind<D = ()> {
         condition: Expression<D>,
         true_body: Box<Statement<D>>,
         false_body: Option<Box<Statement<D>>>,
-    }
+    },
+    InlineAssembly(String),
 }
 
 /// An expression which calculates part of the value of a statement.

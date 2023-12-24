@@ -328,6 +328,17 @@ impl<'f> FunctionGenerator<'f> {
                 }
             },
 
+            ir::InstructionKind::InlineAssembly(contents) => {
+                // TODO: better errors
+                let mut tokenizer = delta_null_core_assembler::Tokenizer::new(contents.chars().peekable());
+                let tokens = tokenizer.tokenize().unwrap();
+                
+                let mut parser = delta_null_core_assembler::Parser::from_tokens(&tokens);
+                let items = parser.parse().unwrap();
+
+                buffer.extend(items);
+            }
+
             ir::InstructionKind::Return(ret) => {
                 if let Some(ret) = *ret {
                     // EABI says to use r0-r1 to pass return value
