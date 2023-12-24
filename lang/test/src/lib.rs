@@ -107,7 +107,7 @@ mod test {
     }
 
     #[test]
-    fn test_boolean_literals() {
+    fn test_booleans() {
         assert_eq!(
             util::compile_and_execute("
                 fn main() -> bool {
@@ -125,6 +125,34 @@ mod test {
             ").unwrap(),
             0
         );
+
+        // Check passing booleans around without using them immediately
+        // (Because we have an optimisation for when we *do* use them immediately)
+        assert_eq!(
+            util::compile_and_execute("
+                fn ternary(cond: bool, if_t: u16, if_f: u16) -> u16 {
+                    if cond {
+                        return if_t;
+                    }
+                    return if_f;
+                }
+
+                fn main() -> u16 {
+                    return
+                        ternary(
+                            2 + 2 == 4,
+                            15,
+                            7
+                        ) +
+                        ternary(
+                            2 + 2 == 5,
+                            6,
+                            1,
+                        );
+                }
+            ").unwrap(),
+            15 + 1
+        )
     }
 
     #[test]
