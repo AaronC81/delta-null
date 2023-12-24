@@ -73,7 +73,7 @@ impl<'m> Context<'m> {
         // Argument are only readable, not writeable
         if let Some(s) = self.local.arguments.get(id) {
             if for_write {
-                panic!("TODO - locals aren't writable") // TODO - proper error
+                panic!("TODO - arguments aren't writable") // TODO - proper error
             }
             return Some(s);
         }
@@ -114,7 +114,6 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
         match &item.kind {
             TopLevelItemKind::FunctionDefinition { name, parameters, return_type, body: _ } => {
                 let return_type = convert_node_type(return_type).propagate(&mut errors);
-                // TODO: need type_check::Type function refs. otherwise pointer args reduce to `ptr` which is too vague for us
                 module_ctx.globals.insert(
                     name.clone(),
                     Type::FunctionReference {

@@ -1,5 +1,3 @@
-// TODO: implement linear scan
-
 use std::collections::HashMap;
 
 use delta_null_core_instructions::GPR;
