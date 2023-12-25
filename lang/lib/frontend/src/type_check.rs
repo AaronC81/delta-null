@@ -23,6 +23,9 @@ pub enum Type {
     /// more-specific type is used instead.
     Pointer(Box<Type>),
 
+    /// A fixed-size array of instances of another [Type].
+    Array(Box<Type>, usize),
+
     /// The type of this expression couldn't be determined. This will come along with some type
     /// errors.
     Unknown,
@@ -38,6 +41,9 @@ impl Type {
                     return_type: Box::new(return_type.to_ir_type()),
                 },
             Type::Pointer(_) => ir::Type::Pointer,
+            Type::Array(_, _) => panic!(
+                "`Array` has no direct equivalent as an IR type"
+            ),
             Type::Unknown => panic!(
                 "tried to convert `Unknown` type checker type to IR type; this only happens if something else went wrong which should've been caught!"
             ),
@@ -53,6 +59,7 @@ impl Display for Type {
                 write!(f, "fn({}) -> {return_type}",
                     argument_types.iter().map(|a| a.to_string()).collect::<Vec<_>>().join(", ")),
             Type::Pointer(ty) => write!(f, "*{ty}"),
+            Type::Array(ty, size) => write!(f, "[{size}]{ty}"),
             Type::Unknown => write!(f, "<unknown>"),
         }
     }
@@ -394,6 +401,22 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
 
 #[must_use]
 pub fn types_are_assignable(target: &Type, source: &Type) -> bool {
+    // Pointers to arrays can "decay" into a pointer to the array's element type.
+    //
+    // Note that our arrays **do not** work like C arrays. The array local is not itself a pointer 
+    // to the first element - rather, the array local is *an array*, a distinct type sized as
+    // `element_size * count`.
+    // A pointer to the array, however, is equivalent to a pointer to its first element.
+    // Our notion of decay is `*[4]u16 -> *u16`, **not** `[4]u16 -> *u16` like C would model it.
+    if let Type::Pointer(box Type::Array(source_element_ty, _)) = source {
+        if let Type::Pointer(target_element_ty) = target {
+            if types_are_assignable(&target_element_ty, source_element_ty) {
+                return true;
+            }
+        }
+    }
+
+    // Otherwise, they just need to be the same type
     target == source
 }
 
@@ -493,6 +516,8 @@ fn convert_node_type(ty: &node::Type) -> Fallible<Type, TypeError> {
             },
         node::TypeKind::Pointer(ty) =>
             convert_node_type(ty).map(|ty| Type::Pointer(Box::new(ty))),
+        node::TypeKind::Array(ty, size) =>
+            convert_node_type(ty).map(|ty| Type::Array(Box::new(ty), *size)),
         node::TypeKind::Void => Fallible::new(Type::Direct(ir::Type::Void)),
     }
 }

@@ -175,4 +175,5 @@ pub enum TypeKind {
     Name(String),
     Void,
     Pointer(Box<Type>),
+    Array(Box<Type>, usize),
 }

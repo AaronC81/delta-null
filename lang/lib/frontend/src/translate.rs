@@ -547,6 +547,9 @@ pub fn node_type_to_ir_type(ty: &Type) -> Fallible<ir::Type, TranslateError> {
         ),
         node::TypeKind::Pointer(_) => Fallible::new(ir::Type::Pointer),
         node::TypeKind::Void => Fallible::new(ir::Type::Void),
+
+        node::TypeKind::Array(ty, size) =>
+            node_type_to_ir_type(&ty).map(|ty| ir::Type::Array(Box::new(ty), *size)),
     }
 }
 

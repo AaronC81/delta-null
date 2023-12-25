@@ -314,6 +314,7 @@ pub enum Type {
     Boolean,
     Void,
     Pointer,
+    Array(Box<Type>, usize),
     FunctionReference {
         argument_types: Vec<Type>,
         return_type: Box<Type>,
@@ -329,6 +330,7 @@ impl Type {
             Type::Boolean => 1,
             Type::Void => 0,
             Type::Pointer => 1,
+            Type::Array(ty, size) => ty.word_size() * size,
             Type::FunctionReference { .. } => 1,
         }
     }
@@ -350,6 +352,21 @@ impl Type {
             _ => false,
         }
     }
+
+    /// Returns whether this is a scalar type, meaning that values of the type are readable in their
+    /// entirety with [InstructionKind::ReadLocal].
+    pub fn is_scalar(&self) -> bool {
+        match self {
+            Type::UnsignedInteger(_)
+            |Type::SignedInteger(_)
+            | Type::Boolean
+            | Type::Void
+            | Type::Pointer
+            | Type::FunctionReference { .. } => true,
+
+            Type::Array(_, _) => false,
+        }
+    }
 }
 
 impl Display for Type {
@@ -360,6 +377,7 @@ impl Display for Type {
             Type::Boolean => write!(f, "bool"),
             Type::Void => write!(f, "void"),
             Type::Pointer => write!(f, "ptr"),
+            Type::Array(ty, size) => write!(f, "[{size}]{ty}"),
             Type::FunctionReference { argument_types, return_type } =>
                 write!(f, "fn({}) -> {return_type}",
                     argument_types.iter().map(|a| a.to_string()).collect::<Vec<_>>().join(", "))

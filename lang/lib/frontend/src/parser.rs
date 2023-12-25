@@ -117,10 +117,15 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 self.expect(TokenKind::Colon)?;
                 let ty = self.parse_type()?.propagate(&mut errors);
 
-                // Parse initial value
-                // (Currently required)
-                self.expect(TokenKind::Equals)?;
-                let value = self.parse_expression()?.propagate(&mut errors);
+                // Parse initial value, if given
+                let value =
+                    if let Some(TokenKind::Equals) = self.tokens.peek().map(|t| &t.kind) {
+                        self.tokens.next();
+                        Some(self.parse_expression()?.propagate(&mut errors))
+                    } else {
+                        None
+                    };
+
                 self.expect(TokenKind::Semicolon)?;
 
                 // Construct node
@@ -128,7 +133,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                     Statement::new(StatementKind::VariableDeclaration {
                         name,
                         ty,
-                        value: Some(value),
+                        value,
                     }, loc).into())
             }
 
@@ -378,6 +383,25 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 self.parse_type()
                     .map_inner(|ty|
                         Type::new(TypeKind::Pointer(Box::new(ty)), token.unwrap().loc)),
+
+            Some(TokenKind::LBracket) => {
+                let size_token = self.tokens.next();
+                let Some(TokenKind::Integer(size)) = size_token.map(|t| t.kind) else {
+                    return Fallible::new_fatal(vec![
+                        ParseError::new("expected array size", token.unwrap().loc)
+                    ])
+                };
+                let Ok(size) = size.parse() else {
+                    return Fallible::new_fatal(vec![
+                        ParseError::new("array size must be a positive integer", token.unwrap().loc)
+                    ])
+                };
+                self.expect(TokenKind::RBracket)?;
+
+                self.parse_type()
+                    .map_inner(|ty|
+                        Type::new(TypeKind::Array(Box::new(ty), size), token.unwrap().loc))
+            }
 
             Some(k) => {
                 Fallible::new_fatal(vec![

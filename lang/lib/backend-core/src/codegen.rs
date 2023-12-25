@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use delta_null_core_assembler::{AssemblyItem, AssemblyOperand, LabelAccess};
 use delta_null_core_instructions::{GeneralPurposeRegister, GPR, InstructionOpcode, SPR};
-use delta_null_lang_backend::ir::{Function, VariableId, self, BasicBlockId, InstructionKind, LocalId, VariableRepository};
+use delta_null_lang_backend::ir::{Function, VariableId, self, BasicBlockId, InstructionKind, LocalId, VariableRepository, LocalRepository};
 
 use crate::reg_alloc::Allocation;
 
@@ -117,6 +117,11 @@ impl<'f> FunctionGenerator<'f> {
                 let local_offset = self.local_access_map()[l];
                 let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return 0 };
 
+                let local_ty = &self.func.get_local(*l).ty;
+                if !local_ty.is_scalar() {
+                    panic!("cannot `ReadLocal` a non-scalar type: `{local_ty}`")
+                }
+
                 buffer.push(AssemblyItem::new_instruction(
                     InstructionOpcode::Spread,
                     &[result.into(), local_offset.into()] // TODO: limits local offsets to 16
@@ -126,6 +131,11 @@ impl<'f> FunctionGenerator<'f> {
             ir::InstructionKind::WriteLocal(l, v) => {
                 let v = self.generate_read(buffer, *v);
                 let local_offset = self.local_access_map()[l];
+
+                let local_ty = &self.func.get_local(*l).ty;
+                if !local_ty.is_scalar() {
+                    panic!("cannot `WriteLocal` a non-scalar type: `{local_ty}`")
+                }
 
                 buffer.push(AssemblyItem::new_instruction(
                     InstructionOpcode::Spwrite,
