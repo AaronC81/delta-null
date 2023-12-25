@@ -361,6 +361,11 @@ impl<'f> FunctionGenerator<'f> {
                 }
             },
 
+            ir::InstructionKind::WordSize(ty) => {
+                let Some(reg) = self.variable_reg(stmt.result.unwrap()) else { return 0 };
+                buffer.push(AssemblyItem::new_word_put(reg, (ty.word_size() as u16).into()));
+            }
+
             ir::InstructionKind::InlineAssembly(contents) => {
                 // TODO: better errors
                 let mut tokenizer = delta_null_core_assembler::Tokenizer::new(contents.chars().peekable());

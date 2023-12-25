@@ -100,6 +100,9 @@ pub enum InstructionKind {
         arguments: Vec<VariableId>,
     },
 
+    /// Evaluates to the size, in machine words, of the given [Type].
+    WordSize(Type),
+
     /// Include some target-specific inline assembly at this point in the compiled code.
     InlineAssembly(String),
 
@@ -179,6 +182,7 @@ impl Instruction {
             | InstructionKind::Equals(l, r) => hashset!{ *l, *r },
             InstructionKind::Call { target, arguments } =>
                 arguments.iter().copied().chain([*target]).collect(),
+            InstructionKind::WordSize(_) => hashset!{},
             InstructionKind::InlineAssembly(_) => hashset!{},
             InstructionKind::Return(r) => r.iter().copied().collect(),
             InstructionKind::Branch(_) => hashset!{},
@@ -237,6 +241,8 @@ impl Instruction {
                 Ok(Some(*return_type.clone()))
             }
 
+            InstructionKind::WordSize(_) => Ok(Some(Type::UnsignedInteger(IntegerSize::Bits16))),
+
             InstructionKind::InlineAssembly(_) => Ok(None),
             
             InstructionKind::Return(_)
@@ -292,6 +298,7 @@ impl PrintIR for Instruction {
                         .collect::<Vec<_>>()
                         .join(", ")
                 ),
+            InstructionKind::WordSize(ty) => format!("size of {ty}"),
             InstructionKind::InlineAssembly(_) => "<inline asm>".to_owned(),
             InstructionKind::Return(r) =>
                 if let Some(r) = r {
