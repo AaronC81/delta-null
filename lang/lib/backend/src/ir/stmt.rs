@@ -223,8 +223,10 @@ impl Instruction {
             | InstructionKind::Multiply(a, b) => {
                 let a_ty = vars.get_variable(*a).ty.clone();
                 let b_ty = vars.get_variable(*b).ty.clone();
-                if a_ty != b_ty {
-                    return Err(TypeError::new("both sides of `Add` must have the same type"));
+
+                let is_pointer_arithmetic = a_ty == Type::Pointer && b_ty.is_integral();
+                if !is_pointer_arithmetic && a_ty != b_ty {
+                    return Err(TypeError::new("both sides of binop must either have the same type, or be `pointer` and `integral`"));
                 }
                 
                 Ok(Some(a_ty))

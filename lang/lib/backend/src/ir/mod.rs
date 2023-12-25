@@ -358,7 +358,7 @@ impl Type {
     pub fn is_scalar(&self) -> bool {
         match self {
             Type::UnsignedInteger(_)
-            |Type::SignedInteger(_)
+            | Type::SignedInteger(_)
             | Type::Boolean
             | Type::Void
             | Type::Pointer
@@ -366,6 +366,11 @@ impl Type {
 
             Type::Array(_, _) => false,
         }
+    }
+
+    /// Returns whether this type represents an integer.
+    pub fn is_integral(&self) -> bool {
+        matches!(self, Type::UnsignedInteger(_) | Type::SignedInteger(_))
     }
 }
 

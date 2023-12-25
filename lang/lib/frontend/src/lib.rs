@@ -3,6 +3,7 @@
 #![feature(type_changing_struct_update)]
 #![feature(assert_matches)]
 #![feature(box_patterns)]
+#![feature(let_chains)]
 
 use std::error::Error;
 

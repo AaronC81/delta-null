@@ -433,8 +433,12 @@ pub fn check_types_are_assignable(target: &Type, source: &Type, loc: SourceLocat
 
 #[must_use]
 pub fn arithmetic_binop_result_type(left: &Type, right: &Type, op: &str, loc: SourceLocation) -> Fallible<Type, TypeError> {
-    if left == right {
-        Fallible::new(left.clone()) 
+    if let Type::Direct(left_ir) = left && left_ir.is_integral() && left == right {
+        // Arithmetic between two identical, integral types (e.g. `u16`)
+        Fallible::new(left.clone())
+    } else if let Type::Pointer(_) = left && let Type::Direct(right_ir) = right && right_ir.is_integral() {
+        // Pointer LHS, integral RHS - this is pointer arithmetic!
+        Fallible::new(left.clone())
     } else {
         Fallible::new_with_errors(left.clone(), vec![
             TypeError::new(&format!("operator `{op}` is not compatible with types `{left}` and `{right}`"), loc)

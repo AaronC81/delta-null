@@ -443,12 +443,32 @@ impl<'c> FunctionTranslator<'c> {
                     node::ArithmeticBinOp::Multiply => ir::InstructionKind::Multiply,
                 };
 
-                self.translate_expression(l)?
-                    .combine(self.translate_expression(r)?)
-                    .map(|(l, r)|
-                        self.target_mut().add_instruction(
-                            ir::Instruction::new(ir_kind(l, r))
-                        ).into())
+                let parts = self.translate_expression(l)?
+                    .combine(self.translate_expression(r)?);
+
+                // Is this pointer arithmetic?
+                // If so, we multiply the RHS by the size of the pointee type
+                // (Currently pointer arithmetic is not commutative - `pointer + integral`)
+                if let type_check::Type::Pointer(pointee) = &l.data {
+                    parts
+                        .map(|(l, r)| {
+                            let size = self.target_mut().add_instruction(
+                                ir::Instruction::new(ir::InstructionKind::WordSize(pointee.to_ir_type()))
+                            );
+                            let scaled_r = self.target_mut().add_instruction(
+                                ir::Instruction::new(ir::InstructionKind::Multiply(r, size))
+                            );
+                            self.target_mut().add_instruction(
+                                ir::Instruction::new(ir_kind(l, scaled_r))
+                            ).into()
+                        })
+                } else {
+                    parts
+                        .map(|(l, r)|
+                            self.target_mut().add_instruction(
+                                ir::Instruction::new(ir_kind(l, r))
+                            ).into())
+                }
             }
 
             node::ExpressionKind::Equals(l, r) =>
