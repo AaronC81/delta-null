@@ -426,4 +426,20 @@ mod test {
             0x1234 + 1,
         )
     }
+
+    #[test]
+    fn test_array_index() {
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    var x: [4]u16;
+                    *((&x as *u16) + 1) = 123;
+                    *((&x as *u16) + 2) = 456;
+
+                    return x[1] + x[2];
+                }
+            ").unwrap(),
+            123 + 456,
+        )
+    }
 }

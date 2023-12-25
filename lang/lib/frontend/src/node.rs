@@ -130,6 +130,10 @@ pub enum ExpressionKind<ED> {
         target: Box<Expression<ED>>,
         arguments: Vec<Expression<ED>>,
     },
+    Index {
+        target: Box<Expression<ED>>,
+        index: Box<Expression<ED>>,
+    },
 
     Cast(Box<Expression<ED>>, Type),
 

@@ -41,9 +41,7 @@ impl Type {
                     return_type: Box::new(return_type.to_ir_type()),
                 },
             Type::Pointer(_) => ir::Type::Pointer,
-            Type::Array(_, _) => panic!(
-                "`Array` has no direct equivalent as an IR type"
-            ),
+            Type::Array(ty, size) => ir::Type::Array(Box::new(ty.to_ir_type()), *size),
             Type::Unknown => panic!(
                 "tried to convert `Unknown` type checker type to IR type; this only happens if something else went wrong which should've been caught!"
             ),
@@ -316,6 +314,30 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
                 }
             }
 
+            ExpressionKind::Index { target, index } => {
+                let target = type_check_expression(*target, ctx).propagate(&mut errors);
+                let index = type_check_expression(*index, ctx).propagate(&mut errors);
+
+                // Check index type
+                if let Type::Direct(ir::Type::UnsignedInteger(_)) = index.data {
+                    // All good :)
+                } else {
+                    errors.push_error(TypeError::new(
+                        &format!("cannot use `{}` to index an array", index.data), index.loc.clone()
+                    ));
+                }
+
+                // Check that target is an array, and pull out element type if so
+                let ty =
+                    if let Type::Array(ty, _) = &target.data {
+                        *ty.clone()
+                    } else {
+                        Type::Unknown
+                    };
+
+                (ExpressionKind::Index { target: Box::new(target), index: Box::new(index) }, ty)
+            }
+
             ExpressionKind::Cast(value, ty) => {
                 let value = type_check_expression(*value, ctx).propagate(&mut errors);
                 let target_ty = convert_node_type(&ty).propagate(&mut errors);
@@ -326,6 +348,10 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
                     // reinterpret-castable. Recycle that for conversions like `u16 -> i16`
                     (Type::Direct(src), Type::Direct(tgt))
                         if src.is_reinterpret_castable_to(tgt) => true,
+
+                    // Pointers are castable to any other type of pointer, regardless of the
+                    // pointee type
+                    (Type::Pointer(_), Type::Pointer(_)) => true,
 
                     (Type::Pointer(_), Type::Direct(ir::Type::UnsignedInteger(IntegerSize::Bits16)))
                     | (Type::Direct(ir::Type::UnsignedInteger(IntegerSize::Bits16)), Type::Pointer(_))

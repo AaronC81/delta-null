@@ -392,25 +392,8 @@ impl<'c> FunctionTranslator<'c> {
                 }
             },
 
-            node::ExpressionKind::PointerTake(target) => {
-                match &target.kind {
-                    node::ExpressionKind::Identifier(name) => {
-                        if let Some(local) = self.locals.get(name).copied() {
-                            Fallible::new_ok(self.target.as_mut().unwrap().add_instruction(
-                                ir::Instruction::new(ir::InstructionKind::AddressOfLocal(local))
-                            ))
-                        } else {
-                            return Fallible::new_fatal(vec![
-                                TranslateError::new(&format!("unknown item `{name}`")),
-                            ])
-                        }
-                    }
-
-                    _ => return Fallible::new_fatal(vec![
-                        TranslateError::new(&format!("cannot take pointer to: {target:?}")),
-                    ])
-                }
-            }
+            node::ExpressionKind::PointerTake(target) =>
+                self.generate_pointer_take(target),
 
             node::ExpressionKind::PointerDereference(ptr) => {
                 // Assuming a `PointerDereference` in this position is a read.
@@ -499,6 +482,32 @@ impl<'c> FunctionTranslator<'c> {
                         ).into())
             },
 
+            node::ExpressionKind::Index { target, index } => {
+                let type_check::Type::Array(pointee_ty, _) = &target.data else {
+                    panic!("translating index to non-array")
+                };
+
+                self.translate_expression(&node::Expression::new_with_data(
+                    node::ExpressionKind::PointerDereference(
+                        Box::new(node::Expression::new_with_data(
+                            node::ExpressionKind::ArithmeticBinOp(
+                                node::ArithmeticBinOp::Add,
+                                Box::new(node::Expression::new_with_data(
+                                    node::ExpressionKind::PointerTake(target.clone()),
+                                    target.loc.clone(),
+                                    type_check::Type::Pointer(pointee_ty.clone()),
+                                )),
+                                index.clone(),
+                            ),
+                            expr.loc.clone(),
+                            type_check::Type::Pointer(pointee_ty.clone()),
+                        ))
+                    ),
+                    expr.loc.clone(),
+                    expr.data.clone(),
+                ))
+            }
+
             node::ExpressionKind::Cast(value, ty) => {
                 self.translate_expression(&value)?.map(|source| {
                     let source_ty = self.func.get_variable_type(source);
@@ -553,6 +562,26 @@ impl<'c> FunctionTranslator<'c> {
     pub fn replace_target(&mut self, new: BasicBlockBuilder) {
         self.finalize_target();
         self.target = Some(new);
+    }
+
+    fn generate_pointer_take(&mut self, target: &node::Expression<ExpressionData>) -> Fallible<MaybeFatal<VariableId>, TranslateError> {
+        match &target.kind {
+            node::ExpressionKind::Identifier(name) => {
+                if let Some(local) = self.locals.get(name).copied() {
+                    Fallible::new_ok(self.target.as_mut().unwrap().add_instruction(
+                        ir::Instruction::new(ir::InstructionKind::AddressOfLocal(local))
+                    ))
+                } else {
+                    return Fallible::new_fatal(vec![
+                        TranslateError::new(&format!("unknown item `{name}`")),
+                    ])
+                }
+            }
+
+            _ => return Fallible::new_fatal(vec![
+                TranslateError::new(&format!("cannot take pointer to: {target:?}")),
+            ])
+        }
     }
 }
 

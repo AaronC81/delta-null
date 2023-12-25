@@ -327,8 +327,27 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 })
             }
 
-            _ => self.parse_atom(),
+            _ => self.parse_index(),
         }
+    }
+
+    /// Parse an array indexing expression.
+    pub fn parse_index(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
+        let mut expr = self.parse_atom()?;
+
+        while let Some(&TokenKind::LBracket) = self.tokens.peek().map(|t| &t.kind) {
+            let Token { kind: _, loc } = self.tokens.next().unwrap();
+
+            self.parse_expression()?
+                .combine(self.expect(TokenKind::RBracket)?)
+                .integrate(&mut expr, |e, (index, _)|
+                    *e = Expression::new(ExpressionKind::Index {
+                        target: Box::new(e.clone()),
+                        index: Box::new(index)
+                    }, loc))
+        }
+
+        expr.map(|e| e.into())
     }
 
     /// Parse an atom, the lowest-precedence form of expression - typically a single token like an

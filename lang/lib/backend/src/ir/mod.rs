@@ -349,6 +349,9 @@ impl Type {
             (Type::UnsignedInteger(IntegerSize::Bits16), Type::Pointer) => true,
             (Type::Pointer, Type::UnsignedInteger(IntegerSize::Bits16)) => true,
 
+            // Simply the same type
+            (t1, t2) if t1 == t2 => true,
+
             _ => false,
         }
     }
