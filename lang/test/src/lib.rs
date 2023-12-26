@@ -456,5 +456,35 @@ mod test {
             ").unwrap(),
             123 + 456,
         );
+
+        // Compute fibonacci sequence
+        assert_eq!(
+            util::compile_and_execute("
+                fn fib(count: u16, results: *u16) {
+                    // Initialise
+                    *(results    ) = 0;
+                    *(results + 1) = 1;
+                    var i: u16 = 2;
+                
+                    loop {
+                        if i == count {
+                            break;
+                        }
+                
+                        *(results + i) = *(results + (i - 1)) + *(results + (i - 2));
+                
+                        i = i + 1;
+                    }
+                }
+                
+                fn main() -> u16 {
+                    var results: [10]u16;
+                    fib(10, &results as *u16);
+
+                    return results[9];
+                }
+            ").unwrap(),
+            34
+        );
     }
 }
