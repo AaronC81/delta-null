@@ -252,6 +252,19 @@ impl<'c> FunctionTranslator<'c> {
                             });
                     }
 
+                    ExpressionKind::Index { target, index } => {
+                        self.translate_expression(value)?
+                            .combine(self.generate_array_element_pointer_expression(&*target, &*index)?)
+                            .map(|(value, target)| {
+                                self.target.as_mut().unwrap().add_void_instruction(
+                                    ir::Instruction::new(ir::InstructionKind::WriteMemory {
+                                        address: target,
+                                        value,
+                                    })
+                                )
+                            });
+                    }
+
                     _ => return Fallible::new_fatal(vec![
                         TranslateError::new(&format!("unsupported assignment target")),
                     ])
@@ -487,25 +500,13 @@ impl<'c> FunctionTranslator<'c> {
                     panic!("translating index to non-array")
                 };
 
-                self.translate_expression(&node::Expression::new_with_data(
-                    node::ExpressionKind::PointerDereference(
-                        Box::new(node::Expression::new_with_data(
-                            node::ExpressionKind::ArithmeticBinOp(
-                                node::ArithmeticBinOp::Add,
-                                Box::new(node::Expression::new_with_data(
-                                    node::ExpressionKind::PointerTake(target.clone()),
-                                    target.loc.clone(),
-                                    type_check::Type::Pointer(pointee_ty.clone()),
-                                )),
-                                index.clone(),
-                            ),
-                            expr.loc.clone(),
-                            type_check::Type::Pointer(pointee_ty.clone()),
-                        ))
-                    ),
-                    expr.loc.clone(),
-                    expr.data.clone(),
-                ))
+                self.generate_array_element_pointer_expression(&*target, &*index)?
+                    .map(|v| self.target_mut().add_instruction(
+                        Instruction::new(ir::InstructionKind::ReadMemory {
+                            address: v,
+                            ty: pointee_ty.to_ir_type()
+                        })
+                    ).into())
             }
 
             node::ExpressionKind::Cast(value, ty) => {
@@ -582,6 +583,36 @@ impl<'c> FunctionTranslator<'c> {
                 TranslateError::new(&format!("cannot take pointer to: {target:?}")),
             ])
         }
+    }
+
+    /// Given a target expression of type [type_check::Type::Array], and an index expression of
+    /// integral type, generates an expression which evaluates to a pointer to the given element
+    /// of the target array.
+    /// 
+    /// This can then be used with [ir::InstructionKind::ReadMemory] or
+    /// [ir::InstructionKind::WriteMemory] to retrieve or update the array element.
+    fn generate_array_element_pointer_expression(
+        &mut self,
+        target: &node::Expression<ExpressionData>,
+        index: &node::Expression<ExpressionData>
+    ) -> Fallible<MaybeFatal<VariableId>, TranslateError> {
+        let type_check::Type::Array(pointee_ty, _) = &target.data else {
+            panic!("translating index to non-array")
+        };
+
+        self.translate_expression(&node::Expression::new_with_data(
+            node::ExpressionKind::ArithmeticBinOp(
+                node::ArithmeticBinOp::Add,
+                Box::new(node::Expression::new_with_data(
+                    node::ExpressionKind::PointerTake(Box::new(target.clone())),
+                    target.loc.clone(),
+                    type_check::Type::Pointer(pointee_ty.clone()),
+                )),
+                Box::new(index.clone()),
+            ),
+            target.loc.clone(),
+            type_check::Type::Pointer(pointee_ty.clone()),
+        ))
     }
 }
 

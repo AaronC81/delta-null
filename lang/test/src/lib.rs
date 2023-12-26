@@ -429,6 +429,7 @@ mod test {
 
     #[test]
     fn test_array_index() {
+        // Just reads; do writes with pointers
         assert_eq!(
             util::compile_and_execute("
                 fn main() -> u16 {
@@ -440,6 +441,20 @@ mod test {
                 }
             ").unwrap(),
             123 + 456,
-        )
+        );
+
+        // Reads and writes
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    var x: [4]u16;
+                    x[1] = 123;
+                    x[2] = 456;
+
+                    return x[1] + x[2];
+                }
+            ").unwrap(),
+            123 + 456,
+        );
     }
 }
