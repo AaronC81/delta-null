@@ -487,25 +487,29 @@ impl<'f> FunctionGenerator<'f> {
     /// Inserts instructions at the beginning of an instruction buffer to allocate stack space for
     /// usage throughout the function, such as locals.
     fn prepend_stack_allocation_instructions(&self, buffer: &mut Vec<AssemblyItem>) {
-        // Insert stack allocation instructions
-        // TODO: very crap way of doing it. consider preserving a register and using `spadd`
-        for _ in 0..self.stack_space() {
-            buffer.insert(
-                0,
-                AssemblyItem::new_instruction(InstructionOpcode::Spdec, &[])
-            );
+        // Put the amount of stack space, negated, in R4 (which will have been preserved), then use
+        // `spadd`
+        if self.stack_space() > 0 {
+            buffer.splice(0..0, [
+                AssemblyItem::new_word_put(GPR::R4, AssemblyOperand::Immediate(-(self.stack_space() as i16) as u16)),
+                AssemblyItem::new_instruction(
+                    InstructionOpcode::Spadd,
+                    &[GPR::R4.into()]
+                )
+            ]);
         }
     }
 
     /// Inserts instructions at the end of the instruction buffer to deallocate stack space, before
     /// a function returns.
     fn insert_stack_deallocation_instructions(&self, buffer: &mut Vec<AssemblyItem>) {
-        // Insert stack deallocation instructions
-        // TODO: very crap way of doing it. consider trashing a register and using `spadd`
-        for _ in 0..self.stack_space() {
-            buffer.push(
-                AssemblyItem::new_instruction(InstructionOpcode::Spinc, &[])
-            );
+        // Put the amount of stack space in R4 (which will have been preserved), then use `spadd`
+        if self.stack_space() > 0 {
+            buffer.push(AssemblyItem::new_word_put(GPR::R4, AssemblyOperand::Immediate(self.stack_space() as u16)));
+            buffer.push(AssemblyItem::new_instruction(
+                InstructionOpcode::Spadd,
+                &[GPR::R4.into()]
+            ));
         }
     }
 
@@ -514,35 +518,36 @@ impl<'f> FunctionGenerator<'f> {
     /// Inserts instructions at the end of the instruction buffer to save callee-saved registers,
     /// when a function is first called.
     fn prepend_callee_saved_register_save_instructions(&self, buffer: &mut Vec<AssemblyItem>) {
-        // Remember that, because we're doing `insert(0, ...)`, all the functions in here appear the
-        // way round.
-        // TODO: This is naff, fix it at some point!
+        let mut preservation_instructions = vec![];
+
+        // Preserve callee-saved GPRs which we use
+        for reg in Self::CALLEE_SAVED_GPRS.iter() {
+            if self.should_preserve_callee_saved_register(*reg) {
+                preservation_instructions.push(
+                    AssemblyItem::new_instruction(
+                        InstructionOpcode::Push,
+                        &[(*reg).into()]
+                    )
+                );
+            }
+        }
 
         // Preserve RP
-        buffer.insert(
-            0,
-            AssemblyItem::new_instruction(
-                InstructionOpcode::Push,
-                &[Self::CALLEE_SAVED_GPRS[0].into()]
-            )
-        );
-        buffer.insert(
-            0,
+        preservation_instructions.push(
             AssemblyItem::new_instruction(
                 InstructionOpcode::Movso,
                 &[Self::CALLEE_SAVED_GPRS[0].into(), SPR::RP.into()]
             )
         );
+        preservation_instructions.push(
+            AssemblyItem::new_instruction(
+                InstructionOpcode::Push,
+                &[Self::CALLEE_SAVED_GPRS[0].into()]
+            )
+        );
 
-        // Preserve callee-saved GPRs which we use
-        for reg in Self::CALLEE_SAVED_GPRS.iter().rev() {
-            if self.is_register_allocated(*reg) {
-                buffer.insert(
-                    0,
-                    AssemblyItem::new_instruction(InstructionOpcode::Push, &[(*reg).into()])
-                );
-            }
-        }
+        // Insert instructions into beginning of buffer
+        buffer.splice(0..0, preservation_instructions);
     }
 
     /// Inserts instructions at the end of the instruction buffer to restore callee-saved registers,
@@ -558,10 +563,15 @@ impl<'f> FunctionGenerator<'f> {
 
         // Restore GPRs
         for reg in Self::CALLEE_SAVED_GPRS.iter().rev() {
-            if self.is_register_allocated(*reg) {
+            if self.should_preserve_callee_saved_register(*reg) {
                 buffer.push(AssemblyItem::new_instruction(InstructionOpcode::Pop, &[(*reg).into()]));
             }
         }
+    }
+
+    fn should_preserve_callee_saved_register(&self, reg: GeneralPurposeRegister) -> bool {
+        // `r4` is used for stack setup and `rp` saving
+        self.is_register_allocated(reg) || reg == GPR::R4
     }
 
     /// Inserts instructions to branch to a particular block if the condition flag is set, or a

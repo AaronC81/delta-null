@@ -414,6 +414,7 @@ mod test {
                     asm {
                         .put r0, 0x1234
                         spinc ; pop preserved rp
+                        spinc ; pop preserved r4
                         ret
                     }
                     return 0; // satisfy tc
