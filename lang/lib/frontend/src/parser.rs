@@ -236,86 +236,45 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
     /// Parse a usage of the `|` bitwise OR operator, or any expression with higher precedence.
     pub fn parse_bitwise_or(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
-        let mut expr = self.parse_bitwise_xor()?;
-
-        while let Some(&TokenKind::Bar) = self.tokens.peek().map(|t| &t.kind) {
-            let Token { kind: _, loc } = self.tokens.next().unwrap();
-            let op = ArithmeticBinOp::BitwiseOr;
-
-            self.parse_bitwise_xor()?
-                .integrate(&mut expr, |lhs, rhs|
-                    *lhs = Expression::new(ExpressionKind::ArithmeticBinOp(op, Box::new(lhs.clone()), Box::new(rhs)), loc));
-        }
-
-        expr.map(|e| e.into())
+        self.parse_arithmetic_binop(
+            &[(TokenKind::Bar, ArithmeticBinOp::BitwiseOr)],
+            Self::parse_bitwise_xor,
+        )
     }
 
     /// Parse a usage of the `&` bitwise AND operator, or any expression with higher precedence.
     pub fn parse_bitwise_xor(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
-        let mut expr = self.parse_bitwise_and()?;
-
-        while let Some(&TokenKind::Caret) = self.tokens.peek().map(|t| &t.kind) {
-            let Token { kind: _, loc } = self.tokens.next().unwrap();
-            let op = ArithmeticBinOp::BitwiseXor;
-
-            self.parse_bitwise_and()?
-                .integrate(&mut expr, |lhs, rhs|
-                    *lhs = Expression::new(ExpressionKind::ArithmeticBinOp(op, Box::new(lhs.clone()), Box::new(rhs)), loc));
-        }
-
-        expr.map(|e| e.into())
+        self.parse_arithmetic_binop(
+            &[(TokenKind::Caret, ArithmeticBinOp::BitwiseXor)],
+            Self::parse_bitwise_and,
+        )
     }
 
     /// Parse a usage of the `&` bitwise AND operator, or any expression with higher precedence.
     pub fn parse_bitwise_and(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
-        let mut expr = self.parse_add_sub()?;
-
-        while let Some(&TokenKind::Ampersand) = self.tokens.peek().map(|t| &t.kind) {
-            let Token { kind: _, loc } = self.tokens.next().unwrap();
-            let op = ArithmeticBinOp::BitwiseAnd;
-
-            self.parse_add_sub()?
-                .integrate(&mut expr, |lhs, rhs|
-                    *lhs = Expression::new(ExpressionKind::ArithmeticBinOp(op, Box::new(lhs.clone()), Box::new(rhs)), loc));
-        }
-
-        expr.map(|e| e.into())
+        self.parse_arithmetic_binop(
+            &[(TokenKind::Ampersand, ArithmeticBinOp::BitwiseAnd)],
+            Self::parse_add_sub,
+        )
     }
 
     /// Parse a usage of the `+` or `-` binary operators, or any expression with higher precedence.
     pub fn parse_add_sub(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
-        let mut expr = self.parse_mul()?;
-
-        while let Some(&TokenKind::Plus | &TokenKind::Minus) = self.tokens.peek().map(|t| &t.kind) {
-            let Token { kind, loc } = self.tokens.next().unwrap();
-            let op = match kind {
-                TokenKind::Plus => ArithmeticBinOp::Add,
-                TokenKind::Minus => ArithmeticBinOp::Subtract,
-                _ => unreachable!(),
-            };
-
-            self.parse_mul()?
-            .integrate(&mut expr, |lhs, rhs|
-                *lhs = Expression::new(ExpressionKind::ArithmeticBinOp(op, Box::new(lhs.clone()), Box::new(rhs)), loc));
-        }
-
-        expr.map(|e| e.into())
+        self.parse_arithmetic_binop(
+            &[
+                (TokenKind::Plus, ArithmeticBinOp::Add),
+                (TokenKind::Minus, ArithmeticBinOp::Subtract),
+            ],
+            Self::parse_mul,
+        )
     }
 
     /// Parse a usage of the `*` binary operator, or any expression with higher precedence.
     pub fn parse_mul(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
-        let mut expr = self.parse_cast()?;
-
-        while let Some(&TokenKind::Star) = self.tokens.peek().map(|t| &t.kind) {
-            let Token { kind: _, loc } = self.tokens.next().unwrap();
-            let op = ArithmeticBinOp::Multiply;
-
-            self.parse_cast()?
-                .integrate(&mut expr, |lhs, rhs|
-                    *lhs = Expression::new(ExpressionKind::ArithmeticBinOp(op, Box::new(lhs.clone()), Box::new(rhs)), loc));
-        }
-
-        expr.map(|e| e.into())
+        self.parse_arithmetic_binop(
+            &[(TokenKind::Star, ArithmeticBinOp::Multiply)],
+            Self::parse_cast,
+        )
     }
 
     /// Parses a cast with an `as` infix.
@@ -584,6 +543,39 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 ty,
             }.into()
         )
+    }
+
+    /// Utility function to parse an arithmetic binary operation, for example `+` or `&`.
+    /// (Arithmetic is defined loosely as an operation which returns the same types as the two
+    ///  input operands - i.e. `T <op> T -> T`.)
+    /// 
+    /// Takes:
+    ///   - A `mapping` of infix [TokenKind]s to their corresponding [ArithmeticBinOp]s
+    ///   - Another parsing function to `cascade` to, which is used to parse the expressions on
+    ///     each side of the infix operator
+    /// 
+    /// Parses left-associatively.
+    fn parse_arithmetic_binop(
+        &mut self,
+        mapping: &[(TokenKind, ArithmeticBinOp)],
+        mut cascade: impl FnMut(&mut Self) -> Fallible<MaybeFatal<Expression>, ParseError>
+    ) -> Fallible<MaybeFatal<Expression>, ParseError> {
+        let mut expr = cascade(self)?;
+
+        while let Some(ref token) = self.tokens.peek().map(|t| &t.kind) {
+            let Some(op) = mapping.iter()
+                .find(|(candidate, _)| &candidate == token)
+                .map(|(_, op)| *op)
+                else { break };
+
+            let Token { kind: _, loc } = self.tokens.next().unwrap();
+
+            cascade(self)?
+                .integrate(&mut expr, |lhs, rhs|
+                    *lhs = Expression::new(ExpressionKind::ArithmeticBinOp(op, Box::new(lhs.clone()), Box::new(rhs)), loc));
+        }
+
+        expr.map(|e| e.into())
     }
 
     /// Assume that the next token has the given [TokenKind], and returns it, else fail with a parse
