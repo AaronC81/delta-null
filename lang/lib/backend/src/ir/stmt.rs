@@ -105,6 +105,12 @@ pub enum InstructionKind {
     /// Checks if two variables of the same type are equal.
     Equals(VariableId, VariableId),
 
+    /// Checks if the left variable is greater than the right variable of the same type.
+    GreaterThan(VariableId, VariableId),
+
+    /// Checks if the left variable is less than the right variable of the same type.
+    LessThan(VariableId, VariableId),
+
     /// Calls a different function, using the given [VariableId], which should hold a
     /// [Type::FunctionReference].
     Call {
@@ -192,6 +198,8 @@ impl Instruction {
             | InstructionKind::Subtract(l, r)
             | InstructionKind::Multiply(l, r)
             | InstructionKind::Equals(l, r)
+            | InstructionKind::LessThan(l, r)
+            | InstructionKind::GreaterThan(l, r)
             | InstructionKind::BitwiseAnd(l, r)
             | InstructionKind::BitwiseXor(l, r)
             | InstructionKind::BitwiseOr(l, r) => hashset!{ *l, *r },
@@ -271,7 +279,9 @@ impl Instruction {
                 Ok(Some(ty))
             }
 
-            InstructionKind::Equals(_, _) => Ok(Some(Type::Boolean)),
+            InstructionKind::Equals(_, _)
+            | InstructionKind::LessThan(_, _)
+            | InstructionKind::GreaterThan(_, _) => Ok(Some(Type::Boolean)),
 
             InstructionKind::Call { target, arguments: _ } => {
                 let target_ty = &vars.get_variable(*target).ty;
@@ -339,6 +349,9 @@ impl PrintIR for Instruction {
             InstructionKind::BitwiseNot(v) => format!("~{}", v.print_ir(options)),
 
             InstructionKind::Equals(a, b) => format!("{} == {}", a.print_ir(options), b.print_ir(options)),
+            InstructionKind::GreaterThan(a, b) => format!("{} > {}", a.print_ir(options), b.print_ir(options)),
+            InstructionKind::LessThan(a, b) => format!("{} < {}", a.print_ir(options), b.print_ir(options)),
+
             InstructionKind::Call { target, arguments } => 
                 format!(
                     "call {} ({})",

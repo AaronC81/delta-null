@@ -278,6 +278,10 @@ impl<'f> FunctionGenerator<'f> {
                 ));
             },
 
+            // TODO
+            ir::InstructionKind::GreaterThan(_, _) => todo!(),
+            ir::InstructionKind::LessThan(_, _) => todo!(),
+
             ir::InstructionKind::Call { target, arguments } => {
                 // Fetch result register. The call puts its result in `r0`, so we'll copy it here
                 // later.

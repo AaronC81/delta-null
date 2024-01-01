@@ -59,6 +59,8 @@ pub enum TokenKind {
     RParen,
     LBracket,
     RBracket,
+    LAngle,
+    RAngle,
 
     Colon,
     Semicolon,
@@ -90,6 +92,8 @@ pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>)
             ')' => { chars.next(); tokens.push(Token::new(TokenKind::RParen, loc)) },
             '[' => { chars.next(); tokens.push(Token::new(TokenKind::LBracket, loc)) },
             ']' => { chars.next(); tokens.push(Token::new(TokenKind::RBracket, loc)) },
+            '<' => { chars.next(); tokens.push(Token::new(TokenKind::LAngle, loc)) },
+            '>' => { chars.next(); tokens.push(Token::new(TokenKind::RAngle, loc)) },
             ':' => { chars.next(); tokens.push(Token::new(TokenKind::Colon, loc)) },
             ';' => { chars.next(); tokens.push(Token::new(TokenKind::Semicolon, loc)) },
             '+' => { chars.next(); tokens.push(Token::new(TokenKind::Plus, loc)) },

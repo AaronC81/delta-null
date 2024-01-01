@@ -428,12 +428,12 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
                 (ExpressionKind::ArithmeticBinOp(op, Box::new(l), Box::new(r)), ty)
             },
 
-            ExpressionKind::Equals(l, r) => {
+            ExpressionKind::ComparisonBinOp(op, l, r) => {
                 let l = type_check_expression(*l, ctx).propagate(&mut errors);
                 let r = type_check_expression(*r, ctx).propagate(&mut errors);
                 arithmetic_binop_result_type(&l.data, &r.data, "==", loc).propagate(&mut errors);
                 let ty = Type::Direct(ir::Type::Boolean);
-                (ExpressionKind::Equals(Box::new(l), Box::new(r)), ty)
+                (ExpressionKind::ComparisonBinOp(op, Box::new(l), Box::new(r)), ty)
             },
         }
     });

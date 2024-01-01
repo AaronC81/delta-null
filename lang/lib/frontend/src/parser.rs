@@ -1,6 +1,6 @@
 use std::{iter::Peekable, fmt::Display, error::Error};
 
-use crate::{node::{TopLevelItem, Statement, TopLevelItemKind, StatementKind, Expression, ExpressionKind, Type, TypeKind, ArithmeticBinOp, FunctionParameter}, tokenizer::{Token, TokenKind}, fallible::{Fallible, MaybeFatal}, source::SourceLocation, frontend_error};
+use crate::{node::{TopLevelItem, Statement, TopLevelItemKind, StatementKind, Expression, ExpressionKind, Type, TypeKind, ArithmeticBinOp, FunctionParameter, ComparisonBinOp}, tokenizer::{Token, TokenKind}, fallible::{Fallible, MaybeFatal}, source::SourceLocation, frontend_error};
 
 /// Parses an iterator of [Token]s, interpreting them into a "module" - a collection of
 /// [TopLevelItem]s (like functions and definitions).
@@ -216,19 +216,25 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
     /// Parse an expression.
     pub fn parse_expression(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
-        self.parse_equals()
+        self.parse_comparison()
     }
 
     /// Parse a usage of the `==` binary operator, or any expression with higher precedence.
-    pub fn parse_equals(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
+    pub fn parse_comparison(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
         let mut expr = self.parse_bitwise_or()?;
 
-        if self.tokens.peek().map(|t| &t.kind) == Some(&TokenKind::DoubleEquals) {
+        if let Some(TokenKind::DoubleEquals | TokenKind::LAngle | TokenKind::RAngle) = self.tokens.peek().map(|t| &t.kind) {
+            let op = match self.tokens.peek().unwrap().kind {
+                TokenKind::DoubleEquals => ComparisonBinOp::Equals,
+                TokenKind::LAngle => ComparisonBinOp::LessThan,
+                TokenKind::RAngle => ComparisonBinOp::GreaterThan,
+                _ => unreachable!(),
+            };
             let loc = self.tokens.next().unwrap().loc;
 
             self.parse_bitwise_or()?
                 .integrate(&mut expr, |lhs, rhs|
-                    *lhs = Expression::new(ExpressionKind::Equals(Box::new(lhs.clone()), Box::new(rhs)), loc));
+                    *lhs = Expression::new(ExpressionKind::ComparisonBinOp(op, Box::new(lhs.clone()), Box::new(rhs)), loc));
         }
 
         expr.map(|e| e.into())
@@ -622,7 +628,7 @@ frontend_error!(ParseError, "parse");
 mod test {
     use std::assert_matches::assert_matches;
 
-    use crate::{node::{Expression, ExpressionKind, ArithmeticBinOp}, tokenizer::tokenize};
+    use crate::{node::{Expression, ExpressionKind, ArithmeticBinOp, ComparisonBinOp}, tokenizer::tokenize};
 
     use super::Parser;
 
@@ -639,7 +645,7 @@ mod test {
         assert_matches!(
             parse_expression("2 + 2 == 4"),
             Expression {
-                kind: ExpressionKind::Equals(box Expression { 
+                kind: ExpressionKind::ComparisonBinOp(ComparisonBinOp::Equals, box Expression { 
                     kind: ExpressionKind::ArithmeticBinOp(ArithmeticBinOp::Add, _, _),
                     ..
                 }, _),
@@ -650,7 +656,7 @@ mod test {
         assert_matches!(
             parse_expression("4 == 2 + 2"),
             Expression {
-                kind: ExpressionKind::Equals(_, box Expression { 
+                kind: ExpressionKind::ComparisonBinOp(ComparisonBinOp::Equals, _, box Expression { 
                     kind: ExpressionKind::ArithmeticBinOp(ArithmeticBinOp::Add, _, _),
                     ..
                 }),
@@ -664,7 +670,7 @@ mod test {
         assert_matches!(
             parse_expression("2 + 1 * 2 + 5 == 4"), // ((2 + (1 * 2)) + 5) == 4
             Expression {
-                kind: ExpressionKind::Equals(box Expression { 
+                kind: ExpressionKind::ComparisonBinOp(ComparisonBinOp::Equals, box Expression { 
                     kind: ExpressionKind::ArithmeticBinOp(ArithmeticBinOp::Add,
                         box Expression {
                             kind: ExpressionKind::ArithmeticBinOp(ArithmeticBinOp::Add,

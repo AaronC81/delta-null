@@ -145,7 +145,7 @@ pub enum ExpressionKind<ED> {
     BitwiseNot(Box<Expression<ED>>),
 
     ArithmeticBinOp(ArithmeticBinOp, Box<Expression<ED>>, Box<Expression<ED>>),
-    Equals(Box<Expression<ED>>, Box<Expression<ED>>),
+    ComparisonBinOp(ComparisonBinOp, Box<Expression<ED>>, Box<Expression<ED>>),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -169,6 +169,23 @@ impl Display for ArithmeticBinOp {
             ArithmeticBinOp::BitwiseAnd => "&",
             ArithmeticBinOp::BitwiseXor => "^",
             ArithmeticBinOp::BitwiseOr => "|",
+        })
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ComparisonBinOp {
+    Equals,
+    GreaterThan,
+    LessThan,
+}
+
+impl Display for ComparisonBinOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", match self {
+            ComparisonBinOp::Equals => "==",
+            ComparisonBinOp::GreaterThan => ">",
+            ComparisonBinOp::LessThan => "<",
         })
     }
 }

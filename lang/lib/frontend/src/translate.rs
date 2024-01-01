@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display, error::Error};
 
 use delta_null_lang_backend::ir::{Module, FunctionBuilder, LocalId, BasicBlockBuilder, VariableId, self, Instruction, BasicBlockId};
 
-use crate::{node::{TopLevelItem, TopLevelItemKind, self, Type, ExpressionKind, TypeKind, Statement}, fallible::{Fallible, MaybeFatal}, type_check::{primitive_type_name_to_ir_type, self}};
+use crate::{node::{TopLevelItem, TopLevelItemKind, self, Type, ExpressionKind, TypeKind, Statement, ComparisonBinOp}, fallible::{Fallible, MaybeFatal}, type_check::{primitive_type_name_to_ir_type, self}};
 
 type ExpressionData = crate::type_check::Type;
 
@@ -480,13 +480,19 @@ impl<'c> FunctionTranslator<'c> {
                 }
             }
 
-            node::ExpressionKind::Equals(l, r) =>
+            node::ExpressionKind::ComparisonBinOp(op, l, r) =>
                 self.translate_expression(l)?
                     .combine(self.translate_expression(r)?)
-                    .map(|(l, r)|
+                    .map(|(l, r)| {
+                        let instr = match op {
+                            ComparisonBinOp::Equals => ir::InstructionKind::Equals,
+                            ComparisonBinOp::GreaterThan => ir::InstructionKind::GreaterThan,
+                            ComparisonBinOp::LessThan => ir::InstructionKind::LessThan,
+                        };
                         self.target_mut().add_instruction(
-                            ir::Instruction::new(ir::InstructionKind::Equals(l, r))
-                        ).into()),
+                            ir::Instruction::new(instr(l, r))
+                        ).into()
+                    }),
 
             node::ExpressionKind::Call { target, arguments } => {
                 let target = self.translate_expression(target)?;
