@@ -199,6 +199,12 @@ impl<'f> FunctionGenerator<'f> {
                 self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Sub),
             ir::InstructionKind::Multiply(l, r) =>
                 self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Mul),
+            ir::InstructionKind::BitwiseAnd(l, r) =>
+                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::And),
+            ir::InstructionKind::BitwiseXor(l, r) =>
+                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Xor),
+            ir::InstructionKind::BitwiseOr(l, r) =>
+                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Or),
 
             ir::InstructionKind::Equals(l, r) => {
                 let l = self.generate_read(buffer, *l);

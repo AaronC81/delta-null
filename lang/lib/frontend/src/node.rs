@@ -149,6 +149,10 @@ pub enum ArithmeticBinOp {
     Add,
     Subtract,
     Multiply,
+
+    BitwiseAnd,
+    BitwiseXor,
+    BitwiseOr,
 }
 
 impl Display for ArithmeticBinOp {
@@ -157,6 +161,10 @@ impl Display for ArithmeticBinOp {
             ArithmeticBinOp::Add => "+",
             ArithmeticBinOp::Subtract => "-",
             ArithmeticBinOp::Multiply => "*",
+
+            ArithmeticBinOp::BitwiseAnd => "&",
+            ArithmeticBinOp::BitwiseXor => "^",
+            ArithmeticBinOp::BitwiseOr => "|",
         })
     }
 }

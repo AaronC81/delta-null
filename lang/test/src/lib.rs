@@ -226,6 +226,49 @@ mod test {
     }
 
     #[test]
+    fn test_bitwise() {
+        // AND
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    return 15 & 19;
+                }
+            ").unwrap(),
+            15 & 19
+        );
+
+        // XOR
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    return 13 ^ 19;
+                }
+            ").unwrap(),
+            13 ^ 19
+        );
+
+        // OR
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    return 5 | 19;
+                }
+            ").unwrap(),
+            5 | 19
+        );
+
+        // Precedence
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    return 1 | 3 & 5 ^ 3;
+                }
+            ").unwrap(),
+            1 | ((3 & 5) ^ 3)
+        )
+    }
+
+    #[test]
     fn test_mul() {
         assert_eq!(
             util::compile_and_execute("

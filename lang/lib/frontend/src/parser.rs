@@ -221,14 +221,62 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
     /// Parse a usage of the `==` binary operator, or any expression with higher precedence.
     pub fn parse_equals(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
-        let mut expr = self.parse_add_sub()?;
+        let mut expr = self.parse_bitwise_or()?;
 
         if self.tokens.peek().map(|t| &t.kind) == Some(&TokenKind::DoubleEquals) {
             let loc = self.tokens.next().unwrap().loc;
 
-            self.parse_add_sub()?
+            self.parse_bitwise_or()?
                 .integrate(&mut expr, |lhs, rhs|
                     *lhs = Expression::new(ExpressionKind::Equals(Box::new(lhs.clone()), Box::new(rhs)), loc));
+        }
+
+        expr.map(|e| e.into())
+    }
+
+    /// Parse a usage of the `|` bitwise OR operator, or any expression with higher precedence.
+    pub fn parse_bitwise_or(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
+        let mut expr = self.parse_bitwise_xor()?;
+
+        while let Some(&TokenKind::Bar) = self.tokens.peek().map(|t| &t.kind) {
+            let Token { kind: _, loc } = self.tokens.next().unwrap();
+            let op = ArithmeticBinOp::BitwiseOr;
+
+            self.parse_bitwise_xor()?
+                .integrate(&mut expr, |lhs, rhs|
+                    *lhs = Expression::new(ExpressionKind::ArithmeticBinOp(op, Box::new(lhs.clone()), Box::new(rhs)), loc));
+        }
+
+        expr.map(|e| e.into())
+    }
+
+    /// Parse a usage of the `&` bitwise AND operator, or any expression with higher precedence.
+    pub fn parse_bitwise_xor(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
+        let mut expr = self.parse_bitwise_and()?;
+
+        while let Some(&TokenKind::Caret) = self.tokens.peek().map(|t| &t.kind) {
+            let Token { kind: _, loc } = self.tokens.next().unwrap();
+            let op = ArithmeticBinOp::BitwiseXor;
+
+            self.parse_bitwise_and()?
+                .integrate(&mut expr, |lhs, rhs|
+                    *lhs = Expression::new(ExpressionKind::ArithmeticBinOp(op, Box::new(lhs.clone()), Box::new(rhs)), loc));
+        }
+
+        expr.map(|e| e.into())
+    }
+
+    /// Parse a usage of the `&` bitwise AND operator, or any expression with higher precedence.
+    pub fn parse_bitwise_and(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
+        let mut expr = self.parse_add_sub()?;
+
+        while let Some(&TokenKind::Ampersand) = self.tokens.peek().map(|t| &t.kind) {
+            let Token { kind: _, loc } = self.tokens.next().unwrap();
+            let op = ArithmeticBinOp::BitwiseAnd;
+
+            self.parse_add_sub()?
+                .integrate(&mut expr, |lhs, rhs|
+                    *lhs = Expression::new(ExpressionKind::ArithmeticBinOp(op, Box::new(lhs.clone()), Box::new(rhs)), loc));
         }
 
         expr.map(|e| e.into())

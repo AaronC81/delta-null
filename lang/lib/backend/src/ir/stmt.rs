@@ -90,6 +90,15 @@ pub enum InstructionKind {
     /// Multiply two integer values with each other, of the same type.
     Multiply(VariableId, VariableId),
 
+    /// Performs bitwise AND between two integer values, of the same type.
+    BitwiseAnd(VariableId, VariableId),
+
+    /// Performs bitwise XOR between two integer values, of the same type.
+    BitwiseXor(VariableId, VariableId),
+
+    /// Performs bitwise OR between two integer values, of the same type.
+    BitwiseOr(VariableId, VariableId),
+
     /// Checks if two variables of the same type are equal.
     Equals(VariableId, VariableId),
 
@@ -179,7 +188,10 @@ impl Instruction {
             InstructionKind::Add(l, r)
             | InstructionKind::Subtract(l, r)
             | InstructionKind::Multiply(l, r)
-            | InstructionKind::Equals(l, r) => hashset!{ *l, *r },
+            | InstructionKind::Equals(l, r)
+            | InstructionKind::BitwiseAnd(l, r)
+            | InstructionKind::BitwiseXor(l, r)
+            | InstructionKind::BitwiseOr(l, r) => hashset!{ *l, *r },
             InstructionKind::Call { target, arguments } =>
                 arguments.iter().copied().chain([*target]).collect(),
             InstructionKind::WordSize(_) => hashset!{},
@@ -226,11 +238,24 @@ impl Instruction {
 
                 let is_pointer_arithmetic = a_ty == Type::Pointer && b_ty.is_integral();
                 if !is_pointer_arithmetic && a_ty != b_ty {
-                    return Err(TypeError::new("both sides of binop must either have the same type, or be `pointer` and `integral`"));
+                    return Err(TypeError::new("both sides of arithmetic binop must either have the same type, or be `pointer` and `integral`"));
                 }
                 
                 Ok(Some(a_ty))
             },
+
+            InstructionKind::BitwiseAnd(a, b)
+            | InstructionKind::BitwiseXor(a, b)
+            | InstructionKind::BitwiseOr(a, b) => {
+                let a_ty = vars.get_variable(*a).ty.clone();
+                let b_ty = vars.get_variable(*b).ty.clone();
+
+                if a_ty != b_ty {
+                    return Err(TypeError::new("both sides of bitwise binop must either have the same type, or be `pointer` and `integral`"));
+                }
+                
+                Ok(Some(a_ty))
+            }
 
             InstructionKind::Equals(_, _) => Ok(Some(Type::Boolean)),
 
@@ -282,14 +307,22 @@ impl PrintIR for Instruction {
                 format!("cast (reinterpret) {} as {}", value.print_ir(options), ty),
             InstructionKind::FunctionReference { name, ty } =>
                 format!("funcref `{name}` : {ty}"),
+
             InstructionKind::ReadLocal(l) => format!("read {}", l.print_ir(options)),
             InstructionKind::WriteLocal(l, v) => format!("write {} = {}", l.print_ir(options), v.print_ir(options)),
             InstructionKind::AddressOfLocal(l) => format!("addrof {}", l.print_ir(options)),
+
             InstructionKind::WriteMemory { address, value } => format!("write [{}] = {}", address.print_ir(options), value.print_ir(options)),
             InstructionKind::ReadMemory { address, ty } => format!("read [{}] (as {})", address.print_ir(options), ty),
+
             InstructionKind::Add(a, b) => format!("{} + {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::Subtract(a, b) => format!("{} - {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::Multiply(a, b) => format!("{} * {}", a.print_ir(options), b.print_ir(options)),
+
+            InstructionKind::BitwiseAnd(a, b) => format!("{} & {}", a.print_ir(options), b.print_ir(options)),
+            InstructionKind::BitwiseXor(a, b) => format!("{} ^ {}", a.print_ir(options), b.print_ir(options)),
+            InstructionKind::BitwiseOr(a, b) => format!("{} | {}", a.print_ir(options), b.print_ir(options)),
+
             InstructionKind::Equals(a, b) => format!("{} == {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::Call { target, arguments } => 
                 format!(
@@ -300,14 +333,17 @@ impl PrintIR for Instruction {
                         .collect::<Vec<_>>()
                         .join(", ")
                 ),
+
             InstructionKind::WordSize(ty) => format!("size of {ty}"),
             InstructionKind::InlineAssembly(_) => "<inline asm>".to_owned(),
+
             InstructionKind::Return(r) =>
                 if let Some(r) = r {
                     format!("return {}", r.print_ir(options))
                 } else {
                     "return".to_string()
                 },
+
             InstructionKind::Branch(b) => format!("branch {}", b.print_ir(options)),
             InstructionKind::ConditionalBranch { condition, true_block, false_block } =>
                 format!("condbranch {} ? {} : {}", condition.print_ir(options), true_block.print_ir(options), false_block.print_ir(options)),
@@ -319,6 +355,7 @@ impl PrintIR for Instruction {
                         .collect::<Vec<_>>()
                         .join(", ")
                 ),
+
             InstructionKind::Unreachable => "unreachable".to_owned(),
         }
     }

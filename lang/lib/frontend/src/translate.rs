@@ -437,6 +437,10 @@ impl<'c> FunctionTranslator<'c> {
                     node::ArithmeticBinOp::Add => ir::InstructionKind::Add,
                     node::ArithmeticBinOp::Subtract => ir::InstructionKind::Subtract,
                     node::ArithmeticBinOp::Multiply => ir::InstructionKind::Multiply,
+
+                    node::ArithmeticBinOp::BitwiseAnd => ir::InstructionKind::BitwiseAnd,
+                    node::ArithmeticBinOp::BitwiseXor => ir::InstructionKind::BitwiseXor,
+                    node::ArithmeticBinOp::BitwiseOr => ir::InstructionKind::BitwiseOr,
                 };
 
                 let parts = self.translate_expression(l)?
