@@ -119,6 +119,56 @@ mod test {
     }
 
     #[test]
+    fn test_ordering_comparisons() {
+        // TODO: this should be possible with a cast
+        let bool_to_u16 = "fn bool_to_u16(b: bool) -> u16 { if b { return 1; } else { return 0; } }\n";
+
+        // >, truthy
+        assert_eq!(
+            util::compile_and_execute(&format!("
+                {bool_to_u16}
+                fn main() -> u16 {{
+                    return bool_to_u16(5 > 2);
+                }}
+            ")).unwrap(),
+            1,
+        );
+
+        // >, falsey
+        assert_eq!(
+            util::compile_and_execute(&format!("
+                {bool_to_u16}
+                fn main() -> u16 {{
+                    return bool_to_u16(5 > 10);
+                }}
+            ")).unwrap(),
+            0,
+        );
+
+        // <, truthy
+        assert_eq!(
+            util::compile_and_execute(&format!("
+                {bool_to_u16}
+                fn main() -> u16 {{
+                    return bool_to_u16(3 < 10);
+                }}
+            ")).unwrap(),
+            1,
+        );
+
+        // <, falsey
+        assert_eq!(
+            util::compile_and_execute(&format!("
+                {bool_to_u16}
+                fn main() -> u16 {{
+                    return bool_to_u16(3 < 2);
+                }}
+            ")).unwrap(),
+            0,
+        );
+    }
+
+    #[test]
     fn test_booleans() {
         assert_eq!(
             util::compile_and_execute("

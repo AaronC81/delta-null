@@ -222,10 +222,9 @@ impl<'f> FunctionGenerator<'f> {
             }
 
             ir::InstructionKind::Equals(l, r) => {
+                let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return 0 };
                 let l = self.generate_read(buffer, *l);
                 let r = self.generate_read(buffer, *r);
-
-                let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return 0 };
 
                 // Do comparison - this puts result in `ef`
                 buffer.push(AssemblyItem::new_instruction(
@@ -233,54 +232,50 @@ impl<'f> FunctionGenerator<'f> {
                     &[l.into(), r.into()]
                 ));
 
-                // Optimisation check! If this equality test:
-                //   - Is followed by a `ConditionalBranch`
-                //   - Has the result variable used only by that `ConditionalBranch`
-                // then we can skip extracting `ef`'s condition bit into a variable, and just branch
-                // right now.
-                if let Some(InstructionKind::ConditionalBranch { condition, true_block, false_block })
-                    = after.get(0).map(|s| &s.instruction.kind)
-                {
-                    if *condition == stmt.result.unwrap()
-                        && self.func.variable_references()[condition].len() == 1 // only used as that condition
-                    {
-                        self.insert_bidirectional_branch_instructions(buffer, *true_block, *false_block);
-
-                        // Skip codegen for the `ConditionalBranch` instruction
-                        return 1;
-                    }
+                // Convert to an object
+                if let Some(skips) = self.insert_comparison_value_conversion(buffer, result, stmt, after) {
+                    return skips;
                 }
-
-                // Copy entire `ef` register out into result
-                buffer.push(AssemblyItem::new_instruction(
-                    InstructionOpcode::Movso,
-                    &[result.into(), SPR::EF.into()]
-                ));
-
-                // Mask out the condition bit (0x0002)
-                // This is tricky, because we need to load the mask into a separate register, but
-                // the allocator only gave us one!
-                // Use `r0`, preserving through the stack, or `r1` in case `r0` happens to be our
-                // result register!
-                let mask_reg = if result == GPR::R0 { GPR::R1 } else { GPR::R0 };
-                buffer.push(AssemblyItem::new_instruction(
-                    InstructionOpcode::Push,
-                    &[mask_reg.into()]
-                ));
-                buffer.push(AssemblyItem::new_word_put(mask_reg, AssemblyOperand::Immediate(0x0002)));
-                buffer.push(AssemblyItem::new_instruction(
-                    InstructionOpcode::And,
-                    &[result.into(), mask_reg.into()]
-                ));
-                buffer.push(AssemblyItem::new_instruction(
-                    InstructionOpcode::Pop,
-                    &[mask_reg.into()]
-                ));
             },
 
-            // TODO
-            ir::InstructionKind::GreaterThan(_, _) => todo!(),
-            ir::InstructionKind::LessThan(_, _) => todo!(),
+            ir::InstructionKind::GreaterThan(l, r) => {
+                let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return 0 };
+                let l = self.generate_read(buffer, *l);
+                let r = self.generate_read(buffer, *r);
+
+                // Do comparison - this puts result in `ef`
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Gt,
+                    &[l.into(), r.into()]
+                ));
+
+                // Convert to an object
+                if let Some(skips) = self.insert_comparison_value_conversion(buffer, result, stmt, after) {
+                    return skips;
+                }
+            },
+
+            ir::InstructionKind::LessThan(l, r) => {
+                let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return 0 };
+                let l = self.generate_read(buffer, *l);
+                let r = self.generate_read(buffer, *r);
+
+                // The architecture doesn't have a less-than instruction, for reasons which probably
+                // seemed great at the time. Instead, invert the result of a `Gteq`.
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Gteq,
+                    &[l.into(), r.into()]
+                ));
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Inv,
+                    &[]
+                ));
+
+                // Convert to an object
+                if let Some(skips) = self.insert_comparison_value_conversion(buffer, result, stmt, after) {
+                    return skips;
+                }
+            },
 
             ir::InstructionKind::Call { target, arguments } => {
                 // Fetch result register. The call puts its result in `r0`, so we'll copy it here
@@ -618,6 +613,61 @@ impl<'f> FunctionGenerator<'f> {
         ));
     }
 
+    /// Inserts instructions to extract the comparison flag out of EF into a boolean variable, to
+    /// complete generation of a comparison instruction like [InstructionKind::Equals].
+    /// 
+    /// May perform optimisations to avoid doing this if a branch instruction which uses the result
+    /// of the test is detected. If so, returns the number of instructions to skip, which should be
+    /// propagated in `ir_statement_to_assembly`. If [None], the value was generated into a variable
+    /// like normal.
+    #[must_use]
+    fn insert_comparison_value_conversion(&self, buffer: &mut Vec<AssemblyItem>, result_gpr: GPR, stmt: &ir::Statement, after: &[ir::Statement]) -> Option<usize> {
+        // Optimisation check! If this equality test:
+        //   - Is followed by a `ConditionalBranch`
+        //   - Has the result variable used only by that `ConditionalBranch`
+        // then we can skip extracting `ef`'s condition bit into a variable, and just branch
+        // right now.
+        if let Some(InstructionKind::ConditionalBranch { condition, true_block, false_block })
+            = after.get(0).map(|s| &s.instruction.kind)
+        {
+            if *condition == stmt.result.unwrap()
+                && self.func.variable_references()[condition].len() == 1 // only used as that condition
+            {
+                self.insert_bidirectional_branch_instructions(buffer, *true_block, *false_block);
+
+                // Skip codegen for the `ConditionalBranch` instruction
+                return Some(1);
+            }
+        }
+
+        // Copy entire `ef` register out into result
+        buffer.push(AssemblyItem::new_instruction(
+            InstructionOpcode::Movso,
+            &[result_gpr.into(), SPR::EF.into()]
+        ));
+
+        // Mask out the condition bit (0x0002)
+        // This is tricky, because we need to load the mask into a separate register, but
+        // the allocator only gave us one!
+        // Use `r0`, preserving through the stack, or `r1` in case `r0` happens to be our
+        // result register!
+        let mask_reg = if result_gpr == GPR::R0 { GPR::R1 } else { GPR::R0 };
+        buffer.push(AssemblyItem::new_instruction(
+            InstructionOpcode::Push,
+            &[mask_reg.into()]
+        ));
+        buffer.push(AssemblyItem::new_word_put(mask_reg, AssemblyOperand::Immediate(0x0002)));
+        buffer.push(AssemblyItem::new_instruction(
+            InstructionOpcode::And,
+            &[result_gpr.into(), mask_reg.into()]
+        ));
+        buffer.push(AssemblyItem::new_instruction(
+            InstructionOpcode::Pop,
+            &[mask_reg.into()]
+        ));
+
+        None
+    }
 
     /// Calculates the amount of stack space required throughout this function.
     /// 
