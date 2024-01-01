@@ -433,8 +433,8 @@ impl<'c> FunctionTranslator<'c> {
             }
 
             // TODO: what about other types?
-            node::ExpressionKind::Integer(i) => Fallible::new_ok(
-                self.target_mut().add_constant(ir::ConstantValue::U16(i.parse().unwrap()))
+            node::ExpressionKind::Integer(i, base) => Fallible::new_ok(
+                self.target_mut().add_constant(ir::ConstantValue::U16(u16::from_str_radix(i, *base).unwrap()))
             ),
 
             node::ExpressionKind::Boolean(b) => Fallible::new_ok(

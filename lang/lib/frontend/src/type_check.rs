@@ -408,14 +408,14 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
                 (ExpressionKind::BitwiseNot(Box::new(v)), ty)
             }
 
-            ExpressionKind::Integer(int) => {
-                if int.parse::<u16>().is_err() {
+            ExpressionKind::Integer(int, base) => {
+                if u16::from_str_radix(&int, base).is_err() {
                     errors.push_error(TypeError::new(
                         &format!("integer literal '{int}' out of range"), loc
                     ))
                 }
 
-                (ExpressionKind::Integer(int), Type::Direct(ir::Type::UnsignedInteger(ir::IntegerSize::Bits16)))
+                (ExpressionKind::Integer(int, base), Type::Direct(ir::Type::UnsignedInteger(ir::IntegerSize::Bits16)))
             },
 
             ExpressionKind::Boolean(b) =>

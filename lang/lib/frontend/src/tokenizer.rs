@@ -17,7 +17,19 @@ impl Token {
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum TokenKind {
     Identifier(String),
-    Integer(String),
+
+    /// Stores the integer's value, and a base. If the parsed token had a base specifier, it is
+    /// stripped here.
+    /// 
+    /// Examples:
+    /// 
+    /// ```ignore
+    /// 123     => Integer("123", 10)
+    /// -123    => Integer("-123", 10)
+    /// 0xAB    => Integer("AB", 16)
+    /// -0b1101 => Integer("-1101", 2)
+    /// ```
+    Integer(String, u32),
 
     KwFn,
     KwVar,
@@ -169,21 +181,49 @@ pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>)
                 let mut buffer = String::new();
                 buffer.push(chars.next().unwrap().0);
 
+                // `->` case
                 if &buffer == "-" && chars.peek().map(|(o, _)| *o) == Some('>') {
                     chars.next().unwrap();
                     tokens.push(Token::new(TokenKind::RArrow, loc));
                     continue;
                 }
+
+                // `-` case
                 if &buffer == "-" && !chars.peek().map(|(o, _)| o.is_ascii_digit()).unwrap_or(false) {
                     chars.next().unwrap();
                     tokens.push(Token::new(TokenKind::Minus, loc));
                     continue;
                 }
 
-                while let Some((next, _)) = chars.next_if(|(c, _)| c.is_ascii_digit()) {
+                // Integer case
+                // If the integer starts with `0x` or `0b`, then it's a hex/bin literal
+                let mut base = 10;
+                if let Some('0') = buffer.chars().next() {
+                    buffer.clear(); // Discard 0, it doesn't affect the numeric value anyway
+                    match chars.peek() {
+                        Some(('x', _)) => {
+                            chars.next();
+                            base = 16
+                        }
+                        Some(('b', _)) => {
+                            chars.next();
+                            base = 2
+                        }
+                        _ => (),
+                    };
+                }
+                
+                while let Some((next, _)) = chars.next_if(|(c, _)| c.is_digit(base)) {
                     buffer.push(next);
                 }
-                tokens.push(Token::new(TokenKind::Integer(buffer), loc))
+
+                // Special case - if we end up with an empty buffer, then the integer was just `0`,
+                // but this was stripped away when we probed for a base specifier.
+                if buffer.is_empty() {
+                    buffer.push('0');
+                }
+
+                tokens.push(Token::new(TokenKind::Integer(buffer, base), loc))
             },
 
             // Don't know!
@@ -242,13 +282,19 @@ mod test {
 
     #[test]
     fn test_integer() {
-        let (tokens, errors) = tokenize("123 + -456", "");
+        let (tokens, errors) = tokenize("123 + -456 + 10 + 0xAB + 0b1101", "");
         assert!(errors.is_empty());
         assert_eq!(
             vec![
-                TokenKind::Integer("123".to_string()),
+                TokenKind::Integer("123".to_string(), 10),
                 TokenKind::Plus,
-                TokenKind::Integer("-456".to_string()),
+                TokenKind::Integer("-456".to_string(), 10),
+                TokenKind::Plus,
+                TokenKind::Integer("10".to_string(), 10),
+                TokenKind::Plus,
+                TokenKind::Integer("AB".to_string(), 16),
+                TokenKind::Plus,
+                TokenKind::Integer("1101".to_string(), 2),
             ],
             tokens.into_iter().map(|t| t.kind).collect::<Vec<_>>()
         )

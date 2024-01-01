@@ -18,6 +18,18 @@ mod test {
     }
 
     #[test]
+    fn test_literals() {
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    return 0xAB + 12 + 0b1101;
+                }
+            ").unwrap(),
+            0xAB + 12 + 0b1101
+        )
+    }
+
+    #[test]
     fn test_variables() {
         assert_eq!(
             util::compile_and_execute("

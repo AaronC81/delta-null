@@ -123,7 +123,10 @@ impl<D: Default> Expression<D> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExpressionKind<ED> {
     Identifier(String),
-    Integer(String),
+    
+    /// No base specifier in the string - see [crate::tokenizer::TokenKind::Integer].
+    Integer(String, u32),
+
     Boolean(bool),
 
     Call {

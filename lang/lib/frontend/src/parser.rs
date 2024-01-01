@@ -369,10 +369,10 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     /// integer literal.
     pub fn parse_atom(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
         match self.tokens.peek().map(|t| &t.kind) {
-            Some(TokenKind::Integer(_)) => {
+            Some(TokenKind::Integer(_, _)) => {
                 let t = self.tokens.next().unwrap();
-                let TokenKind::Integer(i) = t.kind else { unreachable!() };
-                Fallible::new_ok(Expression::new(ExpressionKind::Integer(i), t.loc))
+                let TokenKind::Integer(i, base) = t.kind else { unreachable!() };
+                Fallible::new_ok(Expression::new(ExpressionKind::Integer(i, base), t.loc))
             },
 
             Some(TokenKind::Identifier(_)) => {
@@ -420,12 +420,12 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
             Some(TokenKind::LBracket) => {
                 let size_token = self.tokens.next();
-                let Some(TokenKind::Integer(size)) = size_token.map(|t| t.kind) else {
+                let Some(TokenKind::Integer(size, size_base)) = size_token.map(|t| t.kind) else {
                     return Fallible::new_fatal(vec![
                         ParseError::new("expected array size", token.unwrap().loc)
                     ])
                 };
-                let Ok(size) = size.parse() else {
+                let Ok(size) = usize::from_str_radix(&size, size_base) else {
                     return Fallible::new_fatal(vec![
                         ParseError::new("array size must be a positive integer", token.unwrap().loc)
                     ])
@@ -712,13 +712,13 @@ mod test {
                 ..
             } => {
                 assert_matches!(a_args[..], [
-                    Expression { kind: ExpressionKind::Integer(_), .. },
+                    Expression { kind: ExpressionKind::Integer(_, _), .. },
                     Expression { kind: ExpressionKind::Identifier(_), .. },
                 ]);
                 assert_matches!(b_args[..], [
                     Expression { kind: ExpressionKind::Identifier(_), .. },
-                    Expression { kind: ExpressionKind::Integer(_), .. },
-                    Expression { kind: ExpressionKind::Integer(_), .. },
+                    Expression { kind: ExpressionKind::Integer(_, _), .. },
+                    Expression { kind: ExpressionKind::Integer(_, _), .. },
                 ]);
             }
 
