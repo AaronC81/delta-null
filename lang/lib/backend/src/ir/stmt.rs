@@ -99,6 +99,9 @@ pub enum InstructionKind {
     /// Performs bitwise OR between two integer values, of the same type.
     BitwiseOr(VariableId, VariableId),
 
+    /// Performs bitwise NOT on an integer value.
+    BitwiseNot(VariableId),
+
     /// Checks if two variables of the same type are equal.
     Equals(VariableId, VariableId),
 
@@ -192,6 +195,7 @@ impl Instruction {
             | InstructionKind::BitwiseAnd(l, r)
             | InstructionKind::BitwiseXor(l, r)
             | InstructionKind::BitwiseOr(l, r) => hashset!{ *l, *r },
+            InstructionKind::BitwiseNot(v) => hashset!{ *v },
             InstructionKind::Call { target, arguments } =>
                 arguments.iter().copied().chain([*target]).collect(),
             InstructionKind::WordSize(_) => hashset!{},
@@ -255,6 +259,16 @@ impl Instruction {
                 }
                 
                 Ok(Some(a_ty))
+            }
+
+            InstructionKind::BitwiseNot(v) => {
+                let ty = vars.get_variable(*v).ty.clone();
+
+                if !ty.is_integral() {
+                    return Err(TypeError::new("bitwise NOT can only be applied to an integral type"));
+                }
+
+                Ok(Some(ty))
             }
 
             InstructionKind::Equals(_, _) => Ok(Some(Type::Boolean)),
@@ -322,6 +336,7 @@ impl PrintIR for Instruction {
             InstructionKind::BitwiseAnd(a, b) => format!("{} & {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::BitwiseXor(a, b) => format!("{} ^ {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::BitwiseOr(a, b) => format!("{} | {}", a.print_ir(options), b.print_ir(options)),
+            InstructionKind::BitwiseNot(v) => format!("~{}", v.print_ir(options)),
 
             InstructionKind::Equals(a, b) => format!("{} == {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::Call { target, arguments } => 

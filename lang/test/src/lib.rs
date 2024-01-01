@@ -265,7 +265,17 @@ mod test {
                 }
             ").unwrap(),
             1 | ((3 & 5) ^ 3)
-        )
+        );
+
+        // NOT
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    return ~1234;
+                }
+            ").unwrap(),
+            !1234u16
+        );
     }
 
     #[test]

@@ -294,7 +294,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
     /// Parses a call.
     pub fn parse_call(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
-        let mut expr = self.parse_pointer_ops()?;
+        let mut expr = self.parse_unary()?;
 
         if let Some(&TokenKind::LParen) = self.tokens.peek().map(|t| &t.kind) {
             let mut errors = Fallible::new_ok(());
@@ -315,12 +315,12 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         expr.map(|e| e.into())
     }
 
-    /// Parse a pointer take or dereference operation.
-    pub fn parse_pointer_ops(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
+    /// Parse a unary operator. All unary operators currently have the same precedence.
+    pub fn parse_unary(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
         match self.tokens.peek().map(|t| &t.kind) {
             Some(&TokenKind::Ampersand) => {
                 self.tokens.next();
-                self.parse_pointer_ops()?.map(|e| {
+                self.parse_unary()?.map(|e| {
                     let loc = e.loc.clone();
                     Expression::new(ExpressionKind::PointerTake(Box::new(e)), loc).into()
                 })
@@ -328,9 +328,17 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
             Some(&TokenKind::Star) => {
                 self.tokens.next();
-                self.parse_pointer_ops()?.map(|e| {
+                self.parse_unary()?.map(|e| {
                     let loc = e.loc.clone();
                     Expression::new(ExpressionKind::PointerDereference(Box::new(e)), loc).into()
+                })
+            }
+
+            Some(&TokenKind::Tilde) => {
+                self.tokens.next();
+                self.parse_unary()?.map(|e| {
+                    let loc = e.loc.clone();
+                    Expression::new(ExpressionKind::BitwiseNot(Box::new(e)), loc).into()
                 })
             }
 

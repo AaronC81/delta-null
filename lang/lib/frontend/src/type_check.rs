@@ -392,6 +392,22 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
                 (ExpressionKind::PointerDereference(Box::new(ptr)), ty)
             }
 
+            ExpressionKind::BitwiseNot(v) => {
+                let v = type_check_expression(*v, ctx).propagate(&mut errors);
+                let ty = v.data.clone();
+
+                // Check that inner type is integral
+                if let Type::Direct(ref ir) = ty && ir.is_integral() {
+                    // Good!
+                } else {
+                    errors.push_error(TypeError::new(
+                        &format!("operator `~` is not compatible with types `{}`", v.data), loc
+                    ))
+                }
+
+                (ExpressionKind::BitwiseNot(Box::new(v)), ty)
+            }
+
             ExpressionKind::Integer(int) => {
                 if int.parse::<u16>().is_err() {
                     errors.push_error(TypeError::new(

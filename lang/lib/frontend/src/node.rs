@@ -139,6 +139,7 @@ pub enum ExpressionKind<ED> {
 
     PointerTake(Box<Expression<ED>>),
     PointerDereference(Box<Expression<ED>>),
+    BitwiseNot(Box<Expression<ED>>),
 
     ArithmeticBinOp(ArithmeticBinOp, Box<Expression<ED>>, Box<Expression<ED>>),
     Equals(Box<Expression<ED>>, Box<Expression<ED>>),

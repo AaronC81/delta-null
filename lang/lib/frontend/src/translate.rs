@@ -423,6 +423,15 @@ impl<'c> FunctionTranslator<'c> {
                     )
             }
 
+            node::ExpressionKind::BitwiseNot(v) => {
+                self.translate_expression(v)?
+                    .map(|v|
+                        self.target_mut().add_instruction(
+                            Instruction::new(ir::InstructionKind::BitwiseNot(v))
+                        ).into()
+                    )
+            }
+
             // TODO: what about other types?
             node::ExpressionKind::Integer(i) => Fallible::new_ok(
                 self.target_mut().add_constant(ir::ConstantValue::U16(i.parse().unwrap()))

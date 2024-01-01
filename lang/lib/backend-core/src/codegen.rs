@@ -206,6 +206,21 @@ impl<'f> FunctionGenerator<'f> {
             ir::InstructionKind::BitwiseOr(l, r) =>
                 self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Or),
 
+            ir::InstructionKind::BitwiseNot(v) => {
+                let v = self.generate_read(buffer, *v);
+                let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return 0 };
+
+                // Move into result register, then `NOT`
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Mov,
+                    &[result.into(), v.into()]
+                ));
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Not,
+                    &[result.into()]
+                ));
+            }
+
             ir::InstructionKind::Equals(l, r) => {
                 let l = self.generate_read(buffer, *l);
                 let r = self.generate_read(buffer, *r);
