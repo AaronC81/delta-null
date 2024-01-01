@@ -2,3 +2,5 @@ target
 .DS_Store
 core/examples/*.hex
 build
+lang/examples/*.dna*
+lang/examples/*.hex
