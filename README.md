@@ -92,31 +92,26 @@ simulator adapter or even a hardware debugger - but I haven't looked at this yet
 
 ### Language
 
-There isn't much there yet, but you can write simple one-function programs:
+There isn't much there yet, but it is Turing-complete. You can write simple programs with functions,
+looping, branching, and recursion:
 
 ```rust
-fn main() {
-    var a: u16 = 0;
-    loop {
-        a = a + 1;
+fn fact(x: u16) -> u16 {
+    if x == 1 {
+        return 1;
+    } else {
+        return x * fact(x - 1);
     }
+}
+
+fn main() -> u16 {
+    return fact(5);
 }
 ```
 
 These get converted into an SSA IR, inspired by LLVM:
 
-```
-%0:
-  $0 = 0
-  write <local 0> = $0
-  branch %1
-%1:
-  $1 = read <local 0>
-  $2 = 1
-  $3 = $1 + $2
-  write <local 0> = $3
-  branch %1
-```
+![Control-flow graph of SSA IR instructions for the above program](img/fact_dot.png)
 
 And finally end up as (horrifically unoptimised) assembly programs.
 
@@ -137,6 +132,7 @@ This goes over the notable parts of this repository's folder hierarchy.
   - `backend` - IR definition, common analysis tools
   - `backend-core` - Translates IR to Delta Null assembly; the idea is that other `backend-X` crates
     could target other architectures
+  - `examples` - Example programs
 
 ## Usage
 
