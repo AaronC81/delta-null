@@ -618,6 +618,9 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         self.expect(TokenKind::Equals)?;
         let ty = self.parse_type()?;
 
+        // Closing semicolon
+        self.expect(TokenKind::Semicolon)?;
+
         // Construct alias item
         ty.map(|ty|
             MaybeFatal::Ok(TopLevelItem {
