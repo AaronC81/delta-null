@@ -44,9 +44,9 @@ pub fn allocate(func: &Function, cfg: &ControlFlowGraph, liveness: &LivenessAnal
     // function - it makes accessing them easier!
     let parameter_passing_registers = [GPR::R0, GPR::R1, GPR::R2, GPR::R3];
     for (var, reg) in func.arguments.iter().zip(parameter_passing_registers) {
-        free_registers.drain_filter(|r| r == &reg);
+        free_registers.extract_if(|r| r == &reg).for_each(|_| ());
         mapping.insert(*var, Allocation::Register(reg));
-        internals_by_increasing_start.drain_filter(|(v, _)| v == &var);
+        internals_by_increasing_start.extract_if(|(v, _)| v == &var).for_each(|_| ());
     }
 
     let mut active = vec![];

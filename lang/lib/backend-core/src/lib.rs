@@ -1,6 +1,6 @@
 //! Language backend targeting the Delta Null's processor soft-core.
 
-#![feature(drain_filter)]
+#![feature(extract_if)]
 
 use codegen::FunctionGenerator;
 use delta_null_core_assembler::{BuildError, AssemblyItem};
