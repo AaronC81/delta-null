@@ -87,6 +87,8 @@ impl ModuleTranslator {
                     let func = func_trans.func.finalize();
                     self.module.functions.push(func);
                 },
+
+                TopLevelItemKind::TypeAlias { .. } => todo!(), // TODO
             }
         }
 

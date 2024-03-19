@@ -35,6 +35,10 @@ pub enum TopLevelItemKind<D> {
         parameters: Vec<FunctionParameter>,
         return_type: Type,
         body: Statement<D>,
+    },
+    TypeAlias {
+        name: String,
+        ty: Type,
     }
 }
 

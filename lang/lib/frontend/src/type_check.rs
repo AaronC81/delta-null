@@ -129,6 +129,8 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
                     },
                 );
             },
+
+            TopLevelItemKind::TypeAlias { .. } => todo!(), // TODO
         }
     }
 
@@ -166,6 +168,8 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
 
                     TopLevelItemKind::FunctionDefinition { name, parameters, return_type, body }
                 },
+
+                TopLevelItemKind::TypeAlias { .. } => todo!(), // TODO
             })
         })
         .collect();

@@ -22,19 +22,27 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     pub fn parse_module(&mut self) -> Fallible<Vec<TopLevelItem>, ParseError> {
         let mut result = Fallible::new(vec![]);
     
-        while let Some(peeked) = self.tokens.peek() {
-            match peeked.kind {
-                TokenKind::KwFn => self.parse_function_definition()
-                    .integrate_if_ok(&mut result, |l, i| l.push(i)),
-
-                _ => {
-                    let token = self.tokens.next().unwrap();
-                    result.push_error(ParseError::new(&format!("unexpected token at top-level: {:?}", token.kind), token.loc));
-                }
-            }
+        while self.tokens.peek().is_some() {
+            self.parse_top_level_item()
+                .integrate_if_ok(&mut result, |l, i| l.push(i))
         }
     
         result
+    }
+
+    /// Parse one [TopLevelItem]. (Assumes that there is a token left in the input.)
+    pub fn parse_top_level_item(&mut self) -> Fallible<MaybeFatal<TopLevelItem>, ParseError> {
+        match self.tokens.peek().expect("`parse_top_level_item` called with no tokens").kind {
+            TokenKind::KwFn => self.parse_function_definition(),
+            TokenKind::KwType => self.parse_type_alias(),
+
+            _ => {
+                let token = self.tokens.next().unwrap();
+                return Fallible::new_fatal(vec![
+                    ParseError::new(&format!("unexpected token at top-level: {:?}", token.kind), token.loc)
+                ]);
+            }
+        }
     }
 
     /// Parse a function definition.
@@ -592,6 +600,36 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         expr.map(|e| e.into())
     }
 
+    /// Parse a type alias.
+    pub fn parse_type_alias(&mut self) -> Fallible<MaybeFatal<TopLevelItem>, ParseError> {
+        let loc = self.here_loc();
+        self.expect(TokenKind::KwType)?;
+
+        // Parse type name
+        let name_token = self.tokens.next();
+        let Some(TokenKind::Identifier(name)) = name_token.as_ref().map(|t| &t.kind) else {
+            return Fallible::new_fatal(vec![
+                ParseError::new("expected identifier after `type`", name_token.unwrap().loc),
+            ])
+        };
+        let name = name.to_owned();
+
+        // Parse type we're making an alias of
+        self.expect(TokenKind::Equals)?;
+        let ty = self.parse_type()?;
+
+        // Construct alias item
+        ty.map(|ty|
+            MaybeFatal::Ok(TopLevelItem {
+                kind: TopLevelItemKind::TypeAlias {
+                    name,
+                    ty,
+                },
+                loc,
+            }
+        ))
+    }
+
     /// Assume that the next token has the given [TokenKind], and returns it, else fail with a parse
     /// error.
     #[must_use]
@@ -628,7 +666,7 @@ frontend_error!(ParseError, "parse");
 mod test {
     use std::assert_matches::assert_matches;
 
-    use crate::{node::{Expression, ExpressionKind, ArithmeticBinOp, ComparisonBinOp}, tokenizer::tokenize};
+    use crate::{node::{ArithmeticBinOp, ComparisonBinOp, Expression, ExpressionKind, TopLevelItem, TopLevelItemKind, Type, TypeKind}, tokenizer::tokenize};
 
     use super::Parser;
 
@@ -638,6 +676,14 @@ mod test {
             panic!("{:?}", errors)
         }
         Parser::new(tokens.into_iter().peekable()).parse_expression().unwrap().unwrap()
+    }
+
+    fn parse_top_level_item(code: &str) -> TopLevelItem {
+        let (tokens, errors) = tokenize(code, "<test>");
+        if !errors.is_empty() {
+            panic!("{:?}", errors)
+        }
+        Parser::new(tokens.into_iter().peekable()).parse_top_level_item().unwrap().unwrap()
     }
 
     #[test]
@@ -730,5 +776,22 @@ mod test {
 
             _ => panic!("top match failed"),
         }
+    }
+
+    #[test]
+    fn test_type_alias() {
+        assert_matches!(
+            parse_top_level_item("type Word = u16;"),
+            TopLevelItem {
+                kind: TopLevelItemKind::TypeAlias {
+                    ty: Type {
+                        kind: TypeKind::Name(_),
+                        ..
+                    },
+                    ..
+                },
+                ..
+            }
+        );
     }
 }
