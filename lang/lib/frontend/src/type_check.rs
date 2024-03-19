@@ -95,6 +95,9 @@ impl<'m> Context<'m> {
 pub struct ModuleContext {
     /// All defined globals.
     globals: HashMap<String, Type>,
+
+    /// All defined type aliases.
+    type_aliases: HashMap<String, Type>,
 }
 
 /// Describes the context within a particular scope of a function.
@@ -114,7 +117,10 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
     let mut errors = Fallible::new(());
 
     // Build module-level context
-    let mut module_ctx = ModuleContext { globals: HashMap::new() };
+    let mut module_ctx = ModuleContext {
+        globals: HashMap::new(),
+        type_aliases: HashMap::new(),
+    };
     for item in &items {
         match &item.kind {
             TopLevelItemKind::FunctionDefinition { name, parameters, return_type, body: _ } => {
@@ -130,7 +136,14 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
                 );
             },
 
-            TopLevelItemKind::TypeAlias { .. } => todo!(), // TODO
+            TopLevelItemKind::TypeAlias { name, ty } => {
+                let ty = convert_node_type(ty).propagate(&mut errors);
+                if !module_ctx.type_aliases.contains_key(name) {
+                    module_ctx.type_aliases.insert(name.clone(), ty);
+                } else {
+                    errors.push_error(TypeError::new("duplicate type alias `{name}`", item.loc.clone()))
+                }
+            },
         }
     }
 
@@ -169,7 +182,12 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
                     TopLevelItemKind::FunctionDefinition { name, parameters, return_type, body }
                 },
 
-                TopLevelItemKind::TypeAlias { .. } => todo!(), // TODO
+                // These are the same, but we have to convince the compiler that the generic type
+                // parameter to `TopLevelItemKind` has changed (which it does in 
+                // `FunctionDefinition`, as we sprinkle type information around the AST)
+                TopLevelItemKind::TypeAlias { name, ty } => {
+                    TopLevelItemKind::TypeAlias { name, ty }
+                },
             })
         })
         .collect();
@@ -746,5 +764,44 @@ mod test {
                 }
             }
         "));
+    }
+
+    #[test]
+    fn test_type_alias() {
+        // OK - instantiating aliases
+        assert_ok(parse("
+            type Word = u16;
+
+            fn main() -> u16 {
+                var x: Word = 14;
+                var y: Word = 16;
+                var z: Word = x + y;
+            }
+        "));
+
+        // OK - aliases in parameter and return types
+        assert_ok(parse("
+            type Word = u16;
+
+            fn add_words(x: Word, y: Word) -> Word {
+                return x + y;
+            }
+
+            fn main() -> u16 {
+                return add_words(14, 16);
+            }
+        "));
+
+        // Error - shadowing aliases isn't allowed
+        assert_errors(parse("
+            type Word = u16;
+            type Word = u32;
+        "), "duplicate type alias `Word`");
+
+        // Error - shadowing aliases isn't allowed, even if it's the same type
+        assert_errors(parse("
+            type Word = u16;
+            type Word = u16;
+        "), "duplicate type alias `Word`");
     }
 }
