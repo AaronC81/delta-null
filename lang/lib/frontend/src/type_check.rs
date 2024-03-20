@@ -124,12 +124,12 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
     for item in &items {
         match &item.kind {
             TopLevelItemKind::FunctionDefinition { name, parameters, return_type, body: _ } => {
-                let return_type = convert_node_type(return_type).propagate(&mut errors);
+                let return_type = convert_node_type(return_type, &module_ctx).propagate(&mut errors);
                 module_ctx.globals.insert(
                     name.clone(),
                     Type::FunctionReference {
                         argument_types: parameters.iter()
-                            .map(|p| convert_node_type(&p.ty).propagate(&mut errors))
+                            .map(|p| convert_node_type(&p.ty, &module_ctx).propagate(&mut errors))
                             .collect(),
                         return_type: Box::new(return_type)
                     },
@@ -137,11 +137,11 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
             },
 
             TopLevelItemKind::TypeAlias { name, ty } => {
-                let ty = convert_node_type(ty).propagate(&mut errors);
+                let ty = convert_node_type(ty, &module_ctx).propagate(&mut errors);
                 if !module_ctx.type_aliases.contains_key(name) {
                     module_ctx.type_aliases.insert(name.clone(), ty);
                 } else {
-                    errors.push_error(TypeError::new("duplicate type alias `{name}`", item.loc.clone()))
+                    errors.push_error(TypeError::new(&format!("duplicate type alias `{name}`"), item.loc.clone()))
                 }
             },
         }
@@ -160,11 +160,11 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
                             variables: HashMap::new(),
                             arguments: parameters.iter()
                                 .map(|p| {
-                                    let ty = convert_node_type(&p.ty).propagate(&mut errors);
+                                    let ty = convert_node_type(&p.ty, &module_ctx).propagate(&mut errors);
                                     (p.name.clone(), ty)
                                 })
                                 .collect(),
-                            return_type: convert_node_type(&return_type).propagate(&mut errors),
+                            return_type: convert_node_type(&return_type, &module_ctx).propagate(&mut errors),
                         },
                     };
 
@@ -214,7 +214,7 @@ pub fn type_check_statement(stmt: Statement<()>, ctx: &mut Context) -> Fallible<
             
             StatementKind::VariableDeclaration { name, ty, value } => {
                 // Create key in context, which shouldn't exist already
-                let converted_ty = convert_node_type(&ty).propagate(&mut errors);
+                let converted_ty = convert_node_type(&ty, &ctx.module).propagate(&mut errors);
                 if ctx.local.variables.contains_key(&name) {
                     errors.push_error(TypeError::new(
                         &format!("redefinition of local variable `{name}`"), loc
@@ -362,7 +362,7 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
 
             ExpressionKind::Cast(value, ty) => {
                 let value = type_check_expression(*value, ctx).propagate(&mut errors);
-                let target_ty = convert_node_type(&ty).propagate(&mut errors);
+                let target_ty = convert_node_type(&ty, &ctx.module).propagate(&mut errors);
 
                 // Is a cast possible?
                 let is_castable = match (&value.data, &target_ty) {
@@ -574,18 +574,25 @@ pub fn find_statement<'s, T>(stmt: &'s Statement<T>, predicate: &impl Fn(&Statem
 
 /// Translates a [node::Type] to an [Type].
 #[must_use]
-fn convert_node_type(ty: &node::Type) -> Fallible<Type, TypeError> {
+fn convert_node_type(ty: &node::Type, module_ctx: &ModuleContext) -> Fallible<Type, TypeError> {
     match &ty.kind {
-        node::TypeKind::Name(t) => 
+        node::TypeKind::Name(t) => {
+            // Check for an alias
+            if let Some(alias_ty) = module_ctx.type_aliases.get(t) {
+                return Fallible::new(alias_ty.clone())
+            }
+
+            // Finally, try mapping primitive type
             match primitive_type_name_to_ir_type(t) {
                 Some(v) => Fallible::new(Type::Direct(v)),
                 None => Fallible::new_with_errors(Type::Unknown,
                     vec![TypeError::new(&format!("unknown type `{t}`"), ty.loc.clone())])
-            },
+            }
+        },
         node::TypeKind::Pointer(ty) =>
-            convert_node_type(ty).map(|ty| Type::Pointer(Box::new(ty))),
+            convert_node_type(ty, module_ctx).map(|ty| Type::Pointer(Box::new(ty))),
         node::TypeKind::Array(ty, size) =>
-            convert_node_type(ty).map(|ty| Type::Array(Box::new(ty), *size)),
+            convert_node_type(ty, module_ctx).map(|ty| Type::Array(Box::new(ty), *size)),
         node::TypeKind::Void => Fallible::new(Type::Direct(ir::Type::Void)),
     }
 }
@@ -776,6 +783,8 @@ mod test {
                 var x: Word = 14;
                 var y: Word = 16;
                 var z: Word = x + y;
+
+                return 0;
             }
         "));
 
@@ -795,7 +804,7 @@ mod test {
         // Error - shadowing aliases isn't allowed
         assert_errors(parse("
             type Word = u16;
-            type Word = u32;
+            type Word = u8;
         "), "duplicate type alias `Word`");
 
         // Error - shadowing aliases isn't allowed, even if it's the same type
