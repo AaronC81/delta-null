@@ -626,6 +626,8 @@ fn convert_node_type(ty: &node::Type, module_ctx: &ModuleContext) -> Fallible<Ty
         node::TypeKind::Array(ty, size) =>
             convert_node_type(ty, module_ctx).map(|ty| Type::Array(Box::new(ty), *size)),
         node::TypeKind::Void => Fallible::new(Type::Direct(ir::Type::Void)),
+
+        node::TypeKind::Struct(_) => todo!(), // TODO
     }
 }
 

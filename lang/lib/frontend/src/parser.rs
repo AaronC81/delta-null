@@ -110,20 +110,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 let mut errors = Fallible::new(());
 
                 // Parse name and type
-                let name_token = self.tokens.next();
-                let name =
-                    match name_token.as_ref().map(|t| &t.kind) {
-                        Some(TokenKind::Identifier(i)) => i.to_owned(),
-                        Some(_) => {
-                            errors.push_error(ParseError::new("expected identifier after `var`", name_token.unwrap().loc));
-                            "<?>".to_owned()
-                        },
-                        None => return Fallible::new_fatal(vec![
-                            ParseError::new("unexpected end-of-file", SourceLocation::stub()),
-                        ]),
-                    };
-                self.expect(TokenKind::Colon)?;
-                let ty = self.parse_type()?.propagate(&mut errors);
+                let (name, ty) = self.parse_typed_identifier()?.propagate(&mut errors);
 
                 // Parse initial value, if given
                 let value =
@@ -451,6 +438,18 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                         Type::new(TypeKind::Array(Box::new(ty), size), token.unwrap().loc))
             }
 
+            Some(TokenKind::KwStruct) => {
+                // Parse fields
+                let mut errors = Fallible::new_ok(());
+                let fields = self.parse_bounded_list_of(
+                    TokenKind::LBrace,
+                    TokenKind::RBrace,
+                    Self::parse_typed_identifier
+                ).propagate(&mut errors);
+
+                Fallible::new_ok(Type::new(TypeKind::Struct(fields), token.unwrap().loc))
+            }
+
             Some(k) => {
                 Fallible::new_fatal(vec![
                     ParseError::new(&format!("expected type, got {k:?}"), token.unwrap().loc)
@@ -488,23 +487,26 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         statements
     }
 
-    /// Given a parsing function, calls it repeatedly to parse a comma-separated,
-    /// parenthesis-delimited list of items.
-    fn parse_parenthesised_list_of<T>(
+    /// Given a parsing function, and tokens to represent the start and the end of the list
+    /// (typically some kind of bracket), calls the parsing function repeatedly to parse a
+    /// comma-separated list of items.
+    fn parse_bounded_list_of<T>(
         &mut self,
+        start: TokenKind,
+        end: TokenKind,
         mut item_parse_func: impl FnMut(&mut Self) -> Fallible<MaybeFatal<T>, ParseError>
     ) -> Fallible<Vec<T>, ParseError> {
         let mut errors = Fallible::new_ok(());
 
-        // Opening left-paren
-        self.expect(TokenKind::LParen).propagate(&mut errors);
+        // Start
+        self.expect(start).propagate(&mut errors);
 
         // Parse arguments, separated by commas
         let mut items = vec![];
         loop {
             let Some(token) = self.tokens.peek() else {
                 errors.push_error(ParseError::new(
-                    "unexpected end-of-file while parsing argument list", SourceLocation::stub()
+                    "unexpected end-of-file while parsing list", SourceLocation::stub()
                 ));
                 break;
             };
@@ -515,7 +517,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 break;
             }
 
-            // Anything else, parse an expression as the argument value
+            // Anything else, parse a value
             let arg = item_parse_func(self).propagate(&mut errors);
             if let MaybeFatal::Ok(item) = arg {
                 items.push(item);
@@ -526,9 +528,9 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 // A comma...
                 Some(&TokenKind::Comma) => { self.tokens.next(); },
 
-                // Or a right-paren
+                // Or the end
                 // (The next iteration will deal with this)
-                Some(&TokenKind::RParen) => (),
+                Some(ref t) if **t == end => (),
 
                 // The next iteration will give an error for the EOF case
                 None => (),
@@ -536,7 +538,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 Some(_) => {
                     let token = self.tokens.next().unwrap();
                     errors.push_error(ParseError::new(
-                        &format!("unexpected token {:?} in argument list", token.kind), token.loc
+                        &format!("unexpected token {:?} in list", token.kind), token.loc
                     ))
                 }
             }
@@ -545,25 +547,44 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         errors.map(|_| items)
     }
 
+    /// Given a parsing function, calls it repeatedly to parse a comma-separated,
+    /// parenthesis-delimited list of items.
+    fn parse_parenthesised_list_of<T>(
+        &mut self,
+        item_parse_func: impl FnMut(&mut Self) -> Fallible<MaybeFatal<T>, ParseError>
+    ) -> Fallible<Vec<T>, ParseError> {
+        self.parse_bounded_list_of(TokenKind::LParen, TokenKind::RParen, item_parse_func)
+    }
+
+    /// Parses a combination of an identifier and its type, of the form `name: type`.
+    fn parse_typed_identifier(&mut self) -> Fallible<MaybeFatal<(String, Type)>, ParseError> {
+        let mut errors = Fallible::new(());
+
+        // Parse name
+        let name_token = self.tokens.next();
+        let name =
+            match name_token.as_ref().map(|t| &t.kind) {
+                Some(TokenKind::Identifier(i)) => i.to_owned(),
+                Some(_) => {
+                    errors.push_error(ParseError::new("expected identifier", name_token.unwrap().loc));
+                    "<?>".to_owned()
+                },
+                None => return Fallible::new_fatal(vec![
+                    ParseError::new("unexpected end-of-file", SourceLocation::stub()),
+                ]),
+            };
+
+        // Parse type
+        self.expect(TokenKind::Colon)?;
+        let ty = self.parse_type()?.propagate(&mut errors);
+
+        errors.map(|_| (name, ty).into())
+    }
+
     /// Parses a function parameter of the form `name: type`.
     fn parse_function_parameter(&mut self) -> Fallible<MaybeFatal<FunctionParameter<Type>>, ParseError> {
-        let name_token = self.tokens.next();
-        let loc = name_token.as_ref().map(|t| t.loc.clone()).unwrap_or_else(|| SourceLocation::stub());
-        let Some(TokenKind::Identifier(name)) = name_token.map(|t| t.kind) else {
-            return Fallible::new_fatal(vec![
-                ParseError::new(
-                    &format!("expected function parameter name"), loc
-                )
-            ])
-        };
-
-        self.expect(TokenKind::Colon)?;
-
-        self.parse_type()?.map(|ty|
-            FunctionParameter {
-                name: name.clone(),
-                ty,
-            }.into()
+        self.parse_typed_identifier()?.map(|(name, ty)|
+            FunctionParameter { name, ty }.into()
         )
     }
 
@@ -669,24 +690,31 @@ frontend_error!(ParseError, "parse");
 mod test {
     use std::assert_matches::assert_matches;
 
-    use crate::{node::{ArithmeticBinOp, ComparisonBinOp, Expression, ExpressionKind, TopLevelItem, TopLevelItemKind, Type, TypeKind}, tokenizer::tokenize};
+    use crate::{fallible::{Fallible, MaybeFatal}, node::{ArithmeticBinOp, ComparisonBinOp, Expression, ExpressionKind, TopLevelItem, TopLevelItemKind, Type, TypeKind}, tokenizer::{tokenize, Token}};
 
-    use super::Parser;
+    use super::{ParseError, Parser};
 
-    fn parse_expression(code: &str) -> Expression {
+    fn parser_test_wrapper<T>(
+        code: &str,
+        func: impl FnOnce(Parser<std::vec::IntoIter<Token>>) -> Fallible<MaybeFatal<T>, ParseError>
+    ) -> T {
         let (tokens, errors) = tokenize(code, "<test>");
         if !errors.is_empty() {
             panic!("{:?}", errors)
         }
-        Parser::new(tokens.into_iter().peekable()).parse_expression().unwrap().unwrap()
+        func(Parser::new(tokens.into_iter().peekable())).unwrap().unwrap()
+    }
+
+    fn parse_expression(code: &str) -> Expression {
+        parser_test_wrapper(code, |mut p| p.parse_expression())
     }
 
     fn parse_top_level_item(code: &str) -> TopLevelItem {
-        let (tokens, errors) = tokenize(code, "<test>");
-        if !errors.is_empty() {
-            panic!("{:?}", errors)
-        }
-        Parser::new(tokens.into_iter().peekable()).parse_top_level_item().unwrap().unwrap()
+        parser_test_wrapper(code, |mut p| p.parse_top_level_item())
+    }
+
+    fn parse_type(code: &str) -> Type {
+        parser_test_wrapper(code, |mut p: Parser<std::vec::IntoIter<Token>>| p.parse_type())
     }
 
     #[test]
@@ -796,5 +824,19 @@ mod test {
                 ..
             }
         );
+    }
+
+    #[test]
+    fn test_struct_type() {
+        let ty = parse_type("struct { a: u16, b: i16 }");
+        let TypeKind::Struct(fields) = ty.kind else { panic!() };
+
+        assert_eq!(2, fields.len());
+
+        assert_eq!("a", fields[0].0);
+        assert_eq!(TypeKind::Name("u16".to_owned()), fields[0].1.kind);
+
+        assert_eq!("b", fields[1].0);
+        assert_eq!(TypeKind::Name("i16".to_owned()), fields[1].1.kind);
     }
 }

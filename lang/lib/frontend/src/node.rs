@@ -226,4 +226,5 @@ pub enum TypeKind {
     Void,
     Pointer(Box<Type>),
     Array(Box<Type>, usize),
+    Struct(Vec<(String, Type)>),
 }
