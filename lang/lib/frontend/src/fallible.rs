@@ -1,4 +1,4 @@
-use std::{ops::{Try, FromResidual, ControlFlow}, error::Error};
+use std::{error::Error, fmt::Debug, ops::{ControlFlow, FromResidual, Try}};
 
 /// Represents the result of an operation which will always yield a value, but possibly with a
 /// collection of associated (non-fatal) errors too.
@@ -6,12 +6,12 @@ use std::{ops::{Try, FromResidual, ControlFlow}, error::Error};
 /// The possibility of a fatal error can be modelled using [MaybeFatal], with
 /// `Fallible<MaybeFatal<T>, E>`.
 #[derive(Debug, Clone, Hash)]
-pub struct Fallible<T, E> {
+pub struct Fallible<T, E: Debug> {
     item: T,
     errors: Vec<E>,
 }
 
-impl<T, E> Fallible<T, E> {
+impl<T, E: Debug> Fallible<T, E> {
     /// Constructs a new [Fallible] with no errors.
     pub fn new(item: T) -> Fallible<T, E> {
         Fallible {
@@ -50,7 +50,7 @@ impl<T, E> Fallible<T, E> {
     }
 
     /// Applies a function to each error inside this [Fallible]. The item is unchanged.
-    pub fn map_errors<R>(self, func: impl Fn(E) -> R) -> Fallible<T, R> {
+    pub fn map_errors<R: Debug>(self, func: impl Fn(E) -> R) -> Fallible<T, R> {
         Fallible::new_with_errors(self.item, self.errors.into_iter().map(func).collect())
     }
 
@@ -80,7 +80,12 @@ impl<T, E> Fallible<T, E> {
         if self.errors.is_empty() {
             self.item
         } else {
-            panic!("called `Fallible::unwrap` on a value with errors")
+            let error_string =
+                self.errors.iter()
+                    .map(|e| format!("{e:?}"))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+            panic!("called `Fallible::unwrap` on a value with {} errors:\n{error_string}", self.errors.len())
         }
     }
 
@@ -131,7 +136,7 @@ impl<T, E: Error + 'static> Fallible<T, E> {
     }
 }
 
-impl<T, E> From<Fallible<T, E>> for Result<T, Vec<E>> {
+impl<T, E: Debug> From<Fallible<T, E>> for Result<T, Vec<E>> {
     fn from(value: Fallible<T, E>) -> Self {
         if value.has_errors() {
             Err(value.into_errors())
@@ -141,7 +146,7 @@ impl<T, E> From<Fallible<T, E>> for Result<T, Vec<E>> {
     }
 }
 
-impl<T, E> From<Result<T, E>> for Fallible<MaybeFatal<T>, E> {
+impl<T, E: Debug> From<Result<T, E>> for Fallible<MaybeFatal<T>, E> {
     fn from(value: Result<T, E>) -> Self {
         match value {
             Ok(v) => Fallible::new(MaybeFatal::Ok(v)),
@@ -150,7 +155,7 @@ impl<T, E> From<Result<T, E>> for Fallible<MaybeFatal<T>, E> {
     }
 }
 
-impl<T, E, C: FromIterator<T>> FromIterator<Fallible<T, E>> for Fallible<C, E> {
+impl<T, E: Debug, C: FromIterator<T>> FromIterator<Fallible<T, E>> for Fallible<C, E> {
     fn from_iter<I: IntoIterator<Item = Fallible<T, E>>>(iter: I) -> Self {
         let mut items = vec![];
         let mut errors = vec![];
@@ -221,7 +226,7 @@ impl<T> MaybeFatal<T> {
     }
 }
 
-impl<T, E> Fallible<MaybeFatal<T>, E> {
+impl<T, E: Debug> Fallible<MaybeFatal<T>, E> {
     /// Constructs a new [Fallible] with a nested [MaybeFatal::Fatal].
     pub fn new_fatal(errors: Vec<E>) -> Fallible<MaybeFatal<T>, E> {
         Fallible::new_with_errors(MaybeFatal::Fatal, errors)
@@ -248,7 +253,7 @@ impl<T, E> Fallible<MaybeFatal<T>, E> {
     }
 }
 
-impl<T, E1, E2: From<E1>> FromResidual<Fallible<MaybeFatal<!>, E1>> for Fallible<MaybeFatal<T>, E2> {
+impl<T, E1: Debug, E2: From<E1> + Debug> FromResidual<Fallible<MaybeFatal<!>, E1>> for Fallible<MaybeFatal<T>, E2> {
     fn from_residual(residual: Fallible<MaybeFatal<!>, E1>) -> Self {
         Fallible::new_with_errors(
             MaybeFatal::Fatal,
@@ -257,7 +262,7 @@ impl<T, E1, E2: From<E1>> FromResidual<Fallible<MaybeFatal<!>, E1>> for Fallible
     }
 }
 
-impl<T, E> Try for Fallible<MaybeFatal<T>, E> {
+impl<T, E: Debug> Try for Fallible<MaybeFatal<T>, E> {
     type Output = Fallible<T, E>;
     type Residual = Fallible<MaybeFatal<!>, E>;
 
