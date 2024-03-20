@@ -511,8 +511,8 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 break;
             };
             
-            // If it's a right-paren, end the list
-            if token.kind == TokenKind::RParen {
+            // If it's the end token, end the list
+            if token.kind == end {
                 self.tokens.next();
                 break;
             }
@@ -696,25 +696,33 @@ mod test {
 
     fn parser_test_wrapper<T>(
         code: &str,
-        func: impl FnOnce(Parser<std::vec::IntoIter<Token>>) -> Fallible<MaybeFatal<T>, ParseError>
+        func: impl FnOnce(&mut Parser<std::vec::IntoIter<Token>>) -> Fallible<MaybeFatal<T>, ParseError>
     ) -> T {
         let (tokens, errors) = tokenize(code, "<test>");
         if !errors.is_empty() {
             panic!("{:?}", errors)
         }
-        func(Parser::new(tokens.into_iter().peekable())).unwrap().unwrap()
+        let mut parser = Parser::new(tokens.into_iter().peekable());
+        let result = func(&mut parser).unwrap().unwrap();
+
+        // Check we consumed all tokens
+        if let Some(next) = parser.tokens.next() {
+            panic!("parse encountered no errors, but some tokens were left over, starting at: {next:?}")
+        }
+
+        result
     }
 
     fn parse_expression(code: &str) -> Expression {
-        parser_test_wrapper(code, |mut p| p.parse_expression())
+        parser_test_wrapper(code, |p| p.parse_expression())
     }
 
     fn parse_top_level_item(code: &str) -> TopLevelItem {
-        parser_test_wrapper(code, |mut p| p.parse_top_level_item())
+        parser_test_wrapper(code, |p| p.parse_top_level_item())
     }
 
     fn parse_type(code: &str) -> Type {
-        parser_test_wrapper(code, |mut p: Parser<std::vec::IntoIter<Token>>| p.parse_type())
+        parser_test_wrapper(code, |p| p.parse_type())
     }
 
     #[test]
@@ -838,5 +846,12 @@ mod test {
 
         assert_eq!("b", fields[1].0);
         assert_eq!(TypeKind::Name("i16".to_owned()), fields[1].1.kind);
+
+        // Check it's also valid when used as a type
+        parse_top_level_item("
+            fn main() -> u16 {
+                var x: struct { a: u16, b: u16 } = 0;
+            }
+        ");
     }
 }
