@@ -26,6 +26,10 @@ pub enum Type {
     /// A fixed-size array of instances of another [Type].
     Array(Box<Type>, usize),
 
+    /// A type represented through a type alias. Conceptually equivalent to the inner [Type], but
+    /// contains the name of the alias to improve error messages.
+    Aliased(Box<Type>, String),
+
     /// The type of this expression couldn't be determined. This will come along with some type
     /// errors.
     Unknown,
@@ -42,9 +46,19 @@ impl Type {
                 },
             Type::Pointer(_) => ir::Type::Pointer,
             Type::Array(ty, size) => ir::Type::Array(Box::new(ty.to_ir_type()), *size),
+            Type::Aliased(ty, _) => ty.to_ir_type(),
             Type::Unknown => panic!(
                 "tried to convert `Unknown` type checker type to IR type; this only happens if something else went wrong which should've been caught!"
             ),
+        }
+    }
+
+    /// Removes any unnecessary information from this type, giving the simplest possible variant.
+    /// If you need to compare types for equality, consider using this first.
+    pub fn desugar(&self) -> &Self {
+        match self {
+            Self::Aliased(ty, _) => ty,
+            ty => ty,
         }
     }
 }
@@ -53,6 +67,7 @@ impl Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Type::Direct(d) => write!(f, "{d}"),
+            Type::Aliased(ty, name) => write!(f, "{name} (alias for {ty})"),
             Type::FunctionReference { argument_types, return_type } =>
                 write!(f, "fn({}) -> {return_type}",
                     argument_types.iter().map(|a| a.to_string()).collect::<Vec<_>>().join(", ")),
@@ -139,7 +154,7 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
             TopLevelItemKind::TypeAlias { name, ty } => {
                 let ty = convert_node_type(ty, &module_ctx).propagate(&mut errors);
                 if !module_ctx.type_aliases.contains_key(name) {
-                    module_ctx.type_aliases.insert(name.clone(), ty);
+                    module_ctx.type_aliases.insert(name.clone(), Type::Aliased(Box::new(ty), name.clone()));
                 } else {
                     errors.push_error(TypeError::new(&format!("duplicate type alias `{name}`"), item.loc.clone()))
                 }
@@ -465,6 +480,9 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
 
 #[must_use]
 pub fn types_are_assignable(target: &Type, source: &Type) -> bool {
+    let target = target.desugar();
+    let source = source.desugar();
+
     // Pointers to arrays can "decay" into a pointer to the array's element type.
     //
     // Note that our arrays **do not** work like C arrays. The array local is not itself a pointer 
@@ -497,6 +515,9 @@ pub fn check_types_are_assignable(target: &Type, source: &Type, loc: SourceLocat
 
 #[must_use]
 pub fn arithmetic_binop_result_type(left: &Type, right: &Type, op: &str, loc: SourceLocation) -> Fallible<Type, TypeError> {
+    let left = left.desugar();
+    let right = right.desugar();
+
     if let Type::Direct(left_ir) = left && left_ir.is_integral() && left == right {
         // Arithmetic between two identical, integral types (e.g. `u16`)
         Fallible::new(left.clone())
@@ -804,7 +825,7 @@ mod test {
         // Error - shadowing aliases isn't allowed
         assert_errors(parse("
             type Word = u16;
-            type Word = u8;
+            type Word = i16;
         "), "duplicate type alias `Word`");
 
         // Error - shadowing aliases isn't allowed, even if it's the same type
@@ -812,5 +833,17 @@ mod test {
             type Word = u16;
             type Word = u16;
         "), "duplicate type alias `Word`");
+
+        // Error - unassignable aliases, should include alias in their error
+        assert_errors(parse("
+            type A = u16;
+            type B = i16;
+
+            fn main() -> u16 {
+                var a: A = 0;
+                var b: B = a;
+                return 0;
+            }
+        "), "type `A (alias for u16)` is not assignable to `B (alias for i16)`");
     }
 }
