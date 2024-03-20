@@ -603,4 +603,24 @@ mod test {
             34
         );
     }
+
+    #[test]
+    fn test_type_alias() {
+        // Check that type aliases compile. Most of the heavy lifting happens at type checking, so
+        // it's probably fine :)
+        assert_eq!(
+            util::compile_and_execute("
+                type Word = u16;
+
+                fn main() -> u16 {
+                    var x: Word = 14;
+                    var y: Word = 16;
+                    var z: Word = x + y;
+
+                    return 0;
+                }
+            ").unwrap(),
+            30
+        );
+    }
 }
