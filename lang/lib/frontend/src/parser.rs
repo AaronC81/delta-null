@@ -546,7 +546,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     }
 
     /// Parses a function parameter of the form `name: type`.
-    fn parse_function_parameter(&mut self) -> Fallible<MaybeFatal<FunctionParameter>, ParseError> {
+    fn parse_function_parameter(&mut self) -> Fallible<MaybeFatal<FunctionParameter<Type>>, ParseError> {
         let name_token = self.tokens.next();
         let loc = name_token.as_ref().map(|t| t.loc.clone()).unwrap_or_else(|| SourceLocation::stub());
         let Some(TokenKind::Identifier(name)) = name_token.map(|t| t.kind) else {
