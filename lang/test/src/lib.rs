@@ -643,4 +643,20 @@ mod test {
             24
         );
     }
+
+    #[test]
+    fn test_struct() {
+        // Simple instantiation
+        assert_eq!(
+            util::compile_and_execute("
+                type Point = struct { x: i16, y: i16 };
+
+                fn main() -> u16 {
+                    var pt: Point;
+                    return 5;
+                }
+            ").unwrap(),
+            5
+        );
+    }
 }

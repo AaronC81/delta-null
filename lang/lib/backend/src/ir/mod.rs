@@ -315,6 +315,7 @@ pub enum Type {
     Void,
     Pointer,
     Array(Box<Type>, usize),
+    Struct(Vec<Type>),
     FunctionReference {
         argument_types: Vec<Type>,
         return_type: Box<Type>,
@@ -331,6 +332,7 @@ impl Type {
             Type::Void => 0,
             Type::Pointer => 1,
             Type::Array(ty, size) => ty.word_size() * size,
+            Type::Struct(tys) => tys.iter().map(|ty| ty.word_size()).sum(),
             Type::FunctionReference { .. } => 1,
         }
     }
@@ -367,7 +369,8 @@ impl Type {
             | Type::Pointer
             | Type::FunctionReference { .. } => true,
 
-            Type::Array(_, _) => false,
+            Type::Array(_, _)
+            | Type::Struct(_) => false,
         }
     }
 
@@ -386,6 +389,9 @@ impl Display for Type {
             Type::Void => write!(f, "void"),
             Type::Pointer => write!(f, "ptr"),
             Type::Array(ty, size) => write!(f, "[{size}]{ty}"),
+            Type::Struct(tys) => 
+                write!(f, "{{ {} }}",
+                    tys.iter().map(|a| a.to_string()).collect::<Vec<_>>().join(", ")),
             Type::FunctionReference { argument_types, return_type } =>
                 write!(f, "fn({}) -> {return_type}",
                     argument_types.iter().map(|a| a.to_string()).collect::<Vec<_>>().join(", "))

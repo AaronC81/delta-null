@@ -26,6 +26,9 @@ pub enum Type {
     /// A fixed-size array of instances of another [Type].
     Array(Box<Type>, usize),
 
+    /// A collection of named fields, each with a different [Type].
+    Struct(Vec<(String, Type)>),
+
     /// A type represented through a type alias. Conceptually equivalent to the inner [Type], but
     /// contains the name of the alias to improve error messages.
     Aliased(Box<Type>, String),
@@ -46,6 +49,7 @@ impl Type {
                 },
             Type::Pointer(_) => ir::Type::Pointer,
             Type::Array(ty, size) => ir::Type::Array(Box::new(ty.to_ir_type()), *size),
+            Type::Struct(fields) => ir::Type::Struct(fields.iter().map(|(_, ty)| ty.to_ir_type()).collect()),
             Type::Aliased(ty, _) => ty.to_ir_type(),
             Type::Unknown => panic!(
                 "tried to convert `Unknown` type checker type to IR type; this only happens if something else went wrong which should've been caught!"
@@ -78,6 +82,9 @@ impl Display for Type {
                     argument_types.iter().map(|a| a.to_string()).collect::<Vec<_>>().join(", ")),
             Type::Pointer(ty) => write!(f, "*{ty}"),
             Type::Array(ty, size) => write!(f, "[{size}]{ty}"),
+            Type::Struct(fields) =>
+                write!(f, "struct {{ {} }}",
+                    fields.iter().map(|(name, ty)| format!("{name}: {ty}")).collect::<Vec<_>>().join(", ")),
             Type::Unknown => write!(f, "<unknown>"),
         }
     }
@@ -627,7 +634,15 @@ fn convert_node_type(ty: &node::Type, module_ctx: &ModuleContext) -> Fallible<Ty
             convert_node_type(ty, module_ctx).map(|ty| Type::Array(Box::new(ty), *size)),
         node::TypeKind::Void => Fallible::new(Type::Direct(ir::Type::Void)),
 
-        node::TypeKind::Struct(_) => todo!(), // TODO
+        node::TypeKind::Struct(fields) => {
+            let fields = fields.iter()
+                .map(|(name, ty)|
+                    convert_node_type(ty, module_ctx)
+                        .map(|ty| (name.clone(), ty)))
+                .collect::<Fallible<Vec<_>, _>>();
+
+            fields.map(|fields| Type::Struct(fields))
+        }
     }
 }
 
@@ -858,5 +873,40 @@ mod test {
                 return 0;
             }
         "), "type `A (alias for u16)` is not assignable to `B (alias for i16)`");
+    }
+
+    #[test]
+    fn test_struct_instantiation() {
+        // OK - instantiating valid structs
+        assert_ok(parse("
+            type Point = struct { x: i16, y: i16 };
+
+            fn main() -> u16 {
+                var x: struct { a: u16 };
+                var pt: Point;
+                return 0;
+            }
+        "));
+
+        // OK - identical structs can be assigned to each other
+        assert_ok(parse("
+            fn main() -> u16 {
+                var x: struct { x: i16, y: i16 };
+                var y: struct { x: i16, y: i16 } = x;
+
+                return 0;
+            }
+        "));
+
+        // Error - non-identical structs can't be assigned
+        assert_errors(parse("
+            fn main() -> u16 {
+                var x: struct { x: i16, y: i16 };
+                var y: struct { x: i16, z: i16 } = x;
+                //                      ^
+
+                return 0;
+            }
+        "), "not assignable");
     }
 }
