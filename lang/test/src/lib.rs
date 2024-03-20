@@ -616,8 +616,7 @@ mod test {
                     var x: Word = 14;
                     var y: Word = 16;
                     var z: Word = x + y;
-
-                    return 0;
+                    return z;
                 }
             ").unwrap(),
             30

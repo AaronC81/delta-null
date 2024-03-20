@@ -52,6 +52,15 @@ pub struct FunctionParameter<Ty> {
     pub ty: Ty,
 }
 
+impl<Ty> FunctionParameter<Ty> {
+    pub fn map_type<OTy>(self, func: impl FnOnce(Ty) -> OTy) -> FunctionParameter<OTy> {
+        FunctionParameter {
+            ty: func(self.ty),
+            ..self
+        }
+    }
+}
+
 /// A statement which appears within a function body.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Statement<D = (), Ty = crate::node::Type> {
@@ -100,7 +109,7 @@ pub enum StatementKind<D = (), Ty = crate::node::Type> {
 }
 
 /// An expression which calculates part of the value of a statement.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Expression<D = (), Ty = crate::node::Type> {
     pub kind: ExpressionKind<D, Ty>,
     pub loc: SourceLocation,
@@ -122,23 +131,13 @@ impl<D, Ty> Expression<D, Ty> {
     }
 }
 
-impl<D: Clone, Ty: Clone> Clone for Expression<D, Ty> {
-    fn clone(&self) -> Self {
-        Self {
-            kind: self.kind.clone(),
-            loc: self.loc.clone(),
-            data: self.data.clone(),
-        }
-    }
-}
-
 impl<D: Default, Ty> Expression<D, Ty> {
     pub fn new(kind: ExpressionKind<D, Ty>, loc: SourceLocation) -> Self {
         Self::new_with_data(kind, loc, D::default())
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExpressionKind<D, Ty> {
     Identifier(String),
     
@@ -164,12 +163,6 @@ pub enum ExpressionKind<D, Ty> {
 
     ArithmeticBinOp(ArithmeticBinOp, Box<Expression<D, Ty>>, Box<Expression<D, Ty>>),
     ComparisonBinOp(ComparisonBinOp, Box<Expression<D, Ty>>, Box<Expression<D, Ty>>),
-}
-
-impl<D: Clone, Ty: Clone> Clone for ExpressionKind<D, Ty> {
-    fn clone(&self) -> Self {
-        panic!("TODO")
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display, error::Error};
 
 use delta_null_lang_backend::ir::{Module, FunctionBuilder, LocalId, BasicBlockBuilder, VariableId, self, Instruction, BasicBlockId};
 
-use crate::{node::{TopLevelItem, TopLevelItemKind, self, Type, ExpressionKind, TypeKind, Statement, ComparisonBinOp}, fallible::{Fallible, MaybeFatal}, type_check::{primitive_type_name_to_ir_type, self}};
+use crate::{fallible::{Fallible, MaybeFatal}, node::{self, ComparisonBinOp, ExpressionKind, Statement, TopLevelItem, TopLevelItemKind, TypeKind}, type_check::{self, Type}};
 
 type ExpressionData = crate::type_check::Type;
 
@@ -18,20 +18,19 @@ impl ModuleTranslator {
         }
     }
 
-    pub fn translate_items(&mut self, items: &[TopLevelItem<ExpressionData>]) -> Fallible<MaybeFatal<()>, TranslateError> {
-        let mut errors = Fallible::new_ok(());
+    pub fn translate_items(&mut self, items: &[TopLevelItem<ExpressionData, Type>]) -> Fallible<MaybeFatal<()>, TranslateError> {
         let mut functions = HashMap::new();
 
         // Build up list of functions
         for item in items {
             if let TopLevelItemKind::FunctionDefinition { name, parameters, return_type, body: _ } = &item.kind {
                 // TODO: crap that we're still converting here
-                let return_type = node_type_to_ir_type(return_type).propagate(&mut errors);
+                let return_type = return_type.to_ir_type();
                 functions.insert(
                     name.to_owned(),
                     ir::Type::FunctionReference {
                         argument_types: parameters.iter()
-                            .map(|p| node_type_to_ir_type(&p.ty).propagate(&mut errors))
+                            .map(|p| p.ty.to_ir_type())
                             .collect(),
                         return_type: Box::new(return_type),
                     }
@@ -48,16 +47,14 @@ impl ModuleTranslator {
                             name,
                             &parameters.iter()
                                 .map(|p| {
-                                    let ty = node_type_to_ir_type(&p.ty).propagate(&mut errors);
-                                    (p.name.clone(), ty)
+                                    (p.name.clone(), p.ty.to_ir_type())
                                 })
                                 .collect::<Vec<_>>(),
                         ),
                         &functions,
                         parameters.iter()
                             .map(|p| {
-                                let ty = node_type_to_ir_type(&p.ty).propagate(&mut errors);
-                                (p.name.clone(), ty)
+                                (p.name.clone(), p.ty.to_ir_type())
                             })
                             .collect(),
                     );
@@ -66,7 +63,7 @@ impl ModuleTranslator {
                     // If the function returns `void`, then it's permitted not to have a `return` at
                     // the end. But for consistent codegen, we'll insert one here ourselves.
                     let mut body = body.clone();
-                    if return_type.kind == TypeKind::Void {
+                    if return_type.is_void() {
                         let loc = body.loc.clone();
                         body = Statement::new(node::StatementKind::Block {
                             body: vec![
@@ -88,10 +85,12 @@ impl ModuleTranslator {
                     self.module.functions.push(func);
                 },
 
-                TopLevelItemKind::TypeAlias { .. } => todo!(), // TODO
+                // No translation required for type aliases - type-checker did that already
+                TopLevelItemKind::TypeAlias { .. } => {},
             }
         }
 
+        // Right now, this process doesn't error!
         Fallible::new_ok(())
     }
 
@@ -155,14 +154,13 @@ impl<'c> FunctionTranslator<'c> {
     /// 
     /// Call this only once, and before doing any translation.
     #[must_use]
-    pub fn populate_locals(&mut self, stmt: &node::Statement<ExpressionData>) -> Fallible<MaybeFatal<()>, TranslateError> {
+    pub fn populate_locals(&mut self, stmt: &node::Statement<ExpressionData, Type>) -> Fallible<MaybeFatal<()>, TranslateError> {
         let mut result = Fallible::new_ok(());
 
         match &stmt.kind {
             // We're looking for these!
             node::StatementKind::VariableDeclaration { name, ty, .. } => {
-                let ty = node_type_to_ir_type(ty).propagate(&mut result);
-                let id = self.func.new_local(name, ty);
+                let id = self.func.new_local(name, ty.to_ir_type());
                 self.locals.insert(name.to_owned(), id);
             },
 
@@ -192,7 +190,7 @@ impl<'c> FunctionTranslator<'c> {
 
     /// Translates a parsed language statement into a set of IR instructions.
     #[must_use]
-    pub fn translate_statement(&mut self, stmt: &node::Statement<ExpressionData>) -> Fallible<MaybeFatal<()>, TranslateError> {
+    pub fn translate_statement(&mut self, stmt: &node::Statement<ExpressionData, Type>) -> Fallible<MaybeFatal<()>, TranslateError> {
         match &stmt.kind {
             node::StatementKind::Block { body, .. } => {
                 for s in body {
@@ -380,7 +378,7 @@ impl<'c> FunctionTranslator<'c> {
     /// Translates an expression into a set of IR instructions, and return the [VariableId]
     /// describing the final result of the expression.
     #[must_use]
-    pub fn translate_expression(&mut self, expr: &node::Expression<ExpressionData>) -> Fallible<MaybeFatal<VariableId>, TranslateError> {
+    pub fn translate_expression(&mut self, expr: &node::Expression<ExpressionData, Type>) -> Fallible<MaybeFatal<VariableId>, TranslateError> {
         match &expr.kind {
             node::ExpressionKind::Identifier(id) => {
                 if let Some(local) = self.locals.get(id).copied() {
@@ -533,7 +531,7 @@ impl<'c> FunctionTranslator<'c> {
             node::ExpressionKind::Cast(value, ty) => {
                 self.translate_expression(&value)?.map(|source| {
                     let source_ty = self.func.get_variable_type(source);
-                    let target_ty = node_type_to_ir_type(ty).unwrap();
+                    let target_ty = ty.to_ir_type();
 
                     if source_ty.is_reinterpret_castable_to(&target_ty) {
                         self.target_mut().add_instruction(Instruction::new(ir::InstructionKind::CastReinterpret {
@@ -586,7 +584,7 @@ impl<'c> FunctionTranslator<'c> {
         self.target = Some(new);
     }
 
-    fn generate_pointer_take(&mut self, target: &node::Expression<ExpressionData>) -> Fallible<MaybeFatal<VariableId>, TranslateError> {
+    fn generate_pointer_take(&mut self, target: &node::Expression<ExpressionData, Type>) -> Fallible<MaybeFatal<VariableId>, TranslateError> {
         match &target.kind {
             node::ExpressionKind::Identifier(name) => {
                 if let Some(local) = self.locals.get(name).copied() {
@@ -614,8 +612,8 @@ impl<'c> FunctionTranslator<'c> {
     /// [ir::InstructionKind::WriteMemory] to retrieve or update the array element.
     fn generate_array_element_pointer_expression(
         &mut self,
-        target: &node::Expression<ExpressionData>,
-        index: &node::Expression<ExpressionData>
+        target: &node::Expression<ExpressionData, Type>,
+        index: &node::Expression<ExpressionData, Type>
     ) -> Fallible<MaybeFatal<VariableId>, TranslateError> {
         let type_check::Type::Array(pointee_ty, _) = &target.data else {
             panic!("translating index to non-array")
@@ -637,29 +635,12 @@ impl<'c> FunctionTranslator<'c> {
     }
 }
 
-
-/// Translates a [Type] to an [ir::Type].
-#[must_use]
-pub fn node_type_to_ir_type(ty: &Type) -> Fallible<ir::Type, TranslateError> {
-    match &ty.kind {
-        node::TypeKind::Name(t) => Fallible::new(
-            primitive_type_name_to_ir_type(t)
-                .expect("undefined type in translation")
-        ),
-        node::TypeKind::Pointer(_) => Fallible::new(ir::Type::Pointer),
-        node::TypeKind::Void => Fallible::new(ir::Type::Void),
-
-        node::TypeKind::Array(ty, size) =>
-            node_type_to_ir_type(&ty).map(|ty| ir::Type::Array(Box::new(ty), *size)),
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct TranslateError {
     description: String,
 }
 
-impl TranslateError {
+    impl TranslateError {
     pub fn new(description: &str) -> Self {
         TranslateError { description: description.to_owned() }
     }

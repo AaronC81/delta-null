@@ -57,9 +57,14 @@ impl Type {
     /// If you need to compare types for equality, consider using this first.
     pub fn desugar(&self) -> &Self {
         match self {
-            Self::Aliased(ty, _) => ty,
+            Self::Aliased(ty, _) => ty.desugar(),
             ty => ty,
         }
+    }
+
+    /// Checks whether this type is `Void`.
+    pub fn is_void(&self) -> bool {
+        *self == Type::Direct(ir::Type::Void)
     }
 }
 
@@ -128,7 +133,9 @@ pub struct LocalContext {
     return_type: Type,
 }
 
-pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<Type>>, TypeError> {
+/// Type-checks an entire module. During this process, [node::Type]s are converted into [Type]s,
+/// and type information is associated with each expression.
+pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<Type, Type>>, TypeError> {
     let mut errors = Fallible::new(());
 
     // Build module-level context
@@ -166,20 +173,23 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
     let result = items.into_iter()
         .map(|i| {
             let loc = i.loc.clone();
-            i.map(|kind| match kind {
+            i.map::<Type, Type>(|kind| match kind {
                 TopLevelItemKind::FunctionDefinition { name, parameters, return_type, body } => {
+                    // Resolve types on parameters and return type
+                    let parameters = parameters.into_iter()
+                        .map(|p| p.map_type(|ty| convert_node_type(&ty, &module_ctx).propagate(&mut errors)))
+                        .collect::<Vec<_>>();
+                    let return_type = convert_node_type(&return_type, &module_ctx).propagate(&mut errors);
+
                     // Create context
                     let mut ctx = Context {
                         module: &module_ctx,
                         local: LocalContext {
                             variables: HashMap::new(),
                             arguments: parameters.iter()
-                                .map(|p| {
-                                    let ty = convert_node_type(&p.ty, &module_ctx).propagate(&mut errors);
-                                    (p.name.clone(), ty)
-                                })
+                                .map(|p| (p.name.clone(), p.ty.clone()))
                                 .collect(),
-                            return_type: convert_node_type(&return_type, &module_ctx).propagate(&mut errors),
+                            return_type: return_type.clone(),
                         },
                     };
 
@@ -201,6 +211,7 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
                 // parameter to `TopLevelItemKind` has changed (which it does in 
                 // `FunctionDefinition`, as we sprinkle type information around the AST)
                 TopLevelItemKind::TypeAlias { name, ty } => {
+                    let ty = convert_node_type(&ty, &module_ctx).propagate(&mut errors);
                     TopLevelItemKind::TypeAlias { name, ty }
                 },
             })
@@ -210,7 +221,7 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
     errors.map(|_| result)
 }
 
-pub fn type_check_statement(stmt: Statement<()>, ctx: &mut Context) -> Fallible<Statement<Type>, TypeError> {
+pub fn type_check_statement(stmt: Statement<()>, ctx: &mut Context) -> Fallible<Statement<Type, Type>, TypeError> {
     let mut errors = Fallible::new(());
     let loc = stmt.loc.clone();
     let result = stmt.map(|kind| {
@@ -229,19 +240,19 @@ pub fn type_check_statement(stmt: Statement<()>, ctx: &mut Context) -> Fallible<
             
             StatementKind::VariableDeclaration { name, ty, value } => {
                 // Create key in context, which shouldn't exist already
-                let converted_ty = convert_node_type(&ty, &ctx.module).propagate(&mut errors);
+                let ty = convert_node_type(&ty, &ctx.module).propagate(&mut errors);
                 if ctx.local.variables.contains_key(&name) {
                     errors.push_error(TypeError::new(
                         &format!("redefinition of local variable `{name}`"), loc
                     ));
                 } else {
-                    ctx.local.variables.insert(name.clone(), converted_ty.clone());
+                    ctx.local.variables.insert(name.clone(), ty.clone());
                 }
 
                 // Check type matches initial value, if specified
                 let value = value.map(|e| type_check_expression(e, ctx).propagate(&mut errors));
                 if let Some(ref value) = value {
-                    check_types_are_assignable(&converted_ty, &value.data, value.loc.clone()).propagate(&mut errors);
+                    check_types_are_assignable(&ty, &value.data, value.loc.clone()).propagate(&mut errors);
                 }
 
                 StatementKind::VariableDeclaration { name, ty, value }
@@ -298,7 +309,7 @@ pub fn type_check_statement(stmt: Statement<()>, ctx: &mut Context) -> Fallible<
     errors.map(|_| result)
 }
 
-pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallible<Expression<Type>, TypeError> {
+pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallible<Expression<Type, Type>, TypeError> {
     let mut errors = Fallible::new(());
     let loc = expr.loc.clone();
     let result = expr.map(|kind, _| {
@@ -377,10 +388,10 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
 
             ExpressionKind::Cast(value, ty) => {
                 let value = type_check_expression(*value, ctx).propagate(&mut errors);
-                let target_ty = convert_node_type(&ty, &ctx.module).propagate(&mut errors);
+                let ty = convert_node_type(&ty, &ctx.module).propagate(&mut errors);
 
                 // Is a cast possible?
-                let is_castable = match (&value.data, &target_ty) {
+                let is_castable = match (&value.data, &ty) {
                     // The backend already has a utility method to see if two IR types are
                     // reinterpret-castable. Recycle that for conversions like `u16 -> i16`
                     (Type::Direct(src), Type::Direct(tgt))
@@ -399,11 +410,11 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
 
                 if !is_castable {
                     errors.push_error(TypeError::new(
-                        &format!("cannot cast `{}` to `{}`", value.data, target_ty), loc
+                        &format!("cannot cast `{}` to `{}`", value.data, ty), loc
                     ));
                 }
                 
-                (ExpressionKind::Cast(Box::new(value), ty), target_ty)
+                (ExpressionKind::Cast(Box::new(value), ty.clone()), ty)
             }
 
             ExpressionKind::PointerTake(target) => {
@@ -534,7 +545,7 @@ pub fn arithmetic_binop_result_type(left: &Type, right: &Type, op: &str, loc: So
 /// Returns a boolean indicating whether all paths through the given statement will diverge from the
 /// enclosing function.
 #[must_use]
-pub fn do_all_paths_diverge(body: &Statement<Type>) -> bool {
+pub fn do_all_paths_diverge(body: &Statement<Type, Type>) -> bool {
     match &body.kind {
         StatementKind::Block { body, trailing_return: _ } =>
             body.iter().any(do_all_paths_diverge),
@@ -572,7 +583,7 @@ pub fn do_all_paths_diverge(body: &Statement<Type>) -> bool {
 
 /// Walks the tree of statements to find one matching the given predicate, returning it if found.
 #[must_use]
-pub fn find_statement<'s, T>(stmt: &'s Statement<T>, predicate: &impl Fn(&Statement<T>) -> bool) -> Option<&'s Statement<T>> {
+pub fn find_statement<'s, D, Ty>(stmt: &'s Statement<D, Ty>, predicate: &impl Fn(&Statement<D, Ty>) -> bool) -> Option<&'s Statement<D, Ty>> {
     if predicate(stmt) {
         return Some(stmt)
     }
@@ -619,7 +630,7 @@ fn convert_node_type(ty: &node::Type, module_ctx: &ModuleContext) -> Fallible<Ty
 }
 
 /// Returns an [ir::Type] for a given primitive type name `u16`, if one exists.
-pub fn primitive_type_name_to_ir_type(name: &str) -> Option<ir::Type> {
+fn primitive_type_name_to_ir_type(name: &str) -> Option<ir::Type> {
     match name {
         "u16" => Some(ir::Type::UnsignedInteger(ir::IntegerSize::Bits16)),
         "i16" => Some(ir::Type::SignedInteger(ir::IntegerSize::Bits16)),
