@@ -447,6 +447,8 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
                 (ExpressionKind::PointerDereference(Box::new(ptr)), ty)
             }
 
+            node::ExpressionKind::FieldAccess { .. } => todo!(), // TODO
+
             ExpressionKind::BitwiseNot(v) => {
                 let v = type_check_expression(*v, ctx).propagate(&mut errors);
                 let ty = v.data.clone();

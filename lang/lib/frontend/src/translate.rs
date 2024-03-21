@@ -495,6 +495,8 @@ impl<'c> FunctionTranslator<'c> {
                     })
             }
 
+            node::ExpressionKind::FieldAccess { .. } => todo!(), // TODO
+
             node::ExpressionKind::BitwiseNot(v) => {
                 self.translate_expression(v)?
                     .map(|v| {

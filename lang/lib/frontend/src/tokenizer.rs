@@ -54,6 +54,7 @@ pub enum TokenKind {
     Bar,
     Caret,
     Tilde,
+    Dot,
 
     LBrace,
     RBrace,
@@ -105,6 +106,7 @@ pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>)
             '|' => { chars.next(); tokens.push(Token::new(TokenKind::Bar, loc)) },
             '^' => { chars.next(); tokens.push(Token::new(TokenKind::Caret, loc)) },
             '~' => { chars.next(); tokens.push(Token::new(TokenKind::Tilde, loc)) },
+            '.' => { chars.next(); tokens.push(Token::new(TokenKind::Dot, loc)) },
             '=' => {
                 chars.next();
                 if chars.next_if(|(c, _)| *c == '=').is_some() {

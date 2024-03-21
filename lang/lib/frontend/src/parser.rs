@@ -343,8 +343,30 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 })
             }
 
-            _ => self.parse_index(),
+            _ => self.parse_field_access(),
         }
+    }
+
+    pub fn parse_field_access(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
+        let mut expr = self.parse_index()?;
+
+        while let Some(&TokenKind::Dot) = self.tokens.peek().map(|t| &t.kind) {
+            let Token { kind: _, loc } = self.tokens.next().unwrap();
+
+            let field_name_token = self.tokens.next().unwrap();
+            let TokenKind::Identifier(field_name) = &field_name_token.kind else {
+                expr.push_error(ParseError::new("expected identifier", field_name_token.loc));
+                break;
+            };
+
+            expr = expr.map(|e|
+                Expression::new(ExpressionKind::FieldAccess {
+                    target: Box::new(e),
+                    field: field_name.clone()
+                }, loc))
+        }
+
+        expr.map(|e| e.into())
     }
 
     /// Parse an array indexing expression.
@@ -853,5 +875,34 @@ mod test {
                 var x: struct { a: u16, b: u16 } = 0;
             }
         ");
+    }
+
+    #[test]
+    fn test_field_access() {
+        match parse_expression("a.b.c") {
+            Expression {
+                kind: ExpressionKind::FieldAccess {
+                    target: box Expression {
+                        kind: ExpressionKind::FieldAccess {
+                            target: box Expression {
+                                kind: ExpressionKind::Identifier(a),
+                                ..
+                            },
+                            field: b,
+                        },
+                        ..
+                    },
+                    field: c,
+                },
+                ..
+            } => {
+                // Check strings
+                assert_eq!(a, "a");
+                assert_eq!(b, "b");
+                assert_eq!(c, "c");
+            },
+
+            _ => panic!("top match failed"),
+        }
     }
 }

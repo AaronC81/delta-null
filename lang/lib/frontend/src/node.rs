@@ -159,8 +159,12 @@ pub enum ExpressionKind<D, Ty> {
 
     PointerTake(Box<Expression<D, Ty>>),
     PointerDereference(Box<Expression<D, Ty>>),
-    BitwiseNot(Box<Expression<D, Ty>>),
+    FieldAccess {
+        target: Box<Expression<D, Ty>>,
+        field: String,
+    },
 
+    BitwiseNot(Box<Expression<D, Ty>>),
     ArithmeticBinOp(ArithmeticBinOp, Box<Expression<D, Ty>>, Box<Expression<D, Ty>>),
     ComparisonBinOp(ComparisonBinOp, Box<Expression<D, Ty>>, Box<Expression<D, Ty>>),
 }
