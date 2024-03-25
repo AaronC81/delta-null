@@ -447,7 +447,29 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
                 (ExpressionKind::PointerDereference(Box::new(ptr)), ty)
             }
 
-            node::ExpressionKind::FieldAccess { .. } => todo!(), // TODO
+            node::ExpressionKind::FieldAccess { target, field } => {
+                let target = type_check_expression(*target, ctx).propagate(&mut errors);
+                
+                // It's only valid to access fields on a target which has a structure type
+                let target_ty = target.data.clone();
+                let desugared_type = target_ty.desugar();
+                let Type::Struct(fields) = desugared_type else {
+                    errors.push_error(TypeError::new(
+                        &format!("cannot access fields on type `{}`", target.data), loc
+                    ));
+                    return (ExpressionKind::FieldAccess { target: Box::new(target), field }, Type::Unknown)
+                };
+
+                // Find a field with the requested name
+                let Some((_, field_ty)) = fields.iter().find(|(name, _)| name == &field) else {
+                    errors.push_error(TypeError::new(
+                        &format!("type `{}` has no field named `{}`", target.data, field), loc
+                    ));
+                    return (ExpressionKind::FieldAccess { target: Box::new(target), field }, Type::Unknown)
+                };
+
+                (ExpressionKind::FieldAccess { target: Box::new(target), field }, field_ty.clone())
+            }
 
             ExpressionKind::BitwiseNot(v) => {
                 let v = type_check_expression(*v, ctx).propagate(&mut errors);
@@ -910,5 +932,51 @@ mod test {
                 return 0;
             }
         "), "not assignable");
+    }
+
+    #[test]
+    fn test_struct_fields() {
+        // OK - correct type
+        assert_ok(parse("
+            type Point = struct { x: i16, y: i16 };
+
+            fn main() -> u16 {
+                var pt: Point;
+                var ptX: i16 = pt.x;
+                return 0;
+            }
+        "));
+
+        // Error - incorrect type
+        assert_errors(parse("
+            type Point = struct { x: i16, y: i16 };
+
+            fn main() -> u16 {
+                var pt: Point;
+                var ptX: u16 = pt.x;
+                //       ^
+                return 0;
+            }
+        "), "not assignable");
+        
+        // Error - missing field
+        assert_errors(parse("
+            type Point = struct { x: i16, y: i16 };
+
+            fn main() -> u16 {
+                var pt: Point;
+                var ptZ: i16 = pt.z;
+                return 0;
+            }
+        "), "has no field named `z`");
+
+        // Error - not a structure
+        assert_errors(parse("
+            fn main() -> u16 {
+                var x: u16 = 0;
+                var y: u16 = x.y;
+                return 0;
+            }
+        "), "cannot access fields on type `u16`");
     }
 }
