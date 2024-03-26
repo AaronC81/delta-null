@@ -281,57 +281,13 @@ impl<'c> FunctionTranslator<'c> {
             }
 
             node::StatementKind::Assignment { target, value } => {
-                match &target.kind {
-                    ExpressionKind::Identifier(name) => {
-                        if let Some(local) = self.locals.get(name).copied() {
-                            self.translate_expression(value)?
-                                .map(|v| {
-                                    let v = v.consume_read(self.target_mut());
-                                    self.target.as_mut().unwrap().add_void_instruction(
-                                        ir::Instruction::new(ir::InstructionKind::WriteLocal(local, v))
-                                    );
-                                });
-                        } else {
-                            return Fallible::new_fatal(vec![
-                                TranslateError::new(&format!("unknown item `{name}`")),
-                            ])
-                        }
-                    }
-
-                    ExpressionKind::PointerDereference(target) => {
-                        self.translate_expression(value)?
-                            .combine(self.translate_expression(target)?)
-                            .map(|(value, target)| {
-                                let value = value.consume_read(self.target_mut());
-                                let target = target.consume_read(self.target_mut());
-                                self.target.as_mut().unwrap().add_void_instruction(
-                                    ir::Instruction::new(ir::InstructionKind::WriteMemory {
-                                        address: target,
-                                        value,
-                                    })
-                                )
-                            });
-                    }
-
-                    ExpressionKind::Index { target, index } => {
-                        self.translate_expression(value)?
-                            .combine(self.generate_array_element_pointer_expression(&*target, &*index)?)
-                            .map(|(value, target)| {
-                                let value = value.consume_read(self.target_mut());
-                                let target = target.consume_read(self.target_mut());
-                                self.target.as_mut().unwrap().add_void_instruction(
-                                    ir::Instruction::new(ir::InstructionKind::WriteMemory {
-                                        address: target,
-                                        value,
-                                    })
-                                )
-                            });
-                    }
-
-                    _ => return Fallible::new_fatal(vec![
-                        TranslateError::new(&format!("unsupported assignment target")),
-                    ])
-                }
+                return self.translate_expression(target)?
+                    .combine(self.translate_expression(value)?)
+                    .map(|(target, value)| {
+                        let value = value.consume_read(self.target_mut());
+                        target.consume_write(self.target_mut(), value);
+                        ().into()
+                    })
             }
 
             node::StatementKind::Return(value) => {
@@ -448,9 +404,14 @@ impl<'c> FunctionTranslator<'c> {
             node::ExpressionKind::Identifier(id) => {
                 if let Some(local) = self.locals.get(id).copied() {
                     Fallible::new_ok(
-                        Value::new_read_only(move |target| target.add_instruction(
-                            ir::Instruction::new(ir::InstructionKind::ReadLocal(local))
-                        ))
+                        Value::new_read_write(
+                            move |target| target.add_instruction(
+                                ir::Instruction::new(ir::InstructionKind::ReadLocal(local))
+                            ),
+                            move |target, v| target.add_void_instruction(
+                                ir::Instruction::new(ir::InstructionKind::WriteLocal(local, v))
+                            ),
+                        )
                     )
                 } else if let Some(ty) = self.functions.get(id) {
                     let name = id.clone();
@@ -486,12 +447,20 @@ impl<'c> FunctionTranslator<'c> {
                     .map(|ptr| {
                         let ptr = ptr.consume_read(self.target_mut());
                         let ty = pointee_ty.to_ir_type();
-                        Value::new_read_only(move |target| target.add_instruction(
-                            Instruction::new(ir::InstructionKind::ReadMemory {
-                                address: ptr,
-                                ty,
-                            })
-                        )).into()
+                        Value::new_read_write(
+                            move |target| target.add_instruction(
+                                Instruction::new(ir::InstructionKind::ReadMemory {
+                                    address: ptr,
+                                    ty,
+                                })
+                            ),
+                            move |target, v| target.add_void_instruction(
+                                Instruction::new(ir::InstructionKind::WriteMemory {
+                                    address: ptr,
+                                    value: v,
+                                })
+                            ),
+                        ).into()
                     })
             }
 
@@ -629,15 +598,25 @@ impl<'c> FunctionTranslator<'c> {
 
                 self.generate_array_element_pointer_expression(&*target, &*index)?
                     .map(|v| {
-                        Value::new_read_only(move |target| {
-                            let v = v.consume_read(target);
-                            target.add_instruction(
-                                Instruction::new(ir::InstructionKind::ReadMemory {
-                                    address: v,
-                                    ty: pointee_ty.to_ir_type()
-                                })
-                            )
-                        }).into()
+                        let v = v.consume_read(self.target_mut());
+                        Value::new_read_write(
+                            move |target| {
+                                target.add_instruction(
+                                    Instruction::new(ir::InstructionKind::ReadMemory {
+                                        address: v,
+                                        ty: pointee_ty.to_ir_type()
+                                    })
+                                )
+                            },
+                            move |target, value| {
+                                target.add_void_instruction(
+                                    Instruction::new(ir::InstructionKind::WriteMemory {
+                                        address: v,
+                                        value,
+                                    })
+                                )
+                            },
+                        ).into()
                     })
             }
 
