@@ -134,6 +134,64 @@ pub struct FunctionTranslator<'c> {
     arguments: HashMap<String, ir::Type>,
 }
 
+/// Represents possible usages of a value returned by an expression.
+/// 
+/// This is a higher-level abstraction around a [VariableId]. Depending on whether a value is going
+/// to be used for a read or a write, a different set of IR instructions might need to be generated.
+/// 
+/// A [Value] can be _consumed_ for either a read or a write, which either produces or takes a
+/// [VariableId] respectively.
+/// 
+/// This doubles as an optimisation technique - expressions with no side effects may choose not
+/// to generate any instructions unless they're consumed, avoiding generation of instructions which
+/// ultimately don't do anything.
+struct Value {
+    /// A function which generates the necessary instructions to read this value, and returns the
+    /// [VariableId] with the read value. If [None], this value does not support reading.
+    read: Option<Box<dyn FnOnce(&mut BasicBlockBuilder) -> VariableId>>,
+
+    /// A function which generates the necessary instructions to write the given [VariableId] to
+    /// this value. If [None], this value does not support writing.
+    write: Option<Box<dyn FnOnce(&mut BasicBlockBuilder, VariableId)>>,
+
+    // pointer: Option<Box<dyn FnOnce() -> VariableId>>,
+}
+
+impl Value {
+    /// Creates a new read-only [Value] given an instruction builder.
+    fn new_read_only(read: impl FnOnce(&mut BasicBlockBuilder) -> VariableId + 'static) -> Value {
+        Self {
+            read: Some(Box::new(read)),
+            write: None,
+            // pointer: None,
+        }
+    }
+
+    /// Creates a new readable and writable [Value], given instruction builders for each.
+    fn new_read_write<'a>(
+        read: impl FnOnce(&mut BasicBlockBuilder) -> VariableId + 'static,
+        write: impl FnOnce(&mut BasicBlockBuilder, VariableId) + 'static
+    ) -> Value {
+        Self {
+            read: Some(Box::new(read)),
+            write: Some(Box::new(write)),
+            // pointer: None,
+        }
+    }
+
+    /// Consumes this [Value], generating IR instructions on the given [BasicBlockBuilder] to read
+    /// it into a [VariableId].
+    fn consume_read(self, target: &mut BasicBlockBuilder) -> VariableId {
+        (self.read.expect("value is not supported for read"))(target)
+    }
+    
+    /// Consumes this [Value], generating IR instructions on the given [BasicBlockBuilder] to write
+    /// a [VariableId] into it.
+    fn consume_write(self,  target: &mut BasicBlockBuilder, value: VariableId) {
+        (self.write.expect("value is not supported for write"))(target, value)
+    }
+}
+
 impl<'c> FunctionTranslator<'c> {
     pub fn new(
         func: FunctionBuilder,
@@ -213,6 +271,7 @@ impl<'c> FunctionTranslator<'c> {
                 if let Some(value) = value {
                     return self.translate_expression(value)?
                         .map(|v| {
+                            let v = v.consume_read(self.target_mut());
                             self.target.as_mut().unwrap().add_void_instruction(
                                 ir::Instruction::new(ir::InstructionKind::WriteLocal(local, v))
                             );
@@ -227,10 +286,10 @@ impl<'c> FunctionTranslator<'c> {
                         if let Some(local) = self.locals.get(name).copied() {
                             self.translate_expression(value)?
                                 .map(|v| {
+                                    let v = v.consume_read(self.target_mut());
                                     self.target.as_mut().unwrap().add_void_instruction(
                                         ir::Instruction::new(ir::InstructionKind::WriteLocal(local, v))
                                     );
-                                    
                                 });
                         } else {
                             return Fallible::new_fatal(vec![
@@ -243,6 +302,8 @@ impl<'c> FunctionTranslator<'c> {
                         self.translate_expression(value)?
                             .combine(self.translate_expression(target)?)
                             .map(|(value, target)| {
+                                let value = value.consume_read(self.target_mut());
+                                let target = target.consume_read(self.target_mut());
                                 self.target.as_mut().unwrap().add_void_instruction(
                                     ir::Instruction::new(ir::InstructionKind::WriteMemory {
                                         address: target,
@@ -256,6 +317,8 @@ impl<'c> FunctionTranslator<'c> {
                         self.translate_expression(value)?
                             .combine(self.generate_array_element_pointer_expression(&*target, &*index)?)
                             .map(|(value, target)| {
+                                let value = value.consume_read(self.target_mut());
+                                let target = target.consume_read(self.target_mut());
                                 self.target.as_mut().unwrap().add_void_instruction(
                                     ir::Instruction::new(ir::InstructionKind::WriteMemory {
                                         address: target,
@@ -275,6 +338,7 @@ impl<'c> FunctionTranslator<'c> {
                 if let Some(value) = value {
                     return self.translate_expression(value)?
                         .map(|v| {
+                            let v = v.consume_read(self.target_mut());
                             self.target.as_mut().unwrap().add_terminator(
                                 ir::Instruction::new(ir::InstructionKind::Return(Some(v)))
                             );
@@ -343,6 +407,7 @@ impl<'c> FunctionTranslator<'c> {
                 let (cont_id, cont_block) = self.func.new_basic_block();
 
                 // Set up conditional branch
+                let condition = condition.consume_read(self.target_mut());
                 self.target_mut().add_terminator_if_none(Instruction::new(ir::InstructionKind::ConditionalBranch {
                     condition,
                     true_block: true_id,
@@ -378,26 +443,29 @@ impl<'c> FunctionTranslator<'c> {
     /// Translates an expression into a set of IR instructions, and return the [VariableId]
     /// describing the final result of the expression.
     #[must_use]
-    pub fn translate_expression(&mut self, expr: &node::Expression<ExpressionData, Type>) -> Fallible<MaybeFatal<VariableId>, TranslateError> {
+    pub fn translate_expression(&mut self, expr: &node::Expression<ExpressionData, Type>) -> Fallible<MaybeFatal<Value>, TranslateError> {
         match &expr.kind {
             node::ExpressionKind::Identifier(id) => {
                 if let Some(local) = self.locals.get(id).copied() {
                     Fallible::new_ok(
-                        self.target_mut().add_instruction(
+                        Value::new_read_only(move |target| target.add_instruction(
                             ir::Instruction::new(ir::InstructionKind::ReadLocal(local))
-                        )
+                        ))
                     )
                 } else if let Some(ty) = self.functions.get(id) {
+                    let name = id.clone();
+                    let ty = ty.clone();
                     Fallible::new_ok(
-                        self.target_mut().add_instruction(
+                        Value::new_read_only(|target: &mut BasicBlockBuilder| target.add_instruction(
                             ir::Instruction::new(ir::InstructionKind::FunctionReference {
-                                name: id.clone(),
-                                ty: ty.clone(),
+                                name,
+                                ty,
                             })
-                        )
+                        ))
                     )
-                } else if let Some(ty) = self.arguments.get(id) {
-                    Fallible::new_ok(self.func.get_argument(id).unwrap())
+                } else if let Some(_) = self.arguments.get(id) {
+                    let arg = self.func.get_argument(id).unwrap();
+                    Fallible::new_ok(Value::new_read_only(move |_| arg))
                 } else {
                     Fallible::new_fatal(vec![
                         TranslateError::new(&format!("unknown item `{id}`")),
@@ -415,31 +483,47 @@ impl<'c> FunctionTranslator<'c> {
                     panic!("dereferencing non-pointer in translation");
                 };
                 self.translate_expression(ptr)?
-                    .map(|ptr|
-                        self.target_mut().add_instruction(Instruction::new(ir::InstructionKind::ReadMemory {
-                            address: ptr,
-                            ty: pointee_ty.to_ir_type(),
-                        })).into()
-                    )
+                    .map(|ptr| {
+                        let ptr = ptr.consume_read(self.target_mut());
+                        let ty = pointee_ty.to_ir_type();
+                        Value::new_read_only(move |target| target.add_instruction(
+                            Instruction::new(ir::InstructionKind::ReadMemory {
+                                address: ptr,
+                                ty,
+                            })
+                        )).into()
+                    })
             }
 
             node::ExpressionKind::BitwiseNot(v) => {
                 self.translate_expression(v)?
-                    .map(|v|
-                        self.target_mut().add_instruction(
+                    .map(|v| {
+                        let v = v.consume_read(self.target_mut());
+                        Value::new_read_only(move |target| target.add_instruction(
                             Instruction::new(ir::InstructionKind::BitwiseNot(v))
-                        ).into()
-                    )
+                        )).into()
+                    })
             }
 
             // TODO: what about other types?
-            node::ExpressionKind::Integer(i, base) => Fallible::new_ok(
-                self.target_mut().add_constant(ir::ConstantValue::U16(u16::from_str_radix(i, *base).unwrap()))
-            ),
+            node::ExpressionKind::Integer(i, base) => {
+                let i = i.clone();
+                let base = *base;
+                Fallible::new_ok(
+                    Value::new_read_only(move |target|
+                        target.add_constant(ir::ConstantValue::U16(u16::from_str_radix(&i, base).unwrap()))
+                    )
+                )
+            },
 
-            node::ExpressionKind::Boolean(b) => Fallible::new_ok(
-                self.target_mut().add_constant(ir::ConstantValue::Boolean(*b))
-            ),
+            node::ExpressionKind::Boolean(b) => {
+                let b = *b;
+                Fallible::new_ok(
+                    Value::new_read_only(move |target|
+                        target.add_constant(ir::ConstantValue::Boolean(b))
+                    )
+                )
+            },
 
             node::ExpressionKind::ArithmeticBinOp(op, l, r) => {
                 let ir_kind = match op {
@@ -459,24 +543,35 @@ impl<'c> FunctionTranslator<'c> {
                 // If so, we multiply the RHS by the size of the pointee type
                 // (Currently pointer arithmetic is not commutative - `pointer + integral`)
                 if let type_check::Type::Pointer(pointee) = &l.data {
+                    let pointee = pointee.clone();
                     parts
                         .map(|(l, r)| {
-                            let size = self.target_mut().add_instruction(
-                                ir::Instruction::new(ir::InstructionKind::WordSize(pointee.to_ir_type()))
-                            );
-                            let scaled_r = self.target_mut().add_instruction(
-                                ir::Instruction::new(ir::InstructionKind::Multiply(r, size))
-                            );
-                            self.target_mut().add_instruction(
-                                ir::Instruction::new(ir_kind(l, scaled_r))
-                            ).into()
+                            Value::new_read_only(move |target| {
+                                let l = l.consume_read(target);
+                                let r = r.consume_read(target);
+                                let size = target.add_instruction(
+                                    ir::Instruction::new(ir::InstructionKind::WordSize(pointee.to_ir_type()))
+                                );
+                                let scaled_r = target.add_instruction(
+                                    ir::Instruction::new(ir::InstructionKind::Multiply(r, size))
+                                );
+    
+                                target.add_instruction(
+                                    ir::Instruction::new(ir_kind(l, scaled_r))
+                                )
+                            }).into()
                         })
                 } else {
                     parts
-                        .map(|(l, r)|
-                            self.target_mut().add_instruction(
-                                ir::Instruction::new(ir_kind(l, r))
-                            ).into())
+                        .map(|(l, r)| {
+                            Value::new_read_only(move |target| {
+                                let l = l.consume_read(target);
+                                let r = r.consume_read(target);    
+                                target.add_instruction(
+                                    ir::Instruction::new(ir_kind(l, r))
+                                )
+                            }).into()
+                        })
                 }
             }
 
@@ -489,9 +584,13 @@ impl<'c> FunctionTranslator<'c> {
                             ComparisonBinOp::GreaterThan => ir::InstructionKind::GreaterThan,
                             ComparisonBinOp::LessThan => ir::InstructionKind::LessThan,
                         };
-                        self.target_mut().add_instruction(
-                            ir::Instruction::new(instr(l, r))
-                        ).into()
+                        Value::new_read_only(move |target| {
+                            let l = l.consume_read(target);
+                            let r = r.consume_read(target);
+                            target.add_instruction(
+                                ir::Instruction::new(instr(l, r))
+                            )
+                        }).into()
                     }),
 
             node::ExpressionKind::Call { target, arguments } => {
@@ -503,41 +602,56 @@ impl<'c> FunctionTranslator<'c> {
                 
                 target
                     .combine(arguments)
-                    .map(|(target, arguments)|
-                        self.target_mut().add_instruction(
+                    .map(|(call_target, arguments)| {
+                        // Even if the result isn't used, we have to execute a function call,
+                        // because it might have side effects.
+                        // As a result, the `add_instruction` happens outside the `Value` operation.
+                        let call_target = call_target.consume_read(self.target_mut());
+                        let arguments = arguments.into_iter()
+                            .map(|arg| arg.unwrap_or(Value::new_read_only(|_| VariableId::ERROR)).consume_read(self.target_mut()))
+                            .collect();    
+                        let result = self.target_mut().add_instruction(
                             ir::Instruction::new(ir::InstructionKind::Call {
-                                target,
-                                arguments: arguments.into_iter()
-                                    .map(|arg| arg.unwrap_or(VariableId::ERROR))
-                                    .collect()
+                                target: call_target,
+                                arguments,
                             })
-                        ).into())
+                        );
+
+                        Value::new_read_only(move |_| result).into()
+                    })
             },
 
             node::ExpressionKind::Index { target, index } => {
                 let type_check::Type::Array(pointee_ty, _) = &target.data else {
                     panic!("translating index to non-array")
                 };
+                let pointee_ty = pointee_ty.clone();
 
                 self.generate_array_element_pointer_expression(&*target, &*index)?
-                    .map(|v| self.target_mut().add_instruction(
-                        Instruction::new(ir::InstructionKind::ReadMemory {
-                            address: v,
-                            ty: pointee_ty.to_ir_type()
-                        })
-                    ).into())
+                    .map(|v| {
+                        Value::new_read_only(move |target| {
+                            let v = v.consume_read(target);
+                            target.add_instruction(
+                                Instruction::new(ir::InstructionKind::ReadMemory {
+                                    address: v,
+                                    ty: pointee_ty.to_ir_type()
+                                })
+                            )
+                        }).into()
+                    })
             }
 
             node::ExpressionKind::Cast(value, ty) => {
                 self.translate_expression(&value)?.map(|source| {
+                    let source = source.consume_read(self.target_mut());
                     let source_ty = self.func.get_variable_type(source);
                     let target_ty = ty.to_ir_type();
 
                     if source_ty.is_reinterpret_castable_to(&target_ty) {
-                        self.target_mut().add_instruction(Instruction::new(ir::InstructionKind::CastReinterpret {
+                        Value::new_read_only(move |target| target.add_instruction(Instruction::new(ir::InstructionKind::CastReinterpret {
                             value: source,
                             ty: target_ty,
-                        })).into()
+                        }))).into()
                     } else {
                         panic!("cannot cast {source_ty} to {target_ty}")
                     }
@@ -584,13 +698,13 @@ impl<'c> FunctionTranslator<'c> {
         self.target = Some(new);
     }
 
-    fn generate_pointer_take(&mut self, target: &node::Expression<ExpressionData, Type>) -> Fallible<MaybeFatal<VariableId>, TranslateError> {
+    fn generate_pointer_take(&mut self, target: &node::Expression<ExpressionData, Type>) -> Fallible<MaybeFatal<Value>, TranslateError> {
         match &target.kind {
             node::ExpressionKind::Identifier(name) => {
                 if let Some(local) = self.locals.get(name).copied() {
-                    Fallible::new_ok(self.target.as_mut().unwrap().add_instruction(
+                    Fallible::new_ok(Value::new_read_only(move |target| target.add_instruction(
                         ir::Instruction::new(ir::InstructionKind::AddressOfLocal(local))
-                    ))
+                    )))
                 } else {
                     return Fallible::new_fatal(vec![
                         TranslateError::new(&format!("unknown item `{name}`")),
@@ -614,7 +728,7 @@ impl<'c> FunctionTranslator<'c> {
         &mut self,
         target: &node::Expression<ExpressionData, Type>,
         index: &node::Expression<ExpressionData, Type>
-    ) -> Fallible<MaybeFatal<VariableId>, TranslateError> {
+    ) -> Fallible<MaybeFatal<Value>, TranslateError> {
         let type_check::Type::Array(pointee_ty, _) = &target.data else {
             panic!("translating index to non-array")
         };
