@@ -139,13 +139,15 @@ pub struct FunctionTranslator<'c> {
 /// This is a higher-level abstraction around a [VariableId]. Depending on whether a value is going
 /// to be used for a read or a write, a different set of IR instructions might need to be generated.
 /// 
-/// A [Value] can be _consumed_ for either a read or a write, which either produces or takes a
-/// [VariableId] respectively.
+/// A [Value] can be _consumed_ to produce:
+///   - A **read**, giving a [VariableId] holding the underlying value
+///   - A **write**, taking a [VariableId] which is written as the underlying value
+///   - A **pointer**, giving a [VariableId] which is a pointer to the underlying value
 /// 
 /// This doubles as an optimisation technique - expressions with no side effects may choose not
 /// to generate any instructions unless they're consumed, avoiding generation of instructions which
 /// ultimately don't do anything.
-struct Value {
+pub struct Value {
     /// A function which generates the necessary instructions to read this value, and returns the
     /// [VariableId] with the read value. If [None], this value does not support reading.
     read: Option<Box<dyn FnOnce(&mut BasicBlockBuilder) -> VariableId>>,
@@ -154,7 +156,10 @@ struct Value {
     /// this value. If [None], this value does not support writing.
     write: Option<Box<dyn FnOnce(&mut BasicBlockBuilder, VariableId)>>,
 
-    // pointer: Option<Box<dyn FnOnce() -> VariableId>>,
+    /// A function which generates the necessary instructions to obtain a pointer to this value,
+    /// and returns the [VariableId] with the pointer. If [None], this value doesn't have a stable
+    /// address.   
+    pointer: Option<Box<dyn FnOnce(&mut BasicBlockBuilder) -> VariableId>>,
 }
 
 impl Value {
@@ -163,7 +168,7 @@ impl Value {
         Self {
             read: Some(Box::new(read)),
             write: None,
-            // pointer: None,
+            pointer: None,
         }
     }
 
@@ -175,7 +180,20 @@ impl Value {
         Self {
             read: Some(Box::new(read)),
             write: Some(Box::new(write)),
-            // pointer: None,
+            pointer: None,
+        }
+    }
+
+    /// Creates a new readable and writable [Value], given instruction builders for each.
+    fn new_read_write_pointer<'a>(
+        read: impl FnOnce(&mut BasicBlockBuilder) -> VariableId + 'static,
+        write: impl FnOnce(&mut BasicBlockBuilder, VariableId) + 'static,
+        pointer: impl FnOnce(&mut BasicBlockBuilder) -> VariableId + 'static,
+    ) -> Value {
+        Self {
+            read: Some(Box::new(read)),
+            write: Some(Box::new(write)),
+            pointer: Some(Box::new(pointer)),
         }
     }
 
@@ -189,6 +207,12 @@ impl Value {
     /// a [VariableId] into it.
     fn consume_write(self,  target: &mut BasicBlockBuilder, value: VariableId) {
         (self.write.expect("value is not supported for write"))(target, value)
+    }
+
+    /// Consumes this [Value], generating IR instructions on the given [BasicBlockBuilder] to get
+    /// its pointer.
+    fn consume_pointer(self,  target: &mut BasicBlockBuilder) -> VariableId {
+        (self.pointer.expect("value does not have a pointer"))(target)
     }
 }
 
@@ -404,12 +428,15 @@ impl<'c> FunctionTranslator<'c> {
             node::ExpressionKind::Identifier(id) => {
                 if let Some(local) = self.locals.get(id).copied() {
                     Fallible::new_ok(
-                        Value::new_read_write(
+                        Value::new_read_write_pointer(
                             move |target| target.add_instruction(
                                 ir::Instruction::new(ir::InstructionKind::ReadLocal(local))
                             ),
                             move |target, v| target.add_void_instruction(
                                 ir::Instruction::new(ir::InstructionKind::WriteLocal(local, v))
+                            ),
+                            move |target| target.add_instruction(
+                                ir::Instruction::new(ir::InstructionKind::AddressOfLocal(local))
                             ),
                         )
                     )
@@ -435,7 +462,11 @@ impl<'c> FunctionTranslator<'c> {
             },
 
             node::ExpressionKind::PointerTake(target) =>
-                self.generate_pointer_take(target),
+                return self.translate_expression(target)?
+                    .map(|target| {
+                        let ptr = target.consume_pointer(self.target_mut());
+                        Value::new_read_only(move |_| ptr).into()
+                    }),
 
             node::ExpressionKind::PointerDereference(ptr) => {
                 // Assuming a `PointerDereference` in this position is a read.
@@ -675,26 +706,6 @@ impl<'c> FunctionTranslator<'c> {
     pub fn replace_target(&mut self, new: BasicBlockBuilder) {
         self.finalize_target();
         self.target = Some(new);
-    }
-
-    fn generate_pointer_take(&mut self, target: &node::Expression<ExpressionData, Type>) -> Fallible<MaybeFatal<Value>, TranslateError> {
-        match &target.kind {
-            node::ExpressionKind::Identifier(name) => {
-                if let Some(local) = self.locals.get(name).copied() {
-                    Fallible::new_ok(Value::new_read_only(move |target| target.add_instruction(
-                        ir::Instruction::new(ir::InstructionKind::AddressOfLocal(local))
-                    )))
-                } else {
-                    return Fallible::new_fatal(vec![
-                        TranslateError::new(&format!("unknown item `{name}`")),
-                    ])
-                }
-            }
-
-            _ => return Fallible::new_fatal(vec![
-                TranslateError::new(&format!("cannot take pointer to: {target:?}")),
-            ])
-        }
     }
 
     /// Given a target expression of type [type_check::Type::Array], and an index expression of
