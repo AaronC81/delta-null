@@ -622,4 +622,25 @@ mod test {
             30
         );
     }
+
+    #[test]
+    fn test_complex_lvalue() {
+        // Test that something moderately complex (e.g. the result of a function call) is accepted
+        // as an lvalue
+        assert_eq!(
+            util::compile_and_execute("
+                fn third_element(start: *u16) -> *u16 {
+                    return start + 2;
+                }
+
+                fn main() -> u16 {
+                    var items: [10]u16;
+                    *(third_element(&items as *u16)) = 24;
+
+                    return items[2];
+                }
+            ").unwrap(),
+            24
+        );
+    }
 }
