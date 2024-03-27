@@ -121,6 +121,13 @@ pub enum InstructionKind {
     /// Evaluates to the size, in machine words, of the given [Type].
     WordSize(Type),
 
+    /// Given the [Type] of a structure, and an index into its list of fields, gets the word offset
+    /// of that field from the beginning of the structure.
+    FieldOffset {
+        ty: Type,
+        index: usize,
+    },
+
     /// Include some target-specific inline assembly at this point in the compiled code.
     InlineAssembly(String),
 
@@ -207,6 +214,7 @@ impl Instruction {
             InstructionKind::Call { target, arguments } =>
                 arguments.iter().copied().chain([*target]).collect(),
             InstructionKind::WordSize(_) => hashset!{},
+            InstructionKind::FieldOffset { .. } => hashset!{},
             InstructionKind::InlineAssembly(_) => hashset!{},
             InstructionKind::Return(r) => r.iter().copied().collect(),
             InstructionKind::Branch(_) => hashset!{},
@@ -294,6 +302,14 @@ impl Instruction {
 
             InstructionKind::WordSize(_) => Ok(Some(Type::UnsignedInteger(IntegerSize::Bits16))),
 
+            InstructionKind::FieldOffset { ty, index } => {
+                let Type::Struct(fields) = ty else {
+                    return Err(TypeError::new("`FieldAccess` type must be a `Struct`"));
+                };
+
+                Ok(Some(fields[*index].clone()))
+            }
+
             InstructionKind::InlineAssembly(_) => Ok(None),
             
             InstructionKind::Return(_)
@@ -363,6 +379,9 @@ impl PrintIR for Instruction {
                 ),
 
             InstructionKind::WordSize(ty) => format!("size of {ty}"),
+
+            InstructionKind::FieldOffset { ty, index } => format!("field offset for type {}, index {}", ty, index),
+
             InstructionKind::InlineAssembly(_) => "<inline asm>".to_owned(),
 
             InstructionKind::Return(r) =>

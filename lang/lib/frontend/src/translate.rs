@@ -478,7 +478,7 @@ impl<'c> FunctionTranslator<'c> {
                     .map(|ptr| {
                         let ptr = ptr.consume_read(self.target_mut());
                         let ty = pointee_ty.to_ir_type();
-                        Value::new_read_write(
+                        Value::new_read_write_pointer(
                             move |target| target.add_instruction(
                                 Instruction::new(ir::InstructionKind::ReadMemory {
                                     address: ptr,
@@ -491,11 +491,50 @@ impl<'c> FunctionTranslator<'c> {
                                     value: v,
                                 })
                             ),
+
+                            // To get a pointer to the dereferenced item, we can just return the
+                            // pointer itself
+                            move |_| ptr,
                         ).into()
                     })
             }
 
-            node::ExpressionKind::FieldAccess { .. } => todo!(), // TODO
+            node::ExpressionKind::FieldAccess { target, field } => {
+                // Get index of field being accessed
+                let type_check::Type::Struct(fields) = target.data.desugar() else {
+                    unreachable!("access on non-struct")
+                };
+                let Some((index, (_, ty))) = fields.iter().enumerate().find(|(_, (name, _))| name == field) else {
+                    unreachable!("missing field {field}")
+                };
+                let ty = ty.clone();
+
+                // Get pointer to structure
+                self.translate_expression(target)?
+                    .map(|strct| {
+                        let ptr = strct.consume_pointer(self.target_mut());
+                        let index_var = self.target_mut().add_constant(ir::ConstantValue::U16(index as u16));
+                        let field_address = self.target_mut().add_instruction(
+                            Instruction::new(ir::InstructionKind::Add(ptr, index_var))
+                        );
+
+                        Value::new_read_write_pointer(
+                            move |target| target.add_instruction(
+                                Instruction::new(ir::InstructionKind::ReadMemory {
+                                    address: field_address,
+                                    ty: ty.to_ir_type(),
+                                })
+                            ),
+                            move |target, value| target.add_void_instruction(
+                                Instruction::new(ir::InstructionKind::WriteMemory {
+                                    address: field_address,
+                                    value,
+                                })
+                            ),
+                            move |_| field_address,
+                        ).into()
+                    })
+            }
 
             node::ExpressionKind::BitwiseNot(v) => {
                 self.translate_expression(v)?

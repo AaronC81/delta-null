@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use delta_null_core_assembler::{AssemblyItem, AssemblyOperand, LabelAccess};
 use delta_null_core_instructions::{GeneralPurposeRegister, GPR, InstructionOpcode, SPR};
-use delta_null_lang_backend::ir::{Function, VariableId, self, BasicBlockId, InstructionKind, LocalId, VariableRepository, LocalRepository};
+use delta_null_lang_backend::ir::{self, BasicBlockId, Function, InstructionKind, LocalId, LocalRepository, Type, VariableId, VariableRepository};
 
 use crate::reg_alloc::Allocation;
 
@@ -384,6 +384,17 @@ impl<'f> FunctionGenerator<'f> {
             ir::InstructionKind::WordSize(ty) => {
                 let Some(reg) = self.variable_reg(stmt.result.unwrap()) else { return 0 };
                 buffer.push(AssemblyItem::new_word_put(reg, (ty.word_size() as u16).into()));
+            }
+
+            ir::InstructionKind::FieldOffset { ty, index } => {
+                let Type::Struct(fields) = ty else {
+                    panic!("`FieldAccess` type must be a `Struct`");
+                };
+
+                let offset: usize = fields[0..*index].iter().map(|t| t.word_size()).sum();
+                if let Some(reg) = self.variable_reg(stmt.result.unwrap()) {
+                    buffer.push(AssemblyItem::new_word_put(reg, (offset as u16).into()));
+                }
             }
 
             ir::InstructionKind::InlineAssembly(contents) => {

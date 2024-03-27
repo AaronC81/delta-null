@@ -658,5 +658,49 @@ mod test {
             ").unwrap(),
             5
         );
+
+        // Field access
+        assert_eq!(
+            util::compile_and_execute("
+                type Point = struct { x: u16, y: u16 };
+
+                fn main() -> u16 {
+                    var pt: Point;
+                    pt.x = 2;
+                    pt.y = 3;
+                    return pt.x + pt.y;
+                }
+            ").unwrap(),
+            2 + 3
+        );
+
+        // Passing pointers
+        assert_eq!(
+            util::compile_and_execute("
+                type Point = struct { x: u16, y: u16 };
+
+                fn add_points(p1: *Point, p2: *Point, out: *Point) {
+                    (*out).x = (*p1).x + (*p2).x;
+                    (*out).y = (*p1).y + (*p2).y;
+                }
+
+                fn main() -> u16 {
+                    var p1: Point;
+                    p1.x = 5;
+                    p1.y = 10;
+
+                    var p2: Point;
+                    p2.x = 2;
+                    p2.y = 3;
+
+                    var out: Point;
+
+                    add_points(&p1, &p2, &out);
+                    
+                    return out.x * out.y;
+                }
+            ").unwrap(),
+            (5 + 2) * (10 + 3)
+        );
     }
 }
