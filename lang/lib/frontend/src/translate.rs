@@ -252,11 +252,15 @@ impl<'c> FunctionTranslator<'c> {
                     self.populate_locals(s).propagate(&mut result);
                 }
             },
-            node::StatementKind::Loop(body) => {
+            node::StatementKind::Loop(body) 
+            | node::StatementKind::While { condition: _, body } => {
                 self.populate_locals(body).propagate(&mut result);
             },
-            node::StatementKind::If { true_body: body, .. } => {
-                self.populate_locals(body).propagate(&mut result);
+            node::StatementKind::If { condition: _, true_body, false_body } => {
+                self.populate_locals(true_body).propagate(&mut result);
+                if let Some(false_body) = false_body {
+                    self.populate_locals(false_body).propagate(&mut result);
+                }
             }
 
             // Nothing to do
@@ -353,6 +357,50 @@ impl<'c> FunctionTranslator<'c> {
 
                 return errors.map(|f| f.into());
             },
+
+            node::StatementKind::While { condition, body } => {
+                let mut errors = Fallible::new_ok(());
+
+                // Create block for checking the condition
+                let (condition_id, condition_block) = self.func.new_basic_block();
+                self.target_mut().add_terminator_if_none(ir::Instruction::new(ir::InstructionKind::Branch(condition_id)));
+
+                // Create block for the body of the loop, executed if the condition is true
+                let (body_id, body_block) = self.func.new_basic_block();
+
+                // Create block for following statements - if the condition turns false, or `break`
+                // is executed, go there!
+                let (cont_id, cont_block) = self.func.new_basic_block();
+                let old_break_target = self.break_target;
+                self.break_target = Some(cont_id);
+
+                // Populate condition code
+                self.replace_target(condition_block);
+                let condition = self
+                    .translate_expression(condition)?
+                    .propagate(&mut errors)
+                    .consume_read(self.target_mut());
+                self.target_mut().add_terminator_if_none(Instruction::new(ir::InstructionKind::ConditionalBranch {
+                    condition,
+                    true_block: body_id,
+                    false_block: cont_id,
+                }));
+
+                // Populate body block
+                self.replace_target(body_block);
+                self.translate_statement(body)?.propagate(&mut errors);
+
+                // Body block should loop back to the condition block
+                self.target_mut().add_terminator_if_none(Instruction::new(ir::InstructionKind::Branch(condition_id)));
+
+                // Restore old break target
+                self.break_target = old_break_target;
+
+                // Place any new instructions in the continuation block
+                self.replace_target(cont_block);
+
+                return errors.map(|f| f.into());                
+            }
 
             node::StatementKind::Break => {
                 if let Some(break_target) = self.break_target {

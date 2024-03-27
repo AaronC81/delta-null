@@ -293,6 +293,20 @@ pub fn type_check_statement(stmt: Statement<()>, ctx: &mut Context) -> Fallible<
                     type_check_statement(*body, ctx).propagate(&mut errors)
                 )),
 
+            StatementKind::While { condition, body } => {
+                let condition = type_check_expression(condition, ctx).propagate(&mut errors);
+
+                // Condition should be a boolean
+                check_types_are_assignable(&Type::Direct(ir::Type::Boolean), &condition.data, loc).propagate(&mut errors);
+
+                let body = type_check_statement(*body, ctx).propagate(&mut errors);
+
+                StatementKind::While {
+                    condition,
+                    body: Box::new(body),
+                }
+            },
+
             StatementKind::Break => StatementKind::Break,
 
             StatementKind::If { condition, true_body, false_body } => {
@@ -609,6 +623,11 @@ pub fn do_all_paths_diverge(body: &Statement<Type, Type>) -> bool {
                 None => true,
             },
 
+        // We can't easily tell if a while-loop diverges based on its condition.
+        // Just look at its body.
+        StatementKind::While { body, .. } =>
+            do_all_paths_diverge(body),
+
         StatementKind::VariableDeclaration { .. } 
         | StatementKind::Assignment { .. }
         | StatementKind::Break
@@ -630,11 +649,13 @@ pub fn find_statement<'s, D, Ty>(stmt: &'s Statement<D, Ty>, predicate: &impl Fn
             find_statement(true_body, predicate)
                 .or_else(|| false_body.as_ref().and_then(|b| find_statement(b, predicate))),
 
+        StatementKind::Loop(body)
+        | StatementKind::While { body, .. } => find_statement(body, predicate),
+
         StatementKind::VariableDeclaration { .. }
         | StatementKind::Assignment { .. }
         | StatementKind::Expression(_)
         | StatementKind::Return(_)
-        | StatementKind::Loop(_)
         | StatementKind::Break
         | StatementKind::InlineAssembly(_) => None,
     }

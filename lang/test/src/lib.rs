@@ -736,4 +736,51 @@ mod test {
             4 * 3
         );
     }
+
+    #[test]
+    fn test_while() {
+        // Simple loop
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    var x: u16 = 0;
+                    while x < 10 {
+                        x = x + 1;
+                    }
+                    return x;
+                }
+            ").unwrap(),
+            10
+        );
+
+        // Breaking early
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    var x: u16 = 0;
+                    while x < 10 {
+                        if x == 5 { break; }
+                        x = x + 1;
+                    }
+                    return x;
+                }
+            ").unwrap(),
+            5
+        );
+
+        // Never executes
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    var x: u16 = 20;
+                    while x < 10 {
+                        if x == 5 { break; }
+                        x = x + 1;
+                    }
+                    return x;
+                }
+            ").unwrap(),
+            20
+        );
+    }
 }

@@ -99,6 +99,10 @@ pub enum StatementKind<D = (), Ty = crate::node::Type> {
     },
     Return(Option<Expression<D, Ty>>),
     Loop(Box<Statement<D, Ty>>),
+    While {
+        condition: Expression<D, Ty>,
+        body: Box<Statement<D, Ty>>,
+    },
     Break,
     If {
         condition: Expression<D, Ty>,

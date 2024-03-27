@@ -144,6 +144,16 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                     .map(|s| Statement::new(StatementKind::Loop(Box::new(s)), loc).into())
             }
 
+            Some(TokenKind::KwWhile) => {
+                self.tokens.next();
+                self.parse_expression()?
+                    .combine(self.parse_statement()?)
+                    .map(|(condition, body)| Statement::new(StatementKind::While {
+                        condition,
+                        body: Box::new(body),
+                    }, loc).into())
+            }
+
             Some(TokenKind::KwBreak) => {
                 self.tokens.next();
                 self.expect(TokenKind::Semicolon)?;
