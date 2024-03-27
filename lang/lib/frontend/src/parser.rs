@@ -38,9 +38,9 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
             _ => {
                 let token = self.tokens.next().unwrap();
-                return Fallible::new_fatal(vec![
+                Fallible::new_fatal(vec![
                     ParseError::new(&format!("unexpected token at top-level: {:?}", token.kind), token.loc)
-                ]);
+                ])
             }
         }
     }
@@ -568,7 +568,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
                 // Or the end
                 // (The next iteration will deal with this)
-                Some(ref t) if **t == end => (),
+                Some(t) if *t == end => (),
 
                 // The next iteration will give an error for the EOF case
                 None => (),

@@ -1,4 +1,4 @@
-use std::iter::Peekable;
+use std::{iter::Peekable, fmt::Write};
 
 use delta_null_core_instructions::{InstructionOpcode, GPR, AnyRegister, ToAssembly};
 
@@ -59,8 +59,10 @@ impl ToAssembly for AssemblyItem {
                 }),
         };
         let labels: String = self.labels.iter()
-            .map(|l| format!("{l}: "))
-            .collect();
+            .fold(String::new(), |mut s, l| {
+                write!(s, "{l}: ").unwrap();
+                s
+            });
         format!("{labels}{ins}")
     }
 }

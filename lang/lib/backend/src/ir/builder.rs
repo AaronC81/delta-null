@@ -115,7 +115,7 @@ impl FunctionBuilder {
             name: self.name,
             blocks: state.blocks.into_iter()
                 .map(|(id, blk)|
-                    (id, blk.expect(&format!("block {id:?} should have been finalized")))
+                    (id, blk.unwrap_or_else(|| panic!("block {id:?} should have been finalized")))
                 )
                 .collect(),
             arguments: self.arguments.iter().map(|(_, ty)| *ty).collect(),

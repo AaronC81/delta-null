@@ -1,6 +1,5 @@
 use delta_null_core_assembler::Builder;
 use delta_null_core_emulator::{Core, memory::{Memory, SimpleMemory}, ExecutionError};
-use delta_null_core_instructions::ToAssembly;
 use delta_null_lang_backend::ir::{Function, Module};
 
 use crate::compile_module;

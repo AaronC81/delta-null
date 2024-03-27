@@ -247,7 +247,7 @@ pub fn type_check_statement(stmt: Statement<()>, ctx: &mut Context) -> Fallible<
             
             StatementKind::VariableDeclaration { name, ty, value } => {
                 // Create key in context, which shouldn't exist already
-                let ty = convert_node_type(&ty, &ctx.module).propagate(&mut errors);
+                let ty = convert_node_type(&ty, ctx.module).propagate(&mut errors);
                 if ctx.local.variables.contains_key(&name) {
                     errors.push_error(TypeError::new(
                         &format!("redefinition of local variable `{name}`"), loc
@@ -395,7 +395,7 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
 
             ExpressionKind::Cast(value, ty) => {
                 let value = type_check_expression(*value, ctx).propagate(&mut errors);
-                let ty = convert_node_type(&ty, &ctx.module).propagate(&mut errors);
+                let ty = convert_node_type(&ty, ctx.module).propagate(&mut errors);
 
                 // Is a cast possible?
                 let is_castable = match (&value.data, &ty) {
@@ -516,7 +516,7 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
             },
 
             ExpressionKind::Sizeof(ty) => {
-                let ty = convert_node_type(&ty, &ctx.module).propagate(&mut errors);
+                let ty = convert_node_type(&ty, ctx.module).propagate(&mut errors);
                 (ExpressionKind::Sizeof(ty), Type::Direct(ir::Type::UnsignedInteger(IntegerSize::Bits16)))
             },
         }
@@ -539,7 +539,7 @@ pub fn types_are_assignable(target: &Type, source: &Type) -> bool {
     // Our notion of decay is `*[4]u16 -> *u16`, **not** `[4]u16 -> *u16` like C would model it.
     if let Type::Pointer(box Type::Array(source_element_ty, _)) = source {
         if let Type::Pointer(target_element_ty) = target {
-            if types_are_assignable(&target_element_ty, source_element_ty) {
+            if types_are_assignable(target_element_ty, source_element_ty) {
                 return true;
             }
         }
@@ -670,7 +670,7 @@ fn convert_node_type(ty: &node::Type, module_ctx: &ModuleContext) -> Fallible<Ty
                         .map(|ty| (name.clone(), ty)))
                 .collect::<Fallible<Vec<_>, _>>();
 
-            fields.map(|fields| Type::Struct(fields))
+            fields.map(Type::Struct)
         }
     }
 }

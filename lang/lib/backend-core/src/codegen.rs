@@ -323,7 +323,7 @@ impl<'f> FunctionGenerator<'f> {
 
                     // There's now one more GPR on the stack, so you need to access one offset
                     // deeper into the stack to retrieve the ones which were already pushed
-                    for (_, offset) in &mut gpr_stack_offsets {
+                    for offset in gpr_stack_offsets.values_mut() {
                         *offset += 1;
                     }
 
@@ -639,7 +639,7 @@ impl<'f> FunctionGenerator<'f> {
         // then we can skip extracting `ef`'s condition bit into a variable, and just branch
         // right now.
         if let Some(InstructionKind::ConditionalBranch { condition, true_block, false_block })
-            = after.get(0).map(|s| &s.instruction.kind)
+            = after.first().map(|s| &s.instruction.kind)
         {
             if *condition == stmt.result.unwrap()
                 && self.func.variable_references()[condition].len() == 1 // only used as that condition
@@ -774,7 +774,7 @@ impl<'f> FunctionGenerator<'f> {
             }
         }
 
-        return false;
+        false
     }
 }
 

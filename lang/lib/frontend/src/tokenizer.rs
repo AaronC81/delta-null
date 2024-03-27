@@ -142,7 +142,7 @@ pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>)
                     // Inline assembly fragment!
                     "asm" => {
                         // Skip whitespace
-                        while let Some(_) = chars.next_if(|(c, _)| c.is_whitespace()) {}
+                        while chars.next_if(|(c, _)| c.is_whitespace()).is_some() {}
 
                         // Take opening {
                         let Some(('{', _)) = chars.next() else {
@@ -152,7 +152,7 @@ pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>)
 
                         // Take contents until closing }
                         let mut contents = String::new();
-                        while let Some((next, _)) = chars.next() {
+                        for (next, _) in chars.by_ref() {
                             if next == '}' {
                                 break;
                             }

@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display, error::Error};
 
 use delta_null_lang_backend::ir::{Module, FunctionBuilder, LocalId, BasicBlockBuilder, VariableId, self, Instruction, BasicBlockId};
 
-use crate::{fallible::{Fallible, MaybeFatal}, node::{self, ComparisonBinOp, ExpressionKind, Statement, TopLevelItem, TopLevelItemKind, TypeKind}, type_check::{self, Type}};
+use crate::{fallible::{Fallible, MaybeFatal}, node::{self, ComparisonBinOp, Statement, TopLevelItem, TopLevelItemKind}, type_check::{self, Type}};
 
 type ExpressionData = crate::type_check::Type;
 
@@ -173,7 +173,7 @@ impl Value {
     }
 
     /// Creates a new readable and writable [Value], given instruction builders for each.
-    fn new_read_write<'a>(
+    fn new_read_write(
         read: impl FnOnce(&mut BasicBlockBuilder) -> VariableId + 'static,
         write: impl FnOnce(&mut BasicBlockBuilder, VariableId) + 'static
     ) -> Value {
@@ -185,7 +185,7 @@ impl Value {
     }
 
     /// Creates a new readable and writable [Value], given instruction builders for each.
-    fn new_read_write_pointer<'a>(
+    fn new_read_write_pointer(
         read: impl FnOnce(&mut BasicBlockBuilder) -> VariableId + 'static,
         write: impl FnOnce(&mut BasicBlockBuilder, VariableId) + 'static,
         pointer: impl FnOnce(&mut BasicBlockBuilder) -> VariableId + 'static,
@@ -451,7 +451,7 @@ impl<'c> FunctionTranslator<'c> {
                             })
                         ))
                     )
-                } else if let Some(_) = self.arguments.get(id) {
+                } else if self.arguments.get(id).is_some() {
                     let arg = self.func.get_argument(id).unwrap();
                     Fallible::new_ok(Value::new_read_only(move |_| arg))
                 } else {
@@ -668,7 +668,7 @@ impl<'c> FunctionTranslator<'c> {
                 };
                 let pointee_ty = pointee_ty.clone();
 
-                self.generate_array_element_pointer_expression(&*target, &*index)?
+                self.generate_array_element_pointer_expression(target, index)?
                     .map(|v| {
                         let v = v.consume_read(self.target_mut());
                         Value::new_read_write(
@@ -693,7 +693,7 @@ impl<'c> FunctionTranslator<'c> {
             }
 
             node::ExpressionKind::Cast(value, ty) => {
-                self.translate_expression(&value)?.map(|source| {
+                self.translate_expression(value)?.map(|source| {
                     let source = source.consume_read(self.target_mut());
                     let source_ty = self.func.get_variable_type(source);
                     let target_ty = ty.to_ir_type();
@@ -714,7 +714,7 @@ impl<'c> FunctionTranslator<'c> {
                 Fallible::new_ok(
                     Value::new_read_only(move |target| target.add_instruction(
                         Instruction::new(ir::InstructionKind::WordSize(ty.to_ir_type()))
-                    )).into()
+                    ))
                 )
             }
         }

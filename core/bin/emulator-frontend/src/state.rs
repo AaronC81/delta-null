@@ -41,7 +41,7 @@ impl ApplicationState {
                 }
 
                 let reg_index =
-                    if let Some(index) = args[0].strip_prefix("r") {
+                    if let Some(index) = args[0].strip_prefix('r') {
                         index.parse()
                     } else {
                         args[0].parse()
