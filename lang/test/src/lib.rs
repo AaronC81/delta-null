@@ -703,4 +703,37 @@ mod test {
             (5 + 2) * (10 + 3)
         );
     }
+
+    #[test]
+    fn test_sizeof() {
+        // Scalar
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    return sizeof(u16);
+                }
+            ").unwrap(),
+            1
+        );
+
+        // Struct
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    return sizeof(struct { a: u16, b: u16, c: u16 });
+                }
+            ").unwrap(),
+            3
+        );
+
+        // Array
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    return sizeof([4]struct { a: u16, b: u16, c: u16 });
+                }
+            ").unwrap(),
+            4 * 3
+        );
+    }
 }

@@ -43,6 +43,7 @@ pub enum TokenKind {
     KwAs,
     KwType,
     KwStruct,
+    KwSizeof,
 
     Plus,
     Minus,
@@ -174,6 +175,7 @@ pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>)
                     "as" => TokenKind::KwAs,
                     "type" => TokenKind::KwType,
                     "struct" => TokenKind::KwStruct,
+                    "sizeof" => TokenKind::KwSizeof,
 
                     // Just an identifier
                     _ => TokenKind::Identifier(buffer),

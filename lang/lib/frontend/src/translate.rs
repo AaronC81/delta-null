@@ -708,6 +708,15 @@ impl<'c> FunctionTranslator<'c> {
                     }
                 })
             }
+
+            node::ExpressionKind::Sizeof(ty) => {
+                let ty = ty.clone();
+                Fallible::new_ok(
+                    Value::new_read_only(move |target| target.add_instruction(
+                        Instruction::new(ir::InstructionKind::WordSize(ty.to_ir_type()))
+                    )).into()
+                )
+            }
         }
     }
 

@@ -514,6 +514,11 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
                 let ty = Type::Direct(ir::Type::Boolean);
                 (ExpressionKind::ComparisonBinOp(op, Box::new(l), Box::new(r)), ty)
             },
+
+            ExpressionKind::Sizeof(ty) => {
+                let ty = convert_node_type(&ty, &ctx.module).propagate(&mut errors);
+                (ExpressionKind::Sizeof(ty), Type::Direct(ir::Type::UnsignedInteger(IntegerSize::Bits16)))
+            },
         }
     });
 

@@ -295,7 +295,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
     /// Parses a call.
     pub fn parse_call(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
-        let mut expr = self.parse_unary()?;
+        let mut expr = self.parse_sizeof()?;
 
         if let Some(&TokenKind::LParen) = self.tokens.peek().map(|t| &t.kind) {
             let mut errors = Fallible::new_ok(());
@@ -314,6 +314,22 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         }
 
         expr.map(|e| e.into())
+    }
+
+    /// Parses a use of the `sizeof` operator.
+    pub fn parse_sizeof(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
+        if let Some(&TokenKind::KwSizeof) = self.tokens.peek().map(|t| &t.kind) {
+            let operator = self.tokens.next().unwrap();
+            self.expect(TokenKind::LParen)?;
+            let ty = self.parse_type()?;
+            self.expect(TokenKind::RParen)?;
+
+            ty.map(|ty|
+                Expression::new(ExpressionKind::Sizeof(ty), operator.loc).into()
+            )
+        } else {
+            self.parse_unary()
+        }
     }
 
     /// Parse a unary operator. All unary operators currently have the same precedence.
