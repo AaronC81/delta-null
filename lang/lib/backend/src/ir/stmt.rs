@@ -258,7 +258,9 @@ impl Instruction {
 
                 let is_pointer_arithmetic = a_ty == Type::Pointer && b_ty.is_integral();
                 if !is_pointer_arithmetic && a_ty != b_ty {
-                    return Err(TypeError::new("both sides of arithmetic binop must either have the same type, or be `pointer` and `integral`"));
+                    return Err(TypeError::new(
+                        &format!("both sides of arithmetic binop must either have the same type, or be `pointer` and `integral`. got `{a_ty}` and `{b_ty}`")
+                    ));
                 }
                 
                 Ok(Some(a_ty))
@@ -302,13 +304,8 @@ impl Instruction {
 
             InstructionKind::WordSize(_) => Ok(Some(Type::UnsignedInteger(IntegerSize::Bits16))),
 
-            InstructionKind::FieldOffset { ty, index } => {
-                let Type::Struct(fields) = ty else {
-                    return Err(TypeError::new("`FieldAccess` type must be a `Struct`"));
-                };
-
-                Ok(Some(fields[*index].clone()))
-            }
+            // Not _really_ a pointer, because it needs to be added to a base pointer to be valid
+            InstructionKind::FieldOffset { ty, index } => Ok(Some(Type::UnsignedInteger(IntegerSize::Bits16))),
 
             InstructionKind::InlineAssembly(_) => Ok(None),
             

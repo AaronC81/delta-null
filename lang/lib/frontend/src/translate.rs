@@ -557,13 +557,20 @@ impl<'c> FunctionTranslator<'c> {
                 };
                 let ty = ty.clone();
 
-                // Get pointer to structure
                 self.translate_expression(target)?
                     .map(|strct| {
+                        // Get pointer to structure
                         let ptr = strct.consume_pointer(self.target_mut());
-                        let index_var = self.target_mut().add_constant(ir::ConstantValue::U16(index as u16));
+
+                        // Calculate an index into the structure
+                        let offset_var = self.target_mut().add_instruction(
+                            Instruction::new(ir::InstructionKind::FieldOffset {
+                                ty: target.data.desugar().to_ir_type(),
+                                index,
+                            })
+                        );
                         let field_address = self.target_mut().add_instruction(
-                            Instruction::new(ir::InstructionKind::Add(ptr, index_var))
+                            Instruction::new(ir::InstructionKind::Add(ptr, offset_var))
                         );
 
                         Value::new_read_write_pointer(
