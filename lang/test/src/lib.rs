@@ -702,6 +702,24 @@ mod test {
             ").unwrap(),
             (5 + 2) * (10 + 3)
         );
+
+        // Arrays in structures
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    var x: struct { s1: u16, a: [4]u16, s2: u16 };
+                    x.s1 = 1;
+                    x.a[0] = 2;
+                    x.a[1] = 3;
+                    x.a[2] = 4;
+                    x.a[3] = 5;
+                    x.s2 = 6;
+
+                    return x.s1 + x.a[0] + x.a[1] + x.a[2] + x.a[3] + x.s2;
+                }
+            ").unwrap(),
+            1 + 2 + 3 + 4 + 5 + 6
+        );
     }
 
     #[test]
@@ -735,6 +753,16 @@ mod test {
             ").unwrap(),
             4 * 3
         );
+
+        // Arrays in structures
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    return sizeof(struct { a: u16, b: [4]u16, c: u16 });
+                }
+            ").unwrap(),
+            6
+        )
     }
 
     #[test]
