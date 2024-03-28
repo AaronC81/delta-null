@@ -369,46 +369,49 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 })
             }
 
-            _ => self.parse_field_access(),
+            _ => self.parse_field_access_or_index(),
         }
     }
 
-    pub fn parse_field_access(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
-        let mut expr = self.parse_index()?;
-
-        while let Some(&TokenKind::Dot) = self.tokens.peek().map(|t| &t.kind) {
-            let Token { kind: _, loc } = self.tokens.next().unwrap();
-
-            let field_name_token = self.tokens.next().unwrap();
-            let TokenKind::Identifier(field_name) = &field_name_token.kind else {
-                expr.push_error(ParseError::new("expected identifier", field_name_token.loc));
-                break;
-            };
-
-            expr = expr.map(|e|
-                Expression::new(ExpressionKind::FieldAccess {
-                    target: Box::new(e),
-                    field: field_name.clone()
-                }, loc))
-        }
-
-        expr.map(|e| e.into())
-    }
-
-    /// Parse an array indexing expression.
-    pub fn parse_index(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
+    /// Parse a field access or array indexing expression.
+    /// 
+    /// Handled together because they should have the same precedence - `a.b[c].d[e].f` should work
+    /// as expected.
+    pub fn parse_field_access_or_index(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
         let mut expr = self.parse_atom()?;
 
-        while let Some(&TokenKind::LBracket) = self.tokens.peek().map(|t| &t.kind) {
-            let Token { kind: _, loc } = self.tokens.next().unwrap();
+        while let Some(kind) = self.tokens.peek().map(|t| &t.kind) {
+            match kind {
+                TokenKind::Dot => {
+                    let Token { kind: _, loc } = self.tokens.next().unwrap();
 
-            self.parse_expression()?
-                .combine(self.expect(TokenKind::RBracket)?)
-                .integrate(&mut expr, |e, (index, _)|
-                    *e = Expression::new(ExpressionKind::Index {
-                        target: Box::new(e.clone()),
-                        index: Box::new(index)
-                    }, loc))
+                    let field_name_token = self.tokens.next().unwrap();
+                    let TokenKind::Identifier(field_name) = &field_name_token.kind else {
+                        expr.push_error(ParseError::new("expected identifier", field_name_token.loc));
+                        break;
+                    };
+
+                    expr = expr.map(|e|
+                        Expression::new(ExpressionKind::FieldAccess {
+                            target: Box::new(e),
+                            field: field_name.clone()
+                        }, loc))
+                }
+
+                TokenKind::LBracket => {
+                    let Token { kind: _, loc } = self.tokens.next().unwrap();
+
+                    self.parse_expression()?
+                        .combine(self.expect(TokenKind::RBracket)?)
+                        .integrate(&mut expr, |e, (index, _)|
+                            *e = Expression::new(ExpressionKind::Index {
+                                target: Box::new(e.clone()),
+                                index: Box::new(index)
+                            }, loc))        
+                }
+
+                _ => break,
+            }
         }
 
         expr.map(|e| e.into())
