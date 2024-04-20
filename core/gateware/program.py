@@ -1,6 +1,6 @@
 from src.platform.tinyfpga_bx import TinyFPGABXSerialProgPlatform, TinyFPGABXTop, TinyFPGABXMemoryMap
 from src.platform.colorlight_i5 import ColorlightI5Top, ColorlightI5MemoryMap
-from src.boards.colorlight_i5_r7_0_ext_board import Colorlighti5R70ExtensionBoardPlatform
+from src.boards.muselab_ext import Colorlight_i5_Muselab_ext
 import sys, os
 from tests.helpers import assemble
 
@@ -19,7 +19,7 @@ match sys.argv:
 
 match platform_id:
     case "i5":
-        platform = Colorlighti5R70ExtensionBoardPlatform()
+        platform = Colorlight_i5_Muselab_ext()
         memory_map = ColorlightI5MemoryMap
         top_class = ColorlightI5Top
     case "bx":
