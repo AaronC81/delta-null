@@ -22,4 +22,4 @@ with open(ASM_FILE) as f:
 instructions = assemble(code, start_address=ColorlightI5MemoryMap.RAM_START)
 
 # Build/program
-Colorlighti5R70ExtensionBoardPlatform().build(ColorlightI5Top(instructions=instructions))
+Colorlighti5R70ExtensionBoardPlatform().build(ColorlightI5Top(instructions=instructions), do_program=program)
