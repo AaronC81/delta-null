@@ -1,25 +1,40 @@
-#from src.platform.tinyfpga_bx import TinyFPGABXSerialProgPlatform, TinyFPGABXTop, TinyFPGABXMemoryMap
+from src.platform.tinyfpga_bx import TinyFPGABXSerialProgPlatform, TinyFPGABXTop, TinyFPGABXMemoryMap
 from src.platform.colorlight_i5 import ColorlightI5Top, ColorlightI5MemoryMap
 from src.boards.colorlight_i5_r7_0_ext_board import Colorlighti5R70ExtensionBoardPlatform
 import sys, os
 from tests.helpers import assemble
 
+def abort():
+    name = sys.argv[0]
+    print(f"Usage: {name} program/build bx/i5")
+    sys.exit(1)
+
 match sys.argv:
-    case [_, "program"]:
+    case [_, "program", platform_id]:
         program = True
-    case [_, "build"]:
+    case [_, "build", platform_id]:
         program = False
     case _:
-        name = sys.argv[0]
-        print(f"Usage: {name} program/build")
-        sys.exit(1)
+        abort()
 
-ASM_FILE = "/Users/aaron/Source/delta-null/modern_blink.dna" #os.path.join(os.path.dirname(__file__), "..", "examples", "sos_blink.dna")
+match platform_id:
+    case "i5":
+        platform = Colorlighti5R70ExtensionBoardPlatform()
+        memory_map = ColorlightI5MemoryMap
+        top_class = ColorlightI5Top
+    case "bx":
+        platform = TinyFPGABXSerialProgPlatform()
+        memory_map = TinyFPGABXMemoryMap
+        top_class = TinyFPGABXTop
+    case _:
+        abort()
+
+ASM_FILE = "/Users/aaron/Source/delta-null/core/examples/blink.dna" #os.path.join(os.path.dirname(__file__), "..", "examples", "sos_blink.dna")
 
 # Assemble code from file
 with open(ASM_FILE) as f:
     code = f.read()
-instructions = assemble(code, start_address=ColorlightI5MemoryMap.RAM_START)
+instructions = assemble(code, start_address=memory_map.RAM_START)
 
 # Build/program
-Colorlighti5R70ExtensionBoardPlatform().build(ColorlightI5Top(instructions=instructions), do_program=program)
+platform.build(top_class(instructions=instructions), do_program=program)
