@@ -4,11 +4,11 @@ alias b := build
 build:
     cargo build
 
-gateware-build PLATFORM:
-    python core/gateware/program.py build {{PLATFORM}}
+gateware-build PLATFORM ASM:
+    python core/gateware/program.py build {{PLATFORM}} {{ASM}}
 
-gateware-program PLATFORM:
-    python core/gateware/program.py program {{PLATFORM}}
+gateware-program PLATFORM ASM:
+    python core/gateware/program.py program {{PLATFORM}} {{ASM}}
 
 alias t := test
 test: build

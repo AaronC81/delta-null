@@ -6,13 +6,13 @@ from tests.helpers import assemble
 
 def abort():
     name = sys.argv[0]
-    print(f"Usage: {name} program/build bx/i5")
+    print(f"Usage: {name} program/build bx/i5 <asm-file>")
     sys.exit(1)
 
 match sys.argv:
-    case [_, "program", platform_id]:
+    case [_, "program", platform_id, asm_file]:
         program = True
-    case [_, "build", platform_id]:
+    case [_, "build", platform_id, asm_file]:
         program = False
     case _:
         abort()
@@ -29,10 +29,8 @@ match platform_id:
     case _:
         abort()
 
-ASM_FILE = "/Users/aaron/Source/delta-null/core/examples/blink.dna" #os.path.join(os.path.dirname(__file__), "..", "examples", "sos_blink.dna")
-
 # Assemble code from file
-with open(ASM_FILE) as f:
+with open(asm_file) as f:
     code = f.read()
 instructions = assemble(code, start_address=memory_map.RAM_START)
 
