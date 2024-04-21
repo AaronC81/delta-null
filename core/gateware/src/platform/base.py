@@ -1,6 +1,7 @@
 from amaranth import *
 from amaranth.build import *
 from ..modules.core import Core
+from ..modules.timer import Timer
 from typing import Optional
 
 class BaseMemoryMap(Elaboratable):
@@ -16,6 +17,12 @@ class BaseMemoryMap(Elaboratable):
     # The total number of GPIO pins available through the HCR.
     HCR_GPIO_PIN_COUNT = None
 
+    # The number of clock cycles which occur per microsecond on this platform.
+    TICKS_PER_MICROSECOND = None
+
+    # The start address of the timer peripheral within the HCR.
+    TIMER_START = 0x100
+
     def __init__(self, init_ram, depth):
         self.init_ram = init_ram
         self.depth = depth
@@ -29,6 +36,12 @@ class BaseMemoryMap(Elaboratable):
         self.hcr_gpio_o =  Signal(type(self).HCR_GPIO_PIN_COUNT)
         self.hcr_gpio_i =  Signal(type(self).HCR_GPIO_PIN_COUNT)
         self.hcr_gpio_oe = Signal(type(self).HCR_GPIO_PIN_COUNT)
+
+        self.timer = Timer(
+            type(self).TICKS_PER_MICROSECOND,
+            self.addr - type(self).HCR_START - type(self).TIMER_START,
+            Signal(Core.DATA_WIDTH), Signal(), self.write_data, Signal()
+        )
 
     def bind_hcr_peripherals(self, platform: Platform, m: Module):
         raise NotImplementedError()
@@ -44,6 +57,8 @@ class BaseMemoryMap(Elaboratable):
 
         m.submodules.mem_read = mem_read
         m.submodules.mem_write = mem_write
+
+        m.submodules.timer = self.timer
 
         if platform is not None:
             self.bind_hcr_peripherals(platform, m)
@@ -67,6 +82,10 @@ class BaseMemoryMap(Elaboratable):
                         m.d.sync += self.hcr_gpio_o[16:32].eq(self.write_data)
                     # TODO: input
 
+                    # === Timer ===
+                    with m.Case(*range(type(self).TIMER_START, type(self).TIMER_START + 4)):
+                        m.d.comb += self.timer.mem_write_en.eq(1)
+
             with m.Elif(self.read_en):
                 with m.Switch(hcr_rel_addr):
                     # === Metadata ===
@@ -85,6 +104,11 @@ class BaseMemoryMap(Elaboratable):
                     with m.Case(0x13): # Output (high)
                         m.d.comb += self.read_data.eq(self.hcr_gpio_o[16:32])
                     # TODO: input
+
+                    # === Timer ===
+                    with m.Case(*range(type(self).TIMER_START, type(self).TIMER_START + 4)):
+                        m.d.comb += self.timer.mem_read_en.eq(1)
+                        m.d.comb += self.read_data.eq(self.timer.mem_read_data)
 
                     # Something we don't know!
                     with m.Default():

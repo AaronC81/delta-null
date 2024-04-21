@@ -34,6 +34,10 @@ class TinyFPGABXMemoryMap(BaseMemoryMap):
     # The total number of GPIO pins available through the HCR.
     HCR_GPIO_PIN_COUNT = 32
 
+    # The number of clock cycles which occur per microsecond on this platform.
+    # 16 MHz = 16 us^-1
+    TICKS_PER_MICROSECOND = 16
+
     def bind_hcr_peripherals(self, platform: Platform, m: Module):
         # Create a new resource for every mapped hardware GPIO pin
         # (There is a "connector" defined already, but I don't think we have direct access to

@@ -26,6 +26,10 @@ class ColorlightI5MemoryMap(BaseMemoryMap):
     # Currently just one - the LED.
     HCR_GPIO_PIN_COUNT = 1
 
+    # The number of clock cycles which occur per microsecond on this platform.
+    # 25 MHz = 25 us^-1
+    TICKS_PER_MICROSECOND = 25
+
     def bind_hcr_peripherals(self, platform: Platform, m: Module):
         # Just the LED for now
         m.d.comb += platform.request("led").eq(self.hcr_gpio_o[0])

@@ -90,6 +90,53 @@ def test_hcr_output():
     sim.add_sync_process(proc)
     sim.run()
 
+def test_timer_hcr():
+    mem = TinyFPGABXMemoryMap(depth=10, init_ram=[0] * 10)
+    sim = Simulator(mem)
+    sim.add_clock(1e-6) # 1 MHz
+
+    def proc():
+        # Status register should start at 0 (not fired)
+        yield mem.addr.eq(0xF101) # Status register
+        yield mem.read_en.eq(1)
+        yield
+        assert (yield mem.read_data) == 0
+
+        # Write 5us target
+        yield mem.addr.eq(0xF102) # Target (low)
+        yield mem.write_data.eq(5)
+        yield mem.read_en.eq(0)
+        yield mem.write_en.eq(1)
+        yield
+        yield
+
+        # Start the timer
+        yield mem.addr.eq(0xF100) # Control register
+        yield mem.read_en.eq(0)
+        yield mem.write_data.eq(1)
+        yield
+        yield
+
+        # Set up to read status
+        yield mem.addr.eq(0xF101) # Status register
+        yield mem.write_en.eq(0)
+        yield mem.read_en.eq(1)
+        yield
+
+        # Wait for timer to fire
+        elapsed_cycles = 0
+        while True:
+            status = (yield mem.read_data)
+            if status > 0:
+                break
+            yield
+            elapsed_cycles += 1
+
+        assert elapsed_cycles == (5 * TinyFPGABXMemoryMap.TICKS_PER_MICROSECOND)
+
+    sim.add_sync_process(proc)
+    sim.run()
+
 def test_core_controlled_hcr():
     top = TinyFPGABXTop(
         instructions=[
