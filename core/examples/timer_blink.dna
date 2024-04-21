@@ -13,18 +13,21 @@ inc r1 ; move to high register
 .put r2, 0x000F
 write r1, r2
 
-blink:
-    ; start timer
-    .put r1, 0xF100
-    .put r2, 1
-    write r1, r2
+; start timer in repeating mode
+.put r1, 0xF100
+.put r2, 0b11 ; repeating | running
+write r1, r2
 
+blink:
     ; wait until timer fires
     .put r1, 0xF101
     loop:
         read r2, r1
         eqz r2
         cjmpoff loop/offset
+
+    ; clear fired flag
+    write r1, r2 ; fired flag clears on _any_ write, the value doesn't matter
 
     ; toggle LED
     .put r1, 0xF012
