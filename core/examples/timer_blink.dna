@@ -1,0 +1,38 @@
+; set built-in LED to output
+.put r1, 0xF010
+.put r2, 0x0001
+write r1, r2
+
+; configure timer with 1 second time
+; 1 s = 1,000,000 us = 000F 4240
+;                       hi   lo
+.put r1, 0xF102 ; timer target (low) register
+.put r2, 0x4240
+write r1, r2
+inc r1 ; move to high register
+.put r2, 0x000F
+write r1, r2
+
+blink:
+    ; start timer
+    .put r1, 0xF100
+    .put r2, 1
+    write r1, r2
+
+    ; wait until timer fires
+    .put r1, 0xF101
+    loop:
+        read r2, r1
+        eqz r2
+        cjmpoff loop/offset
+
+    ; toggle LED
+    .put r1, 0xF012
+    read r2, r1
+    not r2
+    write r1, r2
+
+    ; repeat
+    jmpoff blink/offset
+
+
