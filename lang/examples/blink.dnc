@@ -25,16 +25,16 @@ fn timer_get() -> *Timer {
 }
 
 fn timer_start_repeating(timer: *Timer, time_hi: u16, time_lo: u16) {
-    (*timer).target_lo = time_lo;
-    (*timer).target_hi = time_hi;
-    (*timer).control = (*timer).control | 0b11; // repeating | running
+    timer.*.target_lo = time_lo;
+    timer.*.target_hi = time_hi;
+    timer.*.control = timer.*.control | 0b11; // repeating | running
 }
 
 fn timer_wait(timer: *Timer) {
     // Wait for `fired` bit
     loop {
-        if ((*timer).status & 0b1) == 1 {
-            (*timer).status = 0; // reset
+        if (timer.*.status & 0b1) == 1 {
+            timer.*.status = 0; // reset
             break;
         }
     }
@@ -45,12 +45,12 @@ fn main() {
     var timer: *Timer = timer_get();
 
     // Set LED as output
-    (*hcr).pin_mode_lo = (*hcr).pin_mode_lo | 1;
+    hcr.*.pin_mode_lo = hcr.*.pin_mode_lo | 1;
 
     timer_start_repeating(timer, 0x000F, 0x4240); // 000F 4240 = 1,000,000 us = 1s
     loop {
         timer_wait(timer);
-        (*hcr).pin_out_lo = ~(*hcr).pin_out_lo; // Flip LED
+        hcr.*.pin_out_lo = ~hcr.*.pin_out_lo; // Flip LED
     }
 }
 
