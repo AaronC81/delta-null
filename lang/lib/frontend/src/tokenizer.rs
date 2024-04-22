@@ -57,6 +57,7 @@ pub enum TokenKind {
     Caret,
     Tilde,
     Dot,
+    DotStar, // .*
 
     LBrace,
     RBrace,
@@ -108,7 +109,14 @@ pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>)
             '|' => { chars.next(); tokens.push(Token::new(TokenKind::Bar, loc)) },
             '^' => { chars.next(); tokens.push(Token::new(TokenKind::Caret, loc)) },
             '~' => { chars.next(); tokens.push(Token::new(TokenKind::Tilde, loc)) },
-            '.' => { chars.next(); tokens.push(Token::new(TokenKind::Dot, loc)) },
+            '.' => {
+                chars.next();
+                if chars.next_if(|(c, _)| *c == '*').is_some() {
+                    tokens.push(Token::new(TokenKind::DotStar, loc))
+                } else {
+                    tokens.push(Token::new(TokenKind::Dot, loc))
+                }
+            },
             '=' => {
                 chars.next();
                 if chars.next_if(|(c, _)| *c == '=').is_some() {
@@ -327,6 +335,23 @@ mod test {
                 ('e', SourceLocation::new("<file>".to_owned(), 2, 3)),
             ],
             add_locations("ab\ncde".chars(), "<file>".to_owned()).collect::<Vec<_>>()
+        )
+    }
+
+    #[test]
+    fn test_dot_star() {
+        let (tokens, errors) = tokenize("a.b.*.c", "");
+        assert!(errors.is_empty());
+        assert_eq!(
+            vec![
+                TokenKind::Identifier("a".to_string()),
+                TokenKind::Dot,
+                TokenKind::Identifier("b".to_string()),
+                TokenKind::DotStar,
+                TokenKind::Dot,
+                TokenKind::Identifier("c".to_string()),
+            ],
+            tokens.into_iter().map(|t| t.kind).collect::<Vec<_>>()
         )
     }
 }

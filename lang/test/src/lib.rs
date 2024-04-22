@@ -680,8 +680,8 @@ mod test {
                 type Point = struct { x: u16, y: u16 };
 
                 fn add_points(p1: *Point, p2: *Point, out: *Point) {
-                    (*out).x = (*p1).x + (*p2).x;
-                    (*out).y = (*p1).y + (*p2).y;
+                    (*out).x = (*p1).x + (*p2).x; // Classic style
+                    out.*.y = p1.*.y + p2.*.y; // Access style
                 }
 
                 fn main() -> u16 {

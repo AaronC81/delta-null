@@ -398,6 +398,15 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                         }, loc))
                 }
 
+                TokenKind::DotStar => {
+                    // Wrap everything we already parsed in a dereference:
+                    // a.b.*.c   -->   (*(a.b)).c
+                    let Token { kind: _, loc } = self.tokens.next().unwrap();
+
+                    expr = expr.map(|e|
+                        Expression::new(ExpressionKind::PointerDereference(Box::new(e)), loc))
+                }
+
                 TokenKind::LBracket => {
                     let Token { kind: _, loc } = self.tokens.next().unwrap();
 
@@ -919,6 +928,38 @@ mod test {
                             },
                             field: b,
                         },
+                        ..
+                    },
+                    field: c,
+                },
+                ..
+            } => {
+                // Check strings
+                assert_eq!(a, "a");
+                assert_eq!(b, "b");
+                assert_eq!(c, "c");
+            },
+
+            _ => panic!("top match failed"),
+        }
+    }
+
+    #[test]
+    fn test_field_dereference() {
+        match parse_expression("a.b.*.c") {
+            Expression {
+                kind: ExpressionKind::FieldAccess {
+                    target: box Expression {
+                        kind: ExpressionKind::PointerDereference(box Expression {
+                            kind: ExpressionKind::FieldAccess {
+                                target: box Expression {
+                                    kind: ExpressionKind::Identifier(a),
+                                    ..
+                                },
+                                field: b,
+                            },
+                            ..
+                        }),
                         ..
                     },
                     field: c,
