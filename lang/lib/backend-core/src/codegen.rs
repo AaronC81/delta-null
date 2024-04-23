@@ -10,11 +10,13 @@ use crate::reg_alloc::Allocation;
 pub struct FunctionGenerator<'f> {
     func: &'f Function,
     allocations: HashMap<VariableId, Allocation>,
+
+    is_leaf: bool,
 }
 
 impl<'f> FunctionGenerator<'f> {
-    pub fn new(func: &'f Function, allocations: HashMap<VariableId, Allocation>) -> Self {
-        Self { func, allocations }
+    pub fn new(func: &'f Function, allocations: HashMap<VariableId, Allocation>, is_leaf: bool) -> Self {
+        Self { func, allocations, is_leaf }
     }
 
     /// Converts this entire function to a complete list of Assembly instructions.
@@ -563,19 +565,22 @@ impl<'f> FunctionGenerator<'f> {
             }
         }
 
-        // Preserve RP
-        preservation_instructions.push(
-            AssemblyItem::new_instruction(
-                InstructionOpcode::Movso,
-                &[Self::CALLEE_SAVED_GPRS[0].into(), SPR::RP.into()]
-            )
-        );
-        preservation_instructions.push(
-            AssemblyItem::new_instruction(
-                InstructionOpcode::Push,
-                &[Self::CALLEE_SAVED_GPRS[0].into()]
-            )
-        );
+        // Preserve RP - unless this is a leaf function, in which case it doesn't call anything, so
+        // RP is definitely never trashed
+        if !self.is_leaf {
+            preservation_instructions.push(
+                AssemblyItem::new_instruction(
+                    InstructionOpcode::Movso,
+                    &[GPR::R4.into(), SPR::RP.into()]
+                )
+            );
+            preservation_instructions.push(
+                AssemblyItem::new_instruction(
+                    InstructionOpcode::Push,
+                    &[GPR::R4.into()]
+                )
+            );
+        }
 
         // Insert instructions into beginning of buffer
         buffer.splice(0..0, preservation_instructions);
@@ -584,13 +589,15 @@ impl<'f> FunctionGenerator<'f> {
     /// Inserts instructions at the end of the instruction buffer to restore callee-saved registers,
     /// before a function returns.
     fn insert_callee_saved_register_restore_instructions(&self, buffer: &mut Vec<AssemblyItem>) {
-        // Restore RP
-        buffer.push(AssemblyItem::new_instruction(
-            InstructionOpcode::Pop, &[Self::CALLEE_SAVED_GPRS[0].into()],
-        ));
-        buffer.push(AssemblyItem::new_instruction(
-            InstructionOpcode::Movsi, &[SPR::RP.into(), Self::CALLEE_SAVED_GPRS[0].into()]
-        ));
+        // Restore RP - unless this is a leaf function, in which case we never preserved it
+        if !self.is_leaf {
+            buffer.push(AssemblyItem::new_instruction(
+                InstructionOpcode::Pop, &[GPR::R4.into()],
+            ));
+            buffer.push(AssemblyItem::new_instruction(
+                InstructionOpcode::Movsi, &[SPR::RP.into(), GPR::R4.into()]
+            ));
+        }
 
         // Restore GPRs
         for reg in Self::CALLEE_SAVED_GPRS.iter().rev() {
@@ -601,8 +608,18 @@ impl<'f> FunctionGenerator<'f> {
     }
 
     fn should_preserve_callee_saved_register(&self, reg: GeneralPurposeRegister) -> bool {
-        // `r4` is used for stack setup and `rp` saving
-        self.is_register_allocated(reg) || reg == GPR::R4
+        // If we're going to be trashing this register ourselves, we need to save it
+        if self.is_register_allocated(reg) {
+            return true
+        }
+        
+        // R4 is used for stack setup and RP saving.
+        // If either of those two things are going to be happening, ensure it's reserved
+        if reg == GPR::R4 && (self.stack_space() > 0 || !self.is_leaf) {
+            return true
+        }
+
+        false
     }
 
     /// Inserts instructions to branch to a particular block if the condition flag is set, or a

@@ -4,7 +4,7 @@
 
 use codegen::FunctionGenerator;
 use delta_null_core_assembler::{BuildError, AssemblyItem};
-use delta_null_lang_backend::{ir::{Module, Function}, analysis::{liveness::liveness_analysis, flow::ControlFlowGraph}};
+use delta_null_lang_backend::{analysis::{flow::ControlFlowGraph, liveness::liveness_analysis, misc::is_leaf_function}, ir::{Function, Module}};
 use reg_alloc::allocate;
 
 mod reg_alloc;
@@ -39,7 +39,8 @@ fn compile_function(func: &Function) -> Result<Vec<AssemblyItem>, Vec<BuildError
     let analysis = liveness_analysis(func);
     let cfg = ControlFlowGraph::generate(func);
     let allocation = allocate(func, &cfg, &analysis);
+    let is_leaf = is_leaf_function(func);
 
-    let generator = FunctionGenerator::new(func, allocation);
+    let generator = FunctionGenerator::new(func, allocation, is_leaf);
     Ok(generator.to_assembly())
 }
