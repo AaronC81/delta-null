@@ -5,9 +5,10 @@
 #![feature(box_patterns)]
 #![feature(let_chains)]
 
-use std::error::Error;
+use std::{error::Error, path::PathBuf};
 
 use delta_null_lang_backend::ir::Module;
+use node::{TopLevelItem, TopLevelItemKind};
 use parser::Parser;
 use tokenizer::tokenize;
 
@@ -22,17 +23,20 @@ pub mod source;
 pub mod type_check;
 pub mod util;
 
-pub fn code_to_module(code: &str, filename: &str) -> Result<Module, Vec<Box<dyn Error>>> {
+/// Tokenize and parse a single module.
+pub fn parse_one_module(code: &str, filename: &str) -> Result<node::Module, Vec<Box<dyn Error>>> {
     // Tokenize
     let (tokens, errors) = tokenize(code, filename);
     if !errors.is_empty() {
         return Err(errors.into_iter().map(|e| Box::new(e) as _).collect::<Vec<_>>())
     }
 
-    // Parse
     let mut parser = Parser::new(tokens.into_iter().peekable());
-    let parsed_module = parser.parse_module().box_errors().into_result()?;
+    parser.parse_module().box_errors().into_result()
+}
 
+/// Type-checks and translates one already-parsed module.
+pub fn translate_one_module(parsed_module: node::Module) -> Result<Module, Vec<Box<dyn Error>>> {
     // Type-check
     let typed_module = type_check::type_check_module(parsed_module.clone()).box_errors().into_result()?;
 

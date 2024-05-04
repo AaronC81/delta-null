@@ -18,11 +18,11 @@ impl ModuleTranslator {
         }
     }
 
-    pub fn translate_items(&mut self, items: &[TopLevelItem<ExpressionData, Type>]) -> Fallible<MaybeFatal<()>, TranslateError> {
+    pub fn translate_items(&mut self, module: &node::Module<ExpressionData, Type>) -> Fallible<MaybeFatal<()>, TranslateError> {
         let mut functions = HashMap::new();
 
         // Build up list of functions
-        for item in items {
+        for item in &module.items {
             if let TopLevelItemKind::FunctionDefinition { name, parameters, return_type, body: _ } = &item.kind {
                 // TODO: crap that we're still converting here
                 let return_type = return_type.to_ir_type();
@@ -38,7 +38,7 @@ impl ModuleTranslator {
             }
         }
 
-        for item in items {
+        for item in &module.items {
             match &item.kind {
                 TopLevelItemKind::FunctionDefinition { name, parameters, return_type, body } => {
                     // Setup

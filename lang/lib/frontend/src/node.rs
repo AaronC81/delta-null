@@ -8,9 +8,42 @@
 //!            Defaults to an AST node, but after type-checking, this can be replaced with something
 //!            holding more semantic meaning. 
 
-use std::fmt::Display;
+use std::{fmt::Display, path::PathBuf};
 
 use crate::source::SourceLocation;
+
+/// A collection of the items parsed from the top-level of a file.
+#[derive(Clone, Debug)]
+pub struct Module<D = (), Ty = crate::node::Type> {
+    /// The items inside this module.
+    pub items: Vec<TopLevelItem<D, Ty>>,
+}
+
+impl<D, Ty> Module<D, Ty> {
+    pub fn new() -> Self {
+        Module { items: vec![] }
+    }
+
+    /// Return canonical paths for all files which are `use`d by this module.
+    pub fn used_files(module: &[TopLevelItem]) -> Vec<PathBuf> {
+        let mut paths = vec![];
+    
+        for item in module {
+            if let TopLevelItemKind::Use { path } = &item.kind {
+                paths.push(PathBuf::from(path).canonicalize().unwrap());
+            }
+        }
+    
+        paths
+    }
+
+    /// Produces a new [Module] by applying a function to each item in this one.
+    pub fn map_items<OD, OTy>(self, func: impl FnMut(TopLevelItem<D, Ty>) -> TopLevelItem<OD, OTy>) -> Module<OD, OTy> {
+        Module {
+            items: self.items.into_iter().map(func).collect()
+        }
+    }
+}
 
 /// An item which may appear at the top-level of a module (file), such as a function definition.
 #[derive(Clone, Debug)]

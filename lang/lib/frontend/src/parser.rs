@@ -1,6 +1,6 @@
 use std::{iter::Peekable, fmt::Display, error::Error};
 
-use crate::{node::{TopLevelItem, Statement, TopLevelItemKind, StatementKind, Expression, ExpressionKind, Type, TypeKind, ArithmeticBinOp, FunctionParameter, ComparisonBinOp}, tokenizer::{Token, TokenKind}, fallible::{Fallible, MaybeFatal}, source::SourceLocation, frontend_error};
+use crate::{fallible::{Fallible, MaybeFatal}, frontend_error, node::{ArithmeticBinOp, ComparisonBinOp, Expression, ExpressionKind, FunctionParameter, Module, Statement, StatementKind, TopLevelItem, TopLevelItemKind, Type, TypeKind}, source::SourceLocation, tokenizer::{Token, TokenKind}};
 
 /// Parses an iterator of [Token]s, interpreting them into a "module" - a collection of
 /// [TopLevelItem]s (like functions and definitions).
@@ -19,12 +19,12 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     }
 
     /// Consume tokens to parse a list of [TopLevelItem]s.
-    pub fn parse_module(&mut self) -> Fallible<Vec<TopLevelItem>, ParseError> {
-        let mut result = Fallible::new(vec![]);
+    pub fn parse_module(&mut self) -> Fallible<Module, ParseError> {
+        let mut result = Fallible::new(Module::new());
     
         while self.tokens.peek().is_some() {
             self.parse_top_level_item()
-                .integrate_if_ok(&mut result, |l, i| l.push(i))
+                .integrate_if_ok(&mut result, |l, i| l.items.push(i))
         }
     
         result

@@ -2,7 +2,7 @@ use std::{fmt::Display, error::Error, collections::HashMap};
 
 use delta_null_lang_backend::ir::{self, IntegerSize};
 
-use crate::{source::SourceLocation, node::{Statement, Expression, StatementKind, self, ExpressionKind, TopLevelItem, TopLevelItemKind}, fallible::Fallible, frontend_error};
+use crate::{fallible::Fallible, frontend_error, node::{self, Expression, ExpressionKind, Module, Statement, StatementKind, TopLevelItem, TopLevelItemKind}, source::SourceLocation};
 
 /// Describes the type of an IR expression.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -142,7 +142,7 @@ pub struct LocalContext {
 
 /// Type-checks an entire module. During this process, [node::Type]s are converted into [Type]s,
 /// and type information is associated with each expression.
-pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<Type, Type>>, TypeError> {
+pub fn type_check_module(module: Module) -> Fallible<Module<Type, Type>, TypeError> {
     let mut errors = Fallible::new(());
 
     // Build module-level context
@@ -150,7 +150,7 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
         globals: HashMap::new(),
         type_aliases: HashMap::new(),
     };
-    for item in &items {
+    for item in &module.items {
         match &item.kind {
             TopLevelItemKind::FunctionDefinition { name, parameters, return_type, body: _ } => {
                 let return_type = convert_node_type(return_type, &module_ctx).propagate(&mut errors);
@@ -180,8 +180,8 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
     }
 
     // Type-check items
-    let result = items.into_iter()
-        .map(|i| {
+    let result = module
+        .map_items(|i| {
             let loc = i.loc.clone();
             i.map::<Type, Type>(|kind| match kind {
                 TopLevelItemKind::FunctionDefinition { name, parameters, return_type, body } => {
@@ -228,8 +228,7 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
                 // No type checking or conversion required for imports
                 TopLevelItemKind::Use { path } => TopLevelItemKind::Use { path }
             })
-        })
-        .collect();
+        });
 
     errors.map(|_| result)
 }
@@ -716,11 +715,11 @@ frontend_error!(TypeError, "type");
 
 #[cfg(test)]
 mod test {
-    use crate::{parser::Parser, tokenizer::tokenize, node::TopLevelItem};
+    use crate::{node::{Module, TopLevelItem}, parser::Parser, tokenizer::tokenize};
 
     use super::type_check_module;
 
-    fn parse(code: &str) -> Vec<TopLevelItem> {
+    fn parse(code: &str) -> Module {
         let (tokens, errors) = tokenize(code, "<test>");
         if !errors.is_empty() {
             panic!("{:?}", errors)
@@ -728,12 +727,12 @@ mod test {
         Parser::new(tokens.into_iter().peekable()).parse_module().unwrap()
     }
 
-    fn assert_ok(module: Vec<TopLevelItem>) {
+    fn assert_ok(module: Module) {
         let tc = type_check_module(module);
         assert!(!tc.has_errors(), "type-checking raised errors when none were expected: {:?}", tc.errors());
     }
 
-    fn assert_errors(module: Vec<TopLevelItem>, containing: &str) {
+    fn assert_errors(module: Module, containing: &str) {
         let tc = type_check_module(module);
         assert!(tc.has_errors(), "type-checking raised no errors, but expected one containing '{containing}'");
 

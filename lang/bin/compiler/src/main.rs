@@ -5,7 +5,7 @@ use clap_stdin::FileOrStdin;
 use delta_null_core_instructions::ToAssembly;
 use delta_null_lang_backend::ir::{PrintIR, PrintOptions};
 use delta_null_lang_backend_core::compile_module;
-use delta_null_lang_frontend::code_to_module;
+use delta_null_lang_frontend::{parse_one_module, translate_one_module};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 enum IrFormat {
@@ -30,6 +30,18 @@ struct Args {
     ir: Option<IrFormat>,
 }
 
+fn graceful_unwrap<T, E: std::fmt::Display>(result: Result<T, Vec<E>>) -> T {
+    match result {
+        Ok(m) => m,
+        Err(errors) => {
+            for error in errors {
+                println!("{error}");
+            }
+            exit(1)
+        }
+    }
+}
+
 fn main() {
     let args = Args::parse();
 
@@ -39,15 +51,9 @@ fn main() {
         clap_stdin::Source::Arg(f) => f.to_owned(),
     };
     let input = args.input.contents().unwrap();
-    let module = match code_to_module(&input, &filename) {
-        Ok(m) => m,
-        Err(errors) => {
-            for error in errors {
-                println!("{error}");
-            }
-            exit(1)
-        }
-    };
+    
+    let parsed_module = graceful_unwrap(parse_one_module(&input, &filename));
+    let module = graceful_unwrap(translate_one_module(parsed_module));
 
     // `--ir` stops here
     if let Some(ir_format) = args.ir {
@@ -63,15 +69,7 @@ fn main() {
     }
 
     // Run backend
-    let asm = match compile_module(&module) {
-        Ok(a) => a,
-        Err(errors) => {
-            for error in errors {
-                println!("{error}");
-            }
-            exit(1);
-        }
-    };
+    let asm = graceful_unwrap(compile_module(&module));
 
     // Open output
     let mut output_handle: Box<dyn Write> =
