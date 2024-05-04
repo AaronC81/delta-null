@@ -31,6 +31,8 @@ pub enum TokenKind {
     /// ```
     Integer(String, u32),
 
+    String(String),
+
     KwFn,
     KwVar,
     KwReturn,
@@ -45,6 +47,7 @@ pub enum TokenKind {
     KwType,
     KwStruct,
     KwSizeof,
+    KwUse,
 
     Plus,
     Minus,
@@ -139,6 +142,25 @@ pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>)
                 }
             },
 
+            // String
+            '"' => {
+                chars.next();
+                
+                // Consume characters up til (but not including) the closing quote
+                let mut buffer = String::new();
+                while let Some((next, _)) = chars.next_if(|(c, _)| *c != '"') {
+                    buffer.push(next);
+                }
+
+                // Take closing quote
+                let Some(('"', _)) = chars.next() else {
+                    errors.push(TokenizeError::new("expected closing double-quotes for string", loc));
+                    continue;
+                };
+
+                tokens.push(Token::new(TokenKind::String(buffer), loc))
+            }            
+
             // Identifier
             c if c.is_alphabetic() || c == '_' => {
                 let mut buffer = String::new();
@@ -186,6 +208,7 @@ pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>)
                     "type" => TokenKind::KwType,
                     "struct" => TokenKind::KwStruct,
                     "sizeof" => TokenKind::KwSizeof,
+                    "use" => TokenKind::KwUse,
 
                     // Just an identifier
                     _ => TokenKind::Identifier(buffer),

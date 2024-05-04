@@ -173,6 +173,9 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
                     errors.push_error(TypeError::new(&format!("duplicate type alias `{name}`"), item.loc.clone()))
                 }
             },
+
+            // No context required for imports
+            TopLevelItemKind::Use { .. } => {}
         }
     }
 
@@ -221,6 +224,9 @@ pub fn type_check_module(items: Vec<TopLevelItem>) -> Fallible<Vec<TopLevelItem<
                     let ty = convert_node_type(&ty, &module_ctx).propagate(&mut errors);
                     TopLevelItemKind::TypeAlias { name, ty }
                 },
+
+                // No type checking or conversion required for imports
+                TopLevelItemKind::Use { path } => TopLevelItemKind::Use { path }
             })
         })
         .collect();

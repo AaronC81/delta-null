@@ -35,6 +35,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         match self.tokens.peek().expect("`parse_top_level_item` called with no tokens").kind {
             TokenKind::KwFn => self.parse_function_definition(),
             TokenKind::KwType => self.parse_type_alias(),
+            TokenKind::KwUse => self.parse_use(),
 
             _ => {
                 let token = self.tokens.next().unwrap();
@@ -714,6 +715,30 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         ))
     }
 
+    /// Parse a `use` statement which imports another file.
+    pub fn parse_use(&mut self) -> Fallible<MaybeFatal<TopLevelItem>, ParseError> {
+        let loc = self.here_loc();
+        self.expect(TokenKind::KwUse)?;
+
+        // Parse path, which should be a string
+        let path_token = self.tokens.next();
+        let Some(TokenKind::String(path)) = path_token.as_ref().map(|t| &t.kind) else {
+            return Fallible::new_fatal(vec![
+                ParseError::new("expected string after `use`", path_token.unwrap().loc),
+            ])
+        };
+        let path = path.to_owned();
+
+        // Closing semicolon
+        self.expect(TokenKind::Semicolon)?;
+
+        // Construct use item
+        Fallible::new_ok(TopLevelItem {
+            kind: TopLevelItemKind::Use { path },
+            loc,
+        })
+    }
+
     /// Assume that the next token has the given [TokenKind], and returns it, else fail with a parse
     /// error.
     #[must_use]
@@ -973,6 +998,16 @@ mod test {
             },
 
             _ => panic!("top match failed"),
+        }
+    }
+
+    #[test]
+    fn test_use() {
+        match parse_top_level_item("use \"foo.dnc\";") {
+            TopLevelItem { kind: TopLevelItemKind::Use { path }, .. } =>
+                assert_eq!(path, "foo.dnc"),
+
+            _ => panic!("top match failed")
         }
     }
 }

@@ -87,6 +87,9 @@ impl ModuleTranslator {
 
                 // No translation required for type aliases - type-checker did that already
                 TopLevelItemKind::TypeAlias { .. } => {},
+
+                // No translation required for imports - they were already resolved
+                TopLevelItemKind::Use { .. } => {}
             }
         }
 

@@ -43,7 +43,10 @@ pub enum TopLevelItemKind<D, Ty> {
     TypeAlias {
         name: String,
         ty: Ty,
-    }
+    },
+    Use {
+        path: String,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
