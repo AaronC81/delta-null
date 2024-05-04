@@ -1,6 +1,6 @@
-use std::{fmt::Display, error::Error};
+use std::{error::Error, fmt::Display, path::PathBuf};
 
-use crate::{source::SourceLocation, frontend_error};
+use crate::{frontend_error, source::{SourceLocation, SourceInputType}};
 
 #[derive(Debug, Clone)]
 pub struct Token {
@@ -79,10 +79,10 @@ pub enum TokenKind {
     InlineAssemblyFragment(String),
 }
 
-pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>) {
+pub fn tokenize(input: &str, input_type: SourceInputType) -> (Vec<Token>, Vec<TokenizeError>) {
     let mut tokens = vec![];
     let mut errors = vec![];
-    let mut chars = add_locations(input.chars(), filename.to_owned()).peekable();
+    let mut chars = add_locations(input.chars(), input_type).peekable();
 
     while let Some((peeked, loc)) = chars.peek() {
         let loc = loc.clone();
@@ -282,20 +282,20 @@ pub fn tokenize(input: &str, filename: &str) -> (Vec<Token>, Vec<TokenizeError>)
     (tokens, errors)
 }
 
-fn add_locations(chars: impl Iterator<Item = char>, file: String) -> impl Iterator<Item = (char, SourceLocation)> {
+fn add_locations(chars: impl Iterator<Item = char>, input_type: SourceInputType) -> impl Iterator<Item = (char, SourceLocation)> {
     let mut col = 0;
     let mut line = 1;
 
     chars.into_iter()
         .map(move |c| {
             if c == '\n' {
-                let nl = SourceLocation::new(file.clone(), line, col + 1);
+                let nl = SourceLocation::new(input_type.clone(), line, col + 1);
                 line += 1;
                 col = 0;
                 ('\n', nl)
             } else {
                 col += 1;
-                (c, SourceLocation::new(file.clone(), line, col))
+                (c, SourceLocation::new(input_type.clone(), line, col))
             }
         })
 }
@@ -304,13 +304,13 @@ frontend_error!(TokenizeError, "tokenizer");
 
 #[cfg(test)]
 mod test {
-    use crate::{tokenizer::TokenKind, source::SourceLocation};
+    use crate::{source::{SourceLocation, SourceInputType}, tokenizer::TokenKind};
 
     use super::{tokenize, add_locations};
 
     #[test]
     fn test_fn() {
-        let (tokens, errors) = tokenize("fn foo() { }", "");
+        let (tokens, errors) = tokenize("fn foo() { }", SourceInputType::Buffer);
         assert!(errors.is_empty());
         assert_eq!(
             vec![
@@ -327,7 +327,7 @@ mod test {
 
     #[test]
     fn test_integer() {
-        let (tokens, errors) = tokenize("123 + -456 + 10 + 0xAB + 0b1101", "");
+        let (tokens, errors) = tokenize("123 + -456 + 10 + 0xAB + 0b1101", SourceInputType::Buffer);
         assert!(errors.is_empty());
         assert_eq!(
             vec![
@@ -349,21 +349,21 @@ mod test {
     fn test_add_locations() {
         assert_eq!(
             vec![
-                ('a',  SourceLocation::new("<file>".to_owned(), 1, 1)),
-                ('b',  SourceLocation::new("<file>".to_owned(), 1, 2)),
-                ('\n', SourceLocation::new("<file>".to_owned(), 1, 3)),
+                ('a',  SourceLocation::new(SourceInputType::Buffer, 1, 1)),
+                ('b',  SourceLocation::new(SourceInputType::Buffer, 1, 2)),
+                ('\n', SourceLocation::new(SourceInputType::Buffer, 1, 3)),
 
-                ('c', SourceLocation::new("<file>".to_owned(), 2, 1)),
-                ('d', SourceLocation::new("<file>".to_owned(), 2, 2)),
-                ('e', SourceLocation::new("<file>".to_owned(), 2, 3)),
+                ('c', SourceLocation::new(SourceInputType::Buffer, 2, 1)),
+                ('d', SourceLocation::new(SourceInputType::Buffer, 2, 2)),
+                ('e', SourceLocation::new(SourceInputType::Buffer, 2, 3)),
             ],
-            add_locations("ab\ncde".chars(), "<file>".to_owned()).collect::<Vec<_>>()
+            add_locations("ab\ncde".chars(), SourceInputType::Buffer).collect::<Vec<_>>()
         )
     }
 
     #[test]
     fn test_dot_star() {
-        let (tokens, errors) = tokenize("a.b.*.c", "");
+        let (tokens, errors) = tokenize("a.b.*.c", SourceInputType::Buffer);
         assert!(errors.is_empty());
         assert_eq!(
             vec![

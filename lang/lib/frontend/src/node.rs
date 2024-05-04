@@ -10,27 +10,40 @@
 
 use std::{fmt::Display, path::PathBuf};
 
-use crate::source::SourceLocation;
+use crate::source::{SourceInputType, SourceLocation};
 
 /// A collection of the items parsed from the top-level of a file.
 #[derive(Clone, Debug)]
 pub struct Module<D = (), Ty = crate::node::Type> {
+    /// The source from which this module was loaded.
+    pub input_type: SourceInputType,
+
     /// The items inside this module.
     pub items: Vec<TopLevelItem<D, Ty>>,
 }
 
 impl<D, Ty> Module<D, Ty> {
-    pub fn new() -> Self {
-        Module { items: vec![] }
+    pub fn new(input_type: SourceInputType) -> Self {
+        Module { input_type, items: vec![] }
     }
 
     /// Return canonical paths for all files which are `use`d by this module.
-    pub fn used_files(module: &[TopLevelItem]) -> Vec<PathBuf> {
+    pub fn used_files(&self) -> Vec<PathBuf> {
         let mut paths = vec![];
     
-        for item in module {
+        for item in &self.items {
             if let TopLevelItemKind::Use { path } = &item.kind {
-                paths.push(PathBuf::from(path).canonicalize().unwrap());
+                let path = PathBuf::from(path);
+                if path.is_absolute() {
+                    paths.push(path.canonicalize().unwrap());
+                } else {
+                    // Build absolute path, assuming that the path is relative to the current file's
+                    // containing directory
+                    let SourceInputType::File(relative_to) = &self.input_type else {
+                        panic!("relative imports are not supported in non-file modules")
+                    };
+                    paths.push(relative_to.join(path).canonicalize().unwrap());
+                }
             }
         }
     
@@ -40,6 +53,7 @@ impl<D, Ty> Module<D, Ty> {
     /// Produces a new [Module] by applying a function to each item in this one.
     pub fn map_items<OD, OTy>(self, func: impl FnMut(TopLevelItem<D, Ty>) -> TopLevelItem<OD, OTy>) -> Module<OD, OTy> {
         Module {
+            input_type: self.input_type,
             items: self.items.into_iter().map(func).collect()
         }
     }

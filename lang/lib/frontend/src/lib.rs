@@ -10,6 +10,7 @@ use std::{error::Error, path::PathBuf};
 use delta_null_lang_backend::ir::Module;
 use node::{TopLevelItem, TopLevelItemKind};
 use parser::Parser;
+use source::SourceInputType;
 use tokenizer::tokenize;
 
 use crate::translate::ModuleTranslator;
@@ -24,9 +25,9 @@ pub mod type_check;
 pub mod util;
 
 /// Tokenize and parse a single module.
-pub fn parse_one_module(code: &str, filename: &str) -> Result<node::Module, Vec<Box<dyn Error>>> {
+pub fn parse_one_module(code: &str, input_type: SourceInputType) -> Result<node::Module, Vec<Box<dyn Error>>> {
     // Tokenize
-    let (tokens, errors) = tokenize(code, filename);
+    let (tokens, errors) = tokenize(code, input_type);
     if !errors.is_empty() {
         return Err(errors.into_iter().map(|e| Box::new(e) as _).collect::<Vec<_>>())
     }

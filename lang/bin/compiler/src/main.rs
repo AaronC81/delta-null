@@ -1,11 +1,11 @@
-use std::{fs::OpenOptions, io::{Write, stdout}, process::exit};
+use std::{fs::OpenOptions, io::{stdout, Write}, path::PathBuf, process::exit};
 
 use clap::{Parser as ClapParser, ValueEnum};
 use clap_stdin::FileOrStdin;
 use delta_null_core_instructions::ToAssembly;
 use delta_null_lang_backend::ir::{PrintIR, PrintOptions};
 use delta_null_lang_backend_core::compile_module;
-use delta_null_lang_frontend::{parse_one_module, translate_one_module};
+use delta_null_lang_frontend::{parse_one_module, source::SourceInputType, translate_one_module};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 enum IrFormat {
@@ -46,13 +46,13 @@ fn main() {
     let args = Args::parse();
 
     // Run frontend
-    let filename = match &args.input.source {
-        clap_stdin::Source::Stdin => "<stdin>".to_owned(),
-        clap_stdin::Source::Arg(f) => f.to_owned(),
+    let input_type = match &args.input.source {
+        clap_stdin::Source::Stdin => SourceInputType::Buffer,
+        clap_stdin::Source::Arg(f) => SourceInputType::File(PathBuf::from(f).canonicalize().unwrap()),
     };
     let input = args.input.contents().unwrap();
     
-    let parsed_module = graceful_unwrap(parse_one_module(&input, &filename));
+    let parsed_module = graceful_unwrap(parse_one_module(&input, input_type));
     let module = graceful_unwrap(translate_one_module(parsed_module));
 
     // `--ir` stops here

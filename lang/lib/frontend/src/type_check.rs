@@ -715,12 +715,12 @@ frontend_error!(TypeError, "type");
 
 #[cfg(test)]
 mod test {
-    use crate::{node::{Module, TopLevelItem}, parser::Parser, tokenizer::tokenize};
+    use crate::{node::{Module, TopLevelItem}, parser::Parser, source::SourceInputType, tokenizer::tokenize};
 
     use super::type_check_module;
 
     fn parse(code: &str) -> Module {
-        let (tokens, errors) = tokenize(code, "<test>");
+        let (tokens, errors) = tokenize(code, SourceInputType::Buffer);
         if !errors.is_empty() {
             panic!("{:?}", errors)
         }

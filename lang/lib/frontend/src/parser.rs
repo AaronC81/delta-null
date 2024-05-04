@@ -20,7 +20,10 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
     /// Consume tokens to parse a list of [TopLevelItem]s.
     pub fn parse_module(&mut self) -> Fallible<Module, ParseError> {
-        let mut result = Fallible::new(Module::new());
+        // We can assume that all of the tokens come from the same source, so grab it out of the 
+        // first one
+        let input_type = self.tokens.peek().unwrap().loc.input.clone();
+        let mut result = Fallible::new(Module::new(input_type));
     
         while self.tokens.peek().is_some() {
             self.parse_top_level_item()
@@ -775,7 +778,7 @@ frontend_error!(ParseError, "parse");
 mod test {
     use std::assert_matches::assert_matches;
 
-    use crate::{fallible::{Fallible, MaybeFatal}, node::{ArithmeticBinOp, ComparisonBinOp, Expression, ExpressionKind, TopLevelItem, TopLevelItemKind, Type, TypeKind}, tokenizer::{tokenize, Token}};
+    use crate::{fallible::{Fallible, MaybeFatal}, node::{ArithmeticBinOp, ComparisonBinOp, Expression, ExpressionKind, TopLevelItem, TopLevelItemKind, Type, TypeKind}, source::SourceInputType, tokenizer::{tokenize, Token}};
 
     use super::{ParseError, Parser};
 
@@ -783,7 +786,7 @@ mod test {
         code: &str,
         func: impl FnOnce(&mut Parser<std::vec::IntoIter<Token>>) -> Fallible<MaybeFatal<T>, ParseError>
     ) -> T {
-        let (tokens, errors) = tokenize(code, "<test>");
+        let (tokens, errors) = tokenize(code, SourceInputType::Buffer);
         if !errors.is_empty() {
             panic!("{:?}", errors)
         }
