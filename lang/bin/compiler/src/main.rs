@@ -5,7 +5,7 @@ use clap_stdin::FileOrStdin;
 use delta_null_core_instructions::ToAssembly;
 use delta_null_lang_backend::ir::{PrintIR, PrintOptions};
 use delta_null_lang_backend_core::compile_module;
-use delta_null_lang_frontend::{parse_one_module, source::SourceInputType, translate_one_module};
+use delta_null_lang_frontend::{parse_all_modules, parse_one_module, source::SourceInputType, translate_one_module};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 enum IrFormat {
@@ -52,9 +52,10 @@ fn main() {
     };
     let input = args.input.contents().unwrap();
     
-    let parsed_module = graceful_unwrap(parse_one_module(&input, input_type));
-    let module = graceful_unwrap(translate_one_module(parsed_module));
+    let parsed_module = graceful_unwrap(parse_all_modules(&input, input_type));
+    println!("{parsed_module:#?}");
 
+    /*
     // `--ir` stops here
     if let Some(ir_format) = args.ir {
         let content = match ir_format {
@@ -89,4 +90,5 @@ fn main() {
         .collect::<Vec<_>>()
         .join("\n");
     output_handle.write_all(asm_code.as_bytes()).unwrap();
+*/
 }

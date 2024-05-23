@@ -1,7 +1,7 @@
 use std::{fmt::Display, path::PathBuf};
 
 /// Describes the type of the buffer which a [SourceLocation] refers to.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SourceInputType {
     /// The input came from a file.
     File(PathBuf),
