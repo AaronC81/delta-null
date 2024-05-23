@@ -5,7 +5,7 @@ use clap_stdin::FileOrStdin;
 use delta_null_core_instructions::ToAssembly;
 use delta_null_lang_backend::ir::{PrintIR, PrintOptions};
 use delta_null_lang_backend_core::compile_module;
-use delta_null_lang_frontend::{parse_all_modules, parse_one_module, source::SourceInputType, translate_one_module};
+use delta_null_lang_frontend::{node, parse_all_modules, parse_one_module, source::SourceInputType, translate_one_module};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 enum IrFormat {
@@ -52,21 +52,20 @@ fn main() {
     };
     let input = args.input.contents().unwrap();
     
+    // Parse all modules
     let parsed_modules = graceful_unwrap(parse_all_modules(&input, input_type));
-    println!("{parsed_modules:#?}");
 
-    let translated_modules = graceful_unwrap(
-        parsed_modules.into_iter()
-            .map(|m| translate_one_module(m))
-            .collect::<Result<Vec<_>, _>>()
-    );
+    // Concatenate all of the modules into one big one
+    let mut module = node::Module::new(SourceInputType::Buffer);
+    for parsed_module in parsed_modules {
+        module.items.extend(parsed_module.items)
+    }
+
+    // Translate our one big module
+    let module = graceful_unwrap(translate_one_module(module));
 
     // `--ir` stops here
     if let Some(ir_format) = args.ir {
-        // We only support showing the IR for the root module, which will be the last one in the
-        // list becauase it's in dependency order
-        let module = translated_modules.last().unwrap();
-
         let content = match ir_format {
             IrFormat::Text => module.functions.iter()
                 .map(|f| f.print_ir(&PrintOptions::new()))
@@ -78,7 +77,6 @@ fn main() {
         exit(0)
     }
 
-    /*
     // Run backend
     let asm = graceful_unwrap(compile_module(&module));
 
@@ -100,5 +98,4 @@ fn main() {
         .collect::<Vec<_>>()
         .join("\n");
     output_handle.write_all(asm_code.as_bytes()).unwrap();
-*/
 }
