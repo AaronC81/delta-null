@@ -52,14 +52,23 @@ fn main() {
     };
     let input = args.input.contents().unwrap();
     
-    let parsed_module = graceful_unwrap(parse_all_modules(&input, input_type));
-    println!("{parsed_module:#?}");
+    let parsed_modules = graceful_unwrap(parse_all_modules(&input, input_type));
+    println!("{parsed_modules:#?}");
 
-    /*
+    let translated_modules = graceful_unwrap(
+        parsed_modules.into_iter()
+            .map(|m| translate_one_module(m))
+            .collect::<Result<Vec<_>, _>>()
+    );
+
     // `--ir` stops here
     if let Some(ir_format) = args.ir {
+        // We only support showing the IR for the root module, which will be the last one in the
+        // list becauase it's in dependency order
+        let module = translated_modules.last().unwrap();
+
         let content = match ir_format {
-            IrFormat::Text => module.functions.into_iter()
+            IrFormat::Text => module.functions.iter()
                 .map(|f| f.print_ir(&PrintOptions::new()))
                 .collect::<Vec<_>>()
                 .join("\n"),
@@ -69,6 +78,7 @@ fn main() {
         exit(0)
     }
 
+    /*
     // Run backend
     let asm = graceful_unwrap(compile_module(&module));
 
