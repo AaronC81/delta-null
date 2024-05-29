@@ -1,56 +1,20 @@
-type HCR = struct {
-    magic: u16,
-    harness_indicator: u16,
-    __pad: [14]u16,
-
-    pin_mode_lo: u16,
-    pin_mode_hi: u16,
-    pin_out_lo: u16,
-    pin_out_hi: u16,
-};
-
-fn hcr_get() -> *HCR {
-    return 0xF000 as *HCR;
-}
-
-type Timer = struct {
-    control: u16,
-    status: u16,
-    target_lo: u16,
-    target_hi: u16,
-};
-
-fn timer_get() -> *Timer {
-    return 0xF100 as *Timer;
-}
-
-fn timer_start_repeating(timer: *Timer, time_hi: u16, time_lo: u16) {
-    timer.*.target_lo = time_lo;
-    timer.*.target_hi = time_hi;
-    timer.*.control = timer.*.control | 0b11; // repeating | running
-}
-
-fn timer_wait(timer: *Timer) {
-    // Wait for `fired` bit
-    loop {
-        if (timer.*.status & 0b1) == 1 {
-            timer.*.status = 0; // reset
-            break;
-        }
-    }
-}
+use "../stdlib/gpio.dnc";
+use "../stdlib/timer.dnc";
 
 fn main() {
-    var hcr: *HCR = hcr_get();
-    var timer: *Timer = timer_get();
-
+    var led_bank: u16 = 0;
+    var led_pin:  u16 = 0;
+    
     // Set LED as output
-    hcr.*.pin_mode_lo = hcr.*.pin_mode_lo | 1;
-
+    gpio_mode_output(led_bank, led_pin);
+    
+    var timer: *Timer = timer_get();
     timer_start_repeating(timer, 0x000F, 0x4240); // 000F 4240 = 1,000,000 us = 1s
     loop {
         timer_wait(timer);
-        hcr.*.pin_out_lo = ~hcr.*.pin_out_lo; // Flip LED
+        gpio_write(led_bank, led_pin, 1);
+        timer_wait(timer);
+        gpio_write(led_bank, led_pin, 0);
     }
 }
 

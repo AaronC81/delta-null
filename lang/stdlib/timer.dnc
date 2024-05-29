@@ -1,0 +1,26 @@
+type Timer = struct {
+    control: u16,
+    status: u16,
+    target_lo: u16,
+    target_hi: u16,
+};
+
+fn timer_get() -> *Timer {
+    return 0xF100 as *Timer;
+}
+
+fn timer_start_repeating(timer: *Timer, time_hi: u16, time_lo: u16) {
+    timer.*.target_lo = time_lo;
+    timer.*.target_hi = time_hi;
+    timer.*.control = timer.*.control | 0b11; // repeating | running
+}
+
+fn timer_wait(timer: *Timer) {
+    // Wait for `fired` bit
+    loop {
+        if (timer.*.status & 0b1) == 1 {
+            timer.*.status = 0; // reset
+            break;
+        }
+    }
+}
