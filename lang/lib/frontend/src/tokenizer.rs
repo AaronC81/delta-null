@@ -61,6 +61,8 @@ pub enum TokenKind {
     Tilde,
     Dot,
     DotStar, // .*
+    LeftShift,
+    RightShift,
 
     LBrace,
     RBrace,
@@ -101,8 +103,22 @@ pub fn tokenize(input: &str, input_type: SourceInputType) -> (Vec<Token>, Vec<To
             ')' => { chars.next(); tokens.push(Token::new(TokenKind::RParen, loc)) },
             '[' => { chars.next(); tokens.push(Token::new(TokenKind::LBracket, loc)) },
             ']' => { chars.next(); tokens.push(Token::new(TokenKind::RBracket, loc)) },
-            '<' => { chars.next(); tokens.push(Token::new(TokenKind::LAngle, loc)) },
-            '>' => { chars.next(); tokens.push(Token::new(TokenKind::RAngle, loc)) },
+            '<' => {
+                chars.next();
+                if chars.next_if(|(c, _)| *c == '<').is_some() {
+                    tokens.push(Token::new(TokenKind::LeftShift, loc))
+                } else {
+                    tokens.push(Token::new(TokenKind::LAngle, loc))
+                }
+            },
+            '>' => {
+                chars.next();
+                if chars.next_if(|(c, _)| *c == '>').is_some() {
+                    tokens.push(Token::new(TokenKind::RightShift, loc))
+                } else {
+                    tokens.push(Token::new(TokenKind::RAngle, loc))
+                }
+            },
             ':' => { chars.next(); tokens.push(Token::new(TokenKind::Colon, loc)) },
             ';' => { chars.next(); tokens.push(Token::new(TokenKind::Semicolon, loc)) },
             '+' => { chars.next(); tokens.push(Token::new(TokenKind::Plus, loc)) },

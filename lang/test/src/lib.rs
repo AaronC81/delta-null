@@ -338,6 +338,26 @@ mod test {
             ").unwrap(),
             !1234u16
         );
+
+        // Left-shift
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    return 12 << 3;
+                }
+            ").unwrap(),
+            12 << 3
+        );
+
+        // Right-shift
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    return 54 >> 2;
+                }
+            ").unwrap(),
+            54 >> 2
+        );
     }
 
     #[test]

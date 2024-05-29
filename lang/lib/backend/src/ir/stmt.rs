@@ -99,6 +99,12 @@ pub enum InstructionKind {
     /// Performs bitwise OR between two integer values, of the same type.
     BitwiseOr(VariableId, VariableId),
 
+    /// Performs left bit-shift between two integer values, of the same type.
+    LeftShift(VariableId, VariableId),
+
+    /// Performs right bit-shift between two integer values, of the same type.
+    RightShift(VariableId, VariableId),
+
     /// Performs bitwise NOT on an integer value.
     BitwiseNot(VariableId),
 
@@ -209,6 +215,8 @@ impl Instruction {
             | InstructionKind::GreaterThan(l, r)
             | InstructionKind::BitwiseAnd(l, r)
             | InstructionKind::BitwiseXor(l, r)
+            | InstructionKind::LeftShift(l, r)
+            | InstructionKind::RightShift(l, r)
             | InstructionKind::BitwiseOr(l, r) => hashset!{ *l, *r },
             InstructionKind::BitwiseNot(v) => hashset!{ *v },
             InstructionKind::Call { target, arguments } =>
@@ -268,12 +276,14 @@ impl Instruction {
 
             InstructionKind::BitwiseAnd(a, b)
             | InstructionKind::BitwiseXor(a, b)
-            | InstructionKind::BitwiseOr(a, b) => {
+            | InstructionKind::BitwiseOr(a, b)
+            | InstructionKind::LeftShift(a, b)
+            | InstructionKind::RightShift(a, b) => {
                 let a_ty = vars.get_variable(*a).ty.clone();
                 let b_ty = vars.get_variable(*b).ty.clone();
 
                 if a_ty != b_ty {
-                    return Err(TypeError::new("both sides of bitwise binop must either have the same type, or be `pointer` and `integral`"));
+                    return Err(TypeError::new("both sides of bitwise binop must either have the same type"));
                 }
                 
                 Ok(Some(a_ty))
@@ -359,6 +369,8 @@ impl PrintIR for Instruction {
             InstructionKind::BitwiseAnd(a, b) => format!("{} & {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::BitwiseXor(a, b) => format!("{} ^ {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::BitwiseOr(a, b) => format!("{} | {}", a.print_ir(options), b.print_ir(options)),
+            InstructionKind::LeftShift(a, b) => format!("{} << {}", a.print_ir(options), b.print_ir(options)),
+            InstructionKind::RightShift(a, b) => format!("{} >> {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::BitwiseNot(v) => format!("~{}", v.print_ir(options)),
 
             InstructionKind::Equals(a, b) => format!("{} == {}", a.print_ir(options), b.print_ir(options)),

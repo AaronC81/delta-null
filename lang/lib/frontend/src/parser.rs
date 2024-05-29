@@ -228,7 +228,8 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         self.parse_comparison()
     }
 
-    /// Parse a usage of the `==` binary operator, or any expression with higher precedence.
+    /// Parse a usage of the `==`, `<` or `>` binary operators, or any expression with higher
+    /// precedence.
     pub fn parse_comparison(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
         let mut expr = self.parse_bitwise_or()?;
 
@@ -257,7 +258,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         )
     }
 
-    /// Parse a usage of the `&` bitwise AND operator, or any expression with higher precedence.
+    /// Parse a usage of the `^` bitwise XOR operator, or any expression with higher precedence.
     pub fn parse_bitwise_xor(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
         self.parse_arithmetic_binop(
             &[(TokenKind::Caret, ArithmeticBinOp::BitwiseXor)],
@@ -269,6 +270,18 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     pub fn parse_bitwise_and(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
         self.parse_arithmetic_binop(
             &[(TokenKind::Ampersand, ArithmeticBinOp::BitwiseAnd)],
+            Self::parse_bit_shift,
+        )
+    }
+
+    /// Parse a usage of the `<<` or `>>` bit-shift operators, or any expression with higher
+    /// precedence.
+    pub fn parse_bit_shift(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
+        self.parse_arithmetic_binop(
+            &[
+                (TokenKind::LeftShift, ArithmeticBinOp::LeftShift),
+                (TokenKind::RightShift, ArithmeticBinOp::RightShift),
+            ],
             Self::parse_add_sub,
         )
     }

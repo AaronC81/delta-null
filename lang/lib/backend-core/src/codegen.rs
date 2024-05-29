@@ -205,6 +205,10 @@ impl<'f> FunctionGenerator<'f> {
                 self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::And),
             ir::InstructionKind::BitwiseXor(l, r) =>
                 self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Xor),
+            ir::InstructionKind::LeftShift(l, r) =>
+                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Shl),
+            ir::InstructionKind::RightShift(l, r) =>
+                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Shr),
             ir::InstructionKind::BitwiseOr(l, r) =>
                 self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Or),
 

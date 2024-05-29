@@ -235,6 +235,9 @@ pub enum ArithmeticBinOp {
     BitwiseAnd,
     BitwiseXor,
     BitwiseOr,
+
+    LeftShift,
+    RightShift,
 }
 
 impl Display for ArithmeticBinOp {
@@ -247,6 +250,9 @@ impl Display for ArithmeticBinOp {
             ArithmeticBinOp::BitwiseAnd => "&",
             ArithmeticBinOp::BitwiseXor => "^",
             ArithmeticBinOp::BitwiseOr => "|",
+
+            ArithmeticBinOp::LeftShift => "<<",
+            ArithmeticBinOp::RightShift => ">>",
         })
     }
 }
