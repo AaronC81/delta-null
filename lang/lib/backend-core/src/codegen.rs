@@ -89,7 +89,16 @@ impl<'f> FunctionGenerator<'f> {
                     ir::ConstantValue::Boolean(b) => if *b { 1 } else { 0 },
                 };
 
-                buffer.push(AssemblyItem::new_word_put(reg, imm.into()));
+                // Optimisation: XOR-ing a register with itself saves one instruction versus a
+                // `.put` 
+                if imm == 0 {
+                    buffer.push(AssemblyItem::new_instruction(
+                        InstructionOpcode::Xor,
+                        &[reg.into(), reg.into()],
+                    ));
+                } else {
+                    buffer.push(AssemblyItem::new_word_put(reg, imm.into()));
+                }
             },
 
             ir::InstructionKind::CastReinterpret { value, ty } => {
