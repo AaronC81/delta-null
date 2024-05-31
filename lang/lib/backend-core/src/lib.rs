@@ -1,14 +1,17 @@
 //! Language backend targeting the Delta Null's processor soft-core.
 
 #![feature(extract_if)]
+#![feature(let_chains)]
 
 use codegen::FunctionGenerator;
 use delta_null_core_assembler::{BuildError, AssemblyItem};
 use delta_null_lang_backend::{analysis::{flow::ControlFlowGraph, liveness::liveness_analysis, misc::is_leaf_function}, ir::{Function, Module}};
+use peephole::peephole_optimise;
 use reg_alloc::allocate;
 
 mod reg_alloc;
 mod codegen;
+mod peephole;
 
 #[cfg(test)]
 mod test_utils;
@@ -42,5 +45,9 @@ fn compile_function(func: &Function) -> Result<Vec<AssemblyItem>, Vec<BuildError
     let is_leaf = is_leaf_function(func);
 
     let generator = FunctionGenerator::new(func, allocation, is_leaf);
-    Ok(generator.to_assembly())
+    let mut assembly = generator.to_assembly();
+
+    peephole_optimise(&mut assembly);
+
+    Ok(assembly)
 }
