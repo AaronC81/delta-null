@@ -120,13 +120,6 @@ fn optimise_one_window(window: &[AssemblyItemKind]) -> Option<PeepholeReplacemen
         })
     }
 
-    // TODO: add 1 becomes inc
-    // TODO: add 0 removed
-    // TODO: subtract 1 becomes dec
-    // TODO: subtract 0 removed
-    // TODO: mul 1 removed
-    // TODO: mul 0 becomes xor x,x
-
     // TODO: could move the .put/xor thing into here
 
     None
