@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::Display, path::PathBuf};
+use std::{error::Error, fmt::Display};
 
 use crate::{frontend_error, source::{SourceLocation, SourceInputType}};
 

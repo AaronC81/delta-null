@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display, error::Error};
 
 use delta_null_lang_backend::ir::{Module, FunctionBuilder, LocalId, BasicBlockBuilder, VariableId, self, Instruction, BasicBlockId};
 
-use crate::{fallible::{Fallible, MaybeFatal}, node::{self, ComparisonBinOp, Statement, TopLevelItem, TopLevelItemKind}, type_check::{self, Type}};
+use crate::{fallible::{Fallible, MaybeFatal}, node::{self, ComparisonBinOp, Statement, TopLevelItemKind}, type_check::{self, Type}};
 
 type ExpressionData = crate::type_check::Type;
 
@@ -12,6 +12,7 @@ pub struct ModuleTranslator {
 }
 
 impl ModuleTranslator {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         ModuleTranslator {
             module: Module::new(),
@@ -402,7 +403,7 @@ impl<'c> FunctionTranslator<'c> {
                 // Place any new instructions in the continuation block
                 self.replace_target(cont_block);
 
-                return errors.map(|f| f.into());                
+                return errors;                
             }
 
             node::StatementKind::Break => {

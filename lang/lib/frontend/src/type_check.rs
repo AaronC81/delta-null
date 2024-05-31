@@ -2,7 +2,7 @@ use std::{fmt::Display, error::Error, collections::HashMap};
 
 use delta_null_lang_backend::ir::{self, IntegerSize};
 
-use crate::{fallible::Fallible, frontend_error, node::{self, Expression, ExpressionKind, Module, Statement, StatementKind, TopLevelItem, TopLevelItemKind}, source::SourceLocation};
+use crate::{fallible::Fallible, frontend_error, node::{self, Expression, ExpressionKind, Module, Statement, StatementKind, TopLevelItemKind}, source::SourceLocation};
 
 /// Describes the type of an IR expression.
 #[derive(Debug, Clone, PartialEq, Eq)]

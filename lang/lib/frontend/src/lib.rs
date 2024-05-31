@@ -6,11 +6,10 @@
 #![feature(let_chains)]
 #![feature(extract_if)]
 
-use std::{collections::{HashMap, VecDeque}, error::Error, fs, path::PathBuf};
+use std::{collections::{HashMap, VecDeque}, error::Error, fs};
 
 use delta_null_lang_backend::ir::Module;
-use node::{TopLevelItem, TopLevelItemKind};
-use parser::{ParseError, Parser};
+use parser::Parser;
 use source::SourceInputType;
 use tokenizer::tokenize;
 
@@ -107,7 +106,7 @@ pub fn parse_all_modules(code: &str, input_type: SourceInputType) -> Result<Vec<
         ordered_modules.push(next_module);
 
         // Prune from dependencies
-        for (_, modules) in &mut module_imports {
+        for modules in module_imports.values_mut() {
             modules.retain(|module| SourceInputType::File(module.clone()) != next_module_input)
         }
     }

@@ -272,7 +272,7 @@ pub mod test {
     use crate::{parser::Parser, AssemblyItem, AssemblyItemKind, AssemblyOperand, LabelAccess, Tokenizer, ParseError};
 
     pub fn parse_str(s: &str) -> Result<Vec<AssemblyItem>, Vec<ParseError>> {
-        let mut tokenizer = Tokenizer::from_str(s);
+        let mut tokenizer = Tokenizer::for_str(s);
         let tokens = tokenizer.tokenize().unwrap();
         
         let mut parser = Parser::from_tokens(&tokens);

@@ -315,7 +315,7 @@ impl Instruction {
             InstructionKind::WordSize(_) => Ok(Some(Type::UnsignedInteger(IntegerSize::Bits16))),
 
             // Not _really_ a pointer, because it needs to be added to a base pointer to be valid
-            InstructionKind::FieldOffset { ty, index } => Ok(Some(Type::UnsignedInteger(IntegerSize::Bits16))),
+            InstructionKind::FieldOffset { .. } => Ok(Some(Type::UnsignedInteger(IntegerSize::Bits16))),
 
             InstructionKind::InlineAssembly(_) => Ok(None),
             

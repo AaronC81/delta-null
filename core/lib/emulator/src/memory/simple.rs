@@ -18,6 +18,7 @@ impl Memory for SimpleMemory {
 }
 
 impl SimpleMemory {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self { data: [0; 0x10000] }
     }

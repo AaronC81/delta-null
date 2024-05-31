@@ -5,7 +5,7 @@ use clap_stdin::FileOrStdin;
 use delta_null_core_instructions::ToAssembly;
 use delta_null_lang_backend::ir::{PrintIR, PrintOptions};
 use delta_null_lang_backend_core::compile_module;
-use delta_null_lang_frontend::{node, parse_all_modules, parse_one_module, source::SourceInputType, translate_one_module};
+use delta_null_lang_frontend::{node, parse_all_modules, source::SourceInputType, translate_one_module};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 enum IrFormat {

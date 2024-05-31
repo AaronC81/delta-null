@@ -24,6 +24,7 @@ pub struct Module {
 }
 
 impl Module {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Module { functions: vec![], entry: None }
     }

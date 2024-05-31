@@ -50,7 +50,7 @@ impl<'a> Tokenizer<'a> {
         Self { chars }
     }
 
-    pub fn from_str(string: &'a str) -> Tokenizer<'a> {
+    pub fn for_str(string: &'a str) -> Tokenizer<'a> {
         Self { chars: string.chars().peekable() }
     }
 
@@ -188,7 +188,7 @@ mod test {
                 Token::new(TokenKind::Atom("r1".to_string())),
                 Token::new(TokenKind::Newline),
             ]),
-            Tokenizer::from_str("
+            Tokenizer::for_str("
                 data: .word 0x1234
                 start:
                     .put r1, data ; load address

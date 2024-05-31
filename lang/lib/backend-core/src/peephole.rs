@@ -1,5 +1,5 @@
 use delta_null_core_assembler::{AssemblyItem, AssemblyItemKind, AssemblyOperand};
-use delta_null_core_instructions::{AnyRegister, InstructionOpcode, GPR};
+use delta_null_core_instructions::{AnyRegister, InstructionOpcode};
 
 use AssemblyItemKind::*;
 use InstructionOpcode::*;
@@ -37,7 +37,7 @@ pub fn peephole_optimise(items: &mut Vec<AssemblyItem>) {
 
             let replacement_count = replacement.remove_count;
             let replacement_items = replacement.new_items.into_iter()
-                .map(|k| AssemblyItem::new(k))
+                .map(AssemblyItem::new)
                 .collect::<Vec<_>>();
 
             items.splice(window_start_index..(window_start_index+replacement_count), replacement_items);
