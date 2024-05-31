@@ -36,7 +36,7 @@ pub fn peephole_optimise(items: &mut Vec<AssemblyItem>) {
             let start_labels = items[window_start_index].labels.clone();
 
             let replacement_count = replacement.remove_count;
-            let mut replacement_items = replacement.new_items.into_iter()
+            let replacement_items = replacement.new_items.into_iter()
                 .map(|k| AssemblyItem::new(k))
                 .collect::<Vec<_>>();
 
@@ -46,8 +46,13 @@ pub fn peephole_optimise(items: &mut Vec<AssemblyItem>) {
             // TODO: what if this was one of the last instructions, and we just removed it?
             items[window_start_index].labels = start_labels;
 
-            // Don't advance, there might be another optimisation we can perform
-            // TODO: consider rewinding?
+            // Rewind back by the window size, so we can potentially find more optimisations with
+            // our new set of instructions
+            if window_start_index < window_size {
+                window_start_index = 0;
+            } else {
+                window_start_index -= window_size;
+            }
         } else {
             // No match, advance
             window_start_index += 1;
