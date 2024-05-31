@@ -43,7 +43,6 @@ pub fn peephole_optimise(items: &mut Vec<AssemblyItem>) {
             items.splice(window_start_index..(window_start_index+replacement_count), replacement_items);
 
             // Replace labels
-            // TODO: what if this was one of the last instructions, and we just removed it?
             items[window_start_index].labels = start_labels;
 
             // Rewind back by the window size, so we can potentially find more optimisations with
