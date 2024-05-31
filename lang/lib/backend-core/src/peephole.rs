@@ -4,6 +4,7 @@ use delta_null_core_instructions::{AnyRegister, InstructionOpcode, GPR};
 use AssemblyItemKind::*;
 use InstructionOpcode::*;
 use AssemblyOperand::*;
+use AnyRegister::*;
 
 // TODO: test
 
@@ -120,7 +121,19 @@ fn optimise_one_window(window: &[AssemblyItemKind]) -> Option<PeepholeReplacemen
         })
     }
 
-    // TODO: could move the .put/xor thing into here
+    // This pattern:
+    //   .put x, 0
+    // Can be replaced with:
+    //   xor x, x
+    // Which takes one fewer instruction when compiled
+    if let [WordPut(r, Immediate(0)), ..] = window {
+        return Some(PeepholeReplacement {
+            remove_count: 1,
+            new_items: vec![
+                Instruction(Xor, vec![Register(G(*r)), Register(G(*r))])
+            ],
+        })
+    }
 
     None
 }
