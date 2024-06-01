@@ -125,9 +125,9 @@ pub fn translate_one_module(parsed_module: node::Module) -> Result<Module, Vec<B
     let typed_module = type_check::type_check_module(parsed_module.clone()).box_errors().into_result()?;
 
     // Translate
-    let mut translator = ModuleTranslator::new();
-    translator.translate_items(&typed_module).box_errors().into_result()?;
-    let mut module = translator.finalize();
+    let mut translator = ModuleTranslator::new(&typed_module);
+    translator.translate_items().box_errors().into_result()?;
+    let mut module = translator.finalize().box_errors().into_result()?.unwrap();
     module.entry = Some("main".to_owned()); // TODO
 
     Ok(module)

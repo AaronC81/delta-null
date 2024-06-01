@@ -7,44 +7,24 @@ use crate::{fallible::{Fallible, MaybeFatal}, node::{self, ComparisonBinOp, Stat
 type ExpressionData = crate::type_check::Type;
 
 /// Translates [TopLevelItem]s into an IR [Module].
-pub struct ModuleTranslator {
+pub struct ModuleTranslator<'i> {
+    input: &'i node::Module<ExpressionData, Type>,
     module: Module,
 }
 
-impl ModuleTranslator {
+impl<'i> ModuleTranslator<'i> {
     #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
+    pub fn new(input: &'i node::Module<ExpressionData, Type>) -> Self {
         ModuleTranslator {
+            input,
             module: Module::new(),
         }
     }
 
-    pub fn translate_items(&mut self, module: &node::Module<ExpressionData, Type>) -> Fallible<MaybeFatal<()>, TranslateError> {
-        let mut functions = HashMap::new();
-        let mut data = HashMap::new();
+    pub fn translate_items(&mut self) -> Fallible<MaybeFatal<()>, TranslateError> {
+        let (functions, data) = self.gather_type_maps();
 
-        // Build up list of functions and data items
-        for item in &module.items {
-            if let TopLevelItemKind::FunctionDefinition { name, parameters, return_type, body: _ } = &item.kind {
-                // TODO: crap that we're still converting here
-                let return_type = return_type.to_ir_type();
-                functions.insert(
-                    name.to_owned(),
-                    ir::Type::FunctionReference {
-                        argument_types: parameters.iter()
-                            .map(|p| p.ty.to_ir_type())
-                            .collect(),
-                        return_type: Box::new(return_type),
-                    }
-                );
-            }
-
-            if let TopLevelItemKind::VariableDeclaration { name, ty, value } = &item.kind {
-                data.insert(name.to_owned(), ty.to_ir_type());
-            }
-        }
-
-        for item in &module.items {
+        for item in &self.input.items {
             match &item.kind {
                 TopLevelItemKind::FunctionDefinition { name, parameters, return_type, body } => {
                     // Setup
@@ -99,11 +79,6 @@ impl ModuleTranslator {
                 TopLevelItemKind::Use { .. } => {},
 
                 TopLevelItemKind::VariableDeclaration { name, ty, value } => {
-                    if value.is_some() {
-                        // TODO
-                        panic!("globals with initial values aren't yet supported");
-                    }
-
                     // Add data to module
                     self.module.data.push(Data {
                         name: name.clone(),
@@ -117,8 +92,94 @@ impl ModuleTranslator {
         Fallible::new_ok(())
     }
 
-    pub fn finalize(self) -> Module {
-        self.module
+    pub fn finalize(mut self) -> Fallible<MaybeFatal<Module>, TranslateError> {
+        let mut errors = Fallible::new_ok(());
+
+        // If there is data to initialise, generate an init function
+        let initialised_data = self.data_to_initialise();
+        if !initialised_data.is_empty() {
+            let (functions, data) = self.gather_type_maps();
+
+            // Create and initialise function builder
+            let mut init_func_trans = FunctionTranslator::new(
+                FunctionBuilder::new("__init", &[]),
+                &functions,
+                &data,
+                HashMap::new(),
+            );
+            let (_, start_block) = init_func_trans.func.new_basic_block();
+            init_func_trans.target = Some(start_block);
+
+            // Generate assignments
+            for (name, datum) in initialised_data {
+                // Translate value expression
+                let value = init_func_trans.translate_expression(&datum)?
+                    .propagate(&mut errors)
+                    .consume_read(init_func_trans.target_mut());
+
+                // Get `dataref` pointer
+                let address = init_func_trans.target_mut().add_instruction(
+                    Instruction::new(ir::InstructionKind::DataReference { name })
+                );
+
+                // Generate write
+                init_func_trans.target_mut().add_void_instruction(
+                    Instruction::new(ir::InstructionKind::WriteMemory { address, value })
+                );
+            }
+
+            // Wrap it up
+            init_func_trans.target_mut().add_terminator(
+                Instruction::new(ir::InstructionKind::Return(None)),
+            );
+            init_func_trans.finalize_target();
+
+            // Add to module
+            let func = init_func_trans.func.finalize();
+            self.module.functions.push(func);
+        }
+
+        errors.map_inner(|_| self.module)
+    }
+
+    /// Creates mappings of names to types for `(functions, data)`.
+    fn gather_type_maps(&self) -> (HashMap<String, ir::Type>, HashMap<String, ir::Type>) {
+        let mut functions = HashMap::new();
+        let mut data = HashMap::new();
+
+        // Build up list of functions and data items
+        for item in &self.input.items {
+            if let TopLevelItemKind::FunctionDefinition { name, parameters, return_type, body: _ } = &item.kind {
+                // TODO: crap that we're still converting here
+                let return_type = return_type.to_ir_type();
+                functions.insert(
+                    name.to_owned(),
+                    ir::Type::FunctionReference {
+                        argument_types: parameters.iter()
+                            .map(|p| p.ty.to_ir_type())
+                            .collect(),
+                        return_type: Box::new(return_type),
+                    }
+                );
+            }
+
+            if let TopLevelItemKind::VariableDeclaration { name, ty, value } = &item.kind {
+                data.insert(name.to_owned(), ty.to_ir_type());
+            }
+        }
+
+        (functions, data)
+    }
+
+    /// Finds data item names and expressions which require initialisation.
+    fn data_to_initialise(&self) -> Vec<(String, node::Expression<Type, Type>)> {
+        let mut initialised_data = vec![];
+        for item in &self.input.items {
+            if let TopLevelItemKind::VariableDeclaration { name, value: Some(value), .. } = &item.kind {
+                initialised_data.push((name.clone(), value.clone()))
+            }
+        }
+        initialised_data
     }
 }
 
