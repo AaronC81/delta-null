@@ -157,6 +157,13 @@ pub enum InstructionKind {
         false_block: BasicBlockId,
     },
 
+    /// Jump to the pointer inside a [VariableId].
+    /// 
+    /// This is very difficult to use correctly - currently the only use-case is tail-calls for
+    /// efficient entry point wrappers. This deviates away from the control flow which the IR knows
+    /// about, and might cause weirdness. Use with care!
+    Jump(VariableId),
+
     /// Chooses between multiple different variables, based on the block which branched to the
     /// current block.
     /// 
@@ -182,6 +189,7 @@ impl Instruction {
               InstructionKind::Return(_)
             | InstructionKind::Branch(_)
             | InstructionKind::ConditionalBranch { .. }
+            | InstructionKind::Jump(_)
             | InstructionKind::Unreachable
         )
     }
@@ -234,6 +242,7 @@ impl Instruction {
             InstructionKind::Return(r) => r.iter().copied().collect(),
             InstructionKind::Branch(_) => hashset!{},
             InstructionKind::ConditionalBranch { condition, .. } => hashset!{ *condition },
+            InstructionKind::Jump(d) => hashset!{ *d },
             InstructionKind::Phi { choices } => choices.iter().map(|(_, var)| *var).collect(),
             InstructionKind::Unreachable => hashset!{},
         }
@@ -329,7 +338,8 @@ impl Instruction {
             
             InstructionKind::Return(_)
             | InstructionKind::Branch(_)
-            | InstructionKind::ConditionalBranch { .. } => Ok(None),
+            | InstructionKind::ConditionalBranch { .. }
+            | InstructionKind::Jump(_) => Ok(None),
 
             InstructionKind::Phi { choices } => {
                 let choice_tys = choices.iter()
@@ -413,6 +423,7 @@ impl PrintIR for Instruction {
             InstructionKind::Branch(b) => format!("branch {}", b.print_ir(options)),
             InstructionKind::ConditionalBranch { condition, true_block, false_block } =>
                 format!("condbranch {} ? {} : {}", condition.print_ir(options), true_block.print_ir(options), false_block.print_ir(options)),
+            InstructionKind::Jump(d) => format!("jump {}", d.print_ir(options)),
             InstructionKind::Phi { choices } =>
                 format!(
                     "phi {}",

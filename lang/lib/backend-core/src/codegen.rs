@@ -458,6 +458,19 @@ impl<'f> FunctionGenerator<'f> {
                 self.insert_bidirectional_branch_instructions(buffer, *false_block, *true_block);
             }
 
+            ir::InstructionKind::Jump(dest) => {
+                let dest = self.generate_read(buffer, *dest);
+
+                // Architecture has no `jmp X` instruction because `movsi ip, X` fills the same role
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Movsi,
+                    &[
+                        SPR::IP.into(),
+                        dest.into(),
+                    ])
+                );
+            }
+
             ir::InstructionKind::Phi { .. } => {
                 // There's nothing to do here - `Phi` is generated on the blocks which call into
                 // this, not in the beginning of the block where the node is placed.

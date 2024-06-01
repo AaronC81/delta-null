@@ -172,24 +172,17 @@ impl<'i> ModuleTranslator<'i> {
             );
         }
 
-        // Call the entry point
-        let init_func_ref = main_func_trans.target_mut().add_instruction(
+        // Jump to the entry point
+        // (Means we don't have to propagate the return value - that becomes the root stack frame
+        //  instead.)
+        let main_func_ref = main_func_trans.target_mut().add_instruction(
             Instruction::new(ir::InstructionKind::FunctionReference {
                 name: self.entry.clone(),
                 ty: ir::Type::FunctionReference { argument_types: vec![], return_type: Box::new(ir::Type::Void) },
             })
         );
-        main_func_trans.target_mut().add_instruction(
-            Instruction::new(ir::InstructionKind::Call {
-                target: init_func_ref,
-                arguments: vec![],
-            })
-        );
-
-        // Wrap it up
-        // (I guess it's UB what happens if `__main` returns on hardware...)
         main_func_trans.target_mut().add_terminator(
-            Instruction::new(ir::InstructionKind::Return(None)),
+            Instruction::new(ir::InstructionKind::Jump(main_func_ref)),
         );
         main_func_trans.finalize_target();
 
