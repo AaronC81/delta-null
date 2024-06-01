@@ -461,6 +461,10 @@ impl<'f> FunctionGenerator<'f> {
             ir::InstructionKind::Jump(dest) => {
                 let dest = self.generate_read(buffer, *dest);
 
+                // Only current application is to exit the function, so insert postamble like
+                // `Return` does
+                self.insert_postamble(buffer);
+
                 // Architecture has no `jmp X` instruction because `movsi ip, X` fills the same role
                 buffer.push(AssemblyItem::new_instruction(
                     InstructionOpcode::Movsi,

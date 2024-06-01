@@ -157,7 +157,7 @@ pub enum InstructionKind {
         false_block: BasicBlockId,
     },
 
-    /// Jump to the pointer inside a [VariableId].
+    /// Jump to the pointer inside a [VariableId], which is assumed to be the start of a function.
     /// 
     /// This is very difficult to use correctly - currently the only use-case is tail-calls for
     /// efficient entry point wrappers. This deviates away from the control flow which the IR knows

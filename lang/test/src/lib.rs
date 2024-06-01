@@ -853,5 +853,24 @@ mod test {
             ").unwrap(),
             2 + 5 + 7 + 3
         );
+
+        // Initialised
+        assert_eq!(
+            util::compile_and_execute("
+                var counter: u16 = 6;
+
+                fn add(v: u16) {
+                    counter = counter + v;
+                }
+
+                fn main() -> u16 {
+                    add(5);
+                    add(7);
+                    add(3);
+                    return counter;
+                }
+            ").unwrap(),
+            6 + 5 + 7 + 3
+        );
     }
 }
