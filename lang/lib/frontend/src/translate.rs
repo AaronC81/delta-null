@@ -10,14 +10,16 @@ type ExpressionData = crate::type_check::Type;
 pub struct ModuleTranslator<'i> {
     input: &'i node::Module<ExpressionData, Type>,
     module: Module,
+    entry: String,
 }
 
 impl<'i> ModuleTranslator<'i> {
     #[allow(clippy::new_without_default)]
-    pub fn new(input: &'i node::Module<ExpressionData, Type>) -> Self {
+    pub fn new(input: &'i node::Module<ExpressionData, Type>, entry: &str) -> Self {
         ModuleTranslator {
             input,
             module: Module::new(),
+            entry: entry.to_owned(),
         }
     }
 
@@ -61,9 +63,11 @@ impl<'i> ModuleTranslator<'i> {
                         }, loc.clone());
                     }
 
-                    // Translate
+                    // Set up translator
                     let (_, start_block) = func_trans.func.new_basic_block();
                     func_trans.target = Some(start_block);
+
+                    // Translate function body
                     func_trans.translate_statement(&body)?;
                     func_trans.finalize_target();
 
@@ -94,12 +98,12 @@ impl<'i> ModuleTranslator<'i> {
 
     pub fn finalize(mut self) -> Fallible<MaybeFatal<Module>, TranslateError> {
         let mut errors = Fallible::new_ok(());
+        let (functions, data) = self.gather_type_maps();
 
         // If there is data to initialise, generate an init function
         let initialised_data = self.data_to_initialise();
-        if !initialised_data.is_empty() {
-            let (functions, data) = self.gather_type_maps();
-
+        let need_to_generate_init = !initialised_data.is_empty();
+        if need_to_generate_init {
             // Create and initialise function builder
             let mut init_func_trans = FunctionTranslator::new(
                 FunctionBuilder::new("__init", &[]),
@@ -138,6 +142,63 @@ impl<'i> ModuleTranslator<'i> {
             let func = init_func_trans.func.finalize();
             self.module.functions.push(func);
         }
+
+        // Generate a main function
+        // This means we can do any setup, e.g. call `__init`, without it repeating if the input
+        // code calls its own `main` recursively
+        let main_func_name = "__main";
+        let mut main_func_trans = FunctionTranslator::new(
+            FunctionBuilder::new(&main_func_name, &[]),
+            &functions,
+            &data,
+            HashMap::new(),
+        );
+        let (_, start_block) = main_func_trans.func.new_basic_block();
+        main_func_trans.target = Some(start_block);
+
+        // Generate call to `__init`, if it exists
+        if need_to_generate_init {
+            let init_func_ref = main_func_trans.target_mut().add_instruction(
+                Instruction::new(ir::InstructionKind::FunctionReference {
+                    name: "__init".to_owned(),
+                    ty: ir::Type::FunctionReference { argument_types: vec![], return_type: Box::new(ir::Type::Void) },
+                })
+            );
+            main_func_trans.target_mut().add_instruction(
+                Instruction::new(ir::InstructionKind::Call {
+                    target: init_func_ref,
+                    arguments: vec![],
+                })
+            );
+        }
+
+        // Call the entry point
+        let init_func_ref = main_func_trans.target_mut().add_instruction(
+            Instruction::new(ir::InstructionKind::FunctionReference {
+                name: self.entry.clone(),
+                ty: ir::Type::FunctionReference { argument_types: vec![], return_type: Box::new(ir::Type::Void) },
+            })
+        );
+        main_func_trans.target_mut().add_instruction(
+            Instruction::new(ir::InstructionKind::Call {
+                target: init_func_ref,
+                arguments: vec![],
+            })
+        );
+
+        // Wrap it up
+        // (I guess it's UB what happens if `__main` returns on hardware...)
+        main_func_trans.target_mut().add_terminator(
+            Instruction::new(ir::InstructionKind::Return(None)),
+        );
+        main_func_trans.finalize_target();
+
+        // Add to module
+        let func = main_func_trans.func.finalize();
+        self.module.functions.push(func);        
+
+        // Set entry point to that `__main` we just made
+        self.module.entry = Some(main_func_name.to_string());
 
         errors.map_inner(|_| self.module)
     }
