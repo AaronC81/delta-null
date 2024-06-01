@@ -60,6 +60,13 @@ pub enum InstructionKind {
         ty: Type,
     },
 
+    /// Acquires a [Type::Pointer] to a named data item.
+    /// (`ty` will be wrapped in a [Type::Pointer], it is not expected to itself be one.)
+    DataReference {
+        name: String,
+        ty: Type,
+    },
+
     /// Reads the current value of a local.
     ReadLocal(LocalId),
 
@@ -202,6 +209,7 @@ impl Instruction {
             InstructionKind::Constant(_) => hashset!{},
             InstructionKind::CastReinterpret { value, ty: _ } => hashset!{ *value },
             InstructionKind::FunctionReference { .. } => hashset!{},
+            InstructionKind::DataReference { .. } => hashset!{},
             InstructionKind::ReadLocal(_) => hashset!{},
             InstructionKind::WriteLocal(_, v) => hashset!{ *v },
             InstructionKind::AddressOfLocal(_) => hashset!{},
@@ -250,6 +258,7 @@ impl Instruction {
             InstructionKind::Constant(v) => Ok(Some(v.ty())),
             InstructionKind::CastReinterpret { value: _, ty } => Ok(Some(ty.clone())),
             InstructionKind::FunctionReference { ty, .. } => Ok(Some(ty.clone())),
+            InstructionKind::DataReference { .. } => Ok(Some(Type::Pointer)),
 
             InstructionKind::ReadLocal(l) => Ok(Some(locals.get_local(*l).ty.clone())),
             InstructionKind::WriteLocal(_, _) => Ok(None),
@@ -354,6 +363,8 @@ impl PrintIR for Instruction {
                 format!("cast (reinterpret) {} as {}", value.print_ir(options), ty),
             InstructionKind::FunctionReference { name, ty } =>
                 format!("funcref `{name}` : {ty}"),
+            InstructionKind::DataReference { name, ty } =>
+                format!("dataref `{name}` : {ty} (as ptr)"),
 
             InstructionKind::ReadLocal(l) => format!("read {}", l.print_ir(options)),
             InstructionKind::WriteLocal(l, v) => format!("write {} = {}", l.print_ir(options), v.print_ir(options)),

@@ -95,6 +95,11 @@ pub enum TopLevelItemKind<D, Ty> {
     Use {
         path: String,
     },
+    VariableDeclaration {
+        name: String,
+        ty: Ty,
+        value: Option<Expression<D, Ty>>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

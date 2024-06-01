@@ -18,6 +18,7 @@ pub use printer::*;
 #[derive(Debug, Clone)]
 pub struct Module {
     pub functions: Vec<Function>,
+    pub data: Vec<Data>,
 
     /// If this module is executable, the name of the function which acts as an entry point.
     pub entry: Option<String>,
@@ -26,7 +27,7 @@ pub struct Module {
 impl Module {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
-        Module { functions: vec![], entry: None }
+        Module { functions: vec![], data: vec![], entry: None }
     }
 
     /// Outputs the GraphViz DOT source code for a `digraph` displaying each function's.
@@ -39,6 +40,13 @@ impl Module {
                 .join("\n\n")
         )
     }
+}
+
+/// An allocation of some arbitrary data, like a global variable.
+#[derive(Debug, Clone)]
+pub struct Data {
+    pub name: String,
+    pub ty: Type,
 }
 
 /// A single function, which is composed of many basic blocks.

@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Display, error::Error};
 
-use delta_null_lang_backend::ir::{Module, FunctionBuilder, LocalId, BasicBlockBuilder, VariableId, self, Instruction, BasicBlockId};
+use delta_null_lang_backend::ir::{self, BasicBlockBuilder, BasicBlockId, Data, FunctionBuilder, Instruction, LocalId, Module, VariableId};
 
 use crate::{fallible::{Fallible, MaybeFatal}, node::{self, ComparisonBinOp, Statement, TopLevelItemKind}, type_check::{self, Type}};
 
@@ -21,8 +21,9 @@ impl ModuleTranslator {
 
     pub fn translate_items(&mut self, module: &node::Module<ExpressionData, Type>) -> Fallible<MaybeFatal<()>, TranslateError> {
         let mut functions = HashMap::new();
+        let mut data = HashMap::new();
 
-        // Build up list of functions
+        // Build up list of functions and data items
         for item in &module.items {
             if let TopLevelItemKind::FunctionDefinition { name, parameters, return_type, body: _ } = &item.kind {
                 // TODO: crap that we're still converting here
@@ -36,6 +37,10 @@ impl ModuleTranslator {
                         return_type: Box::new(return_type),
                     }
                 );
+            }
+
+            if let TopLevelItemKind::VariableDeclaration { name, ty, value } = &item.kind {
+                data.insert(name.to_owned(), ty.to_ir_type());
             }
         }
 
@@ -53,6 +58,7 @@ impl ModuleTranslator {
                                 .collect::<Vec<_>>(),
                         ),
                         &functions,
+                        &data,
                         parameters.iter()
                             .map(|p| {
                                 (p.name.clone(), p.ty.to_ir_type())
@@ -90,7 +96,20 @@ impl ModuleTranslator {
                 TopLevelItemKind::TypeAlias { .. } => {},
 
                 // No translation required for imports - they were already resolved
-                TopLevelItemKind::Use { .. } => {}
+                TopLevelItemKind::Use { .. } => {},
+
+                TopLevelItemKind::VariableDeclaration { name, ty, value } => {
+                    if value.is_some() {
+                        // TODO
+                        panic!("globals with initial values aren't yet supported");
+                    }
+
+                    // Add data to module
+                    self.module.data.push(Data {
+                        name: name.clone(),
+                        ty: ty.to_ir_type(),
+                    })
+                }
             }
         }
 
@@ -133,6 +152,9 @@ pub struct FunctionTranslator<'c> {
 
     /// The types of defined functions.
     functions: &'c HashMap<String, ir::Type>,
+
+    /// The types of defined data items.
+    data: &'c HashMap<String, ir::Type>,
 
     /// The types of defined arguments.
     arguments: HashMap<String, ir::Type>,
@@ -188,7 +210,8 @@ impl Value {
         }
     }
 
-    /// Creates a new readable and writable [Value], given instruction builders for each.
+    /// Creates a new readable, writable, and "pointer-gettable"(!?) [Value], given instruction
+    /// builders for each.
     fn new_read_write_pointer(
         read: impl FnOnce(&mut BasicBlockBuilder) -> VariableId + 'static,
         write: impl FnOnce(&mut BasicBlockBuilder, VariableId) + 'static,
@@ -224,6 +247,7 @@ impl<'c> FunctionTranslator<'c> {
     pub fn new(
         func: FunctionBuilder,
         functions: &'c HashMap<String, ir::Type>,
+        data: &'c HashMap<String, ir::Type>,
         arguments: HashMap<String, ir::Type>,
     ) -> Self {
         Self {
@@ -232,6 +256,7 @@ impl<'c> FunctionTranslator<'c> {
             target: None,
             break_target: None,
             functions,
+            data,
             arguments,
         }
     }
@@ -506,6 +531,44 @@ impl<'c> FunctionTranslator<'c> {
                 } else if self.arguments.get(id).is_some() {
                     let arg = self.func.get_argument(id).unwrap();
                     Fallible::new_ok(Value::new_read_only(move |_| arg))
+                } else if let Some(ty) = self.data.get(id) {
+                    // Fighting with the borrow checker, and losing. Very badly
+                    let name_1 = id.clone();
+                    let ty_1 = ty.clone();
+                    let name_2 = id.clone();
+                    let ty_2 = ty.clone();
+                    let name_3 = id.clone();
+                    let ty_3 = ty.clone();
+                    Fallible::new_ok(
+                        Value::new_read_write_pointer(
+                            move |target| {
+                                let address = target.add_instruction(ir::Instruction::new(ir::InstructionKind::DataReference {
+                                    name: name_1.clone(),
+                                    ty: ty_1.clone(),
+                                }));
+                                target.add_instruction(ir::Instruction::new(ir::InstructionKind::ReadMemory {
+                                    address,
+                                    ty: ty_1,
+                                }))
+                            },
+                            move |target, value| {
+                                let address = target.add_instruction(ir::Instruction::new(ir::InstructionKind::DataReference {
+                                    name: name_2.clone(),
+                                    ty: ty_2.clone(),
+                                }));
+                                target.add_void_instruction(ir::Instruction::new(ir::InstructionKind::WriteMemory {
+                                    address,
+                                    value,
+                                }));
+                            },
+                            move |target| {
+                                target.add_instruction(ir::Instruction::new(ir::InstructionKind::DataReference {
+                                    name: name_3.clone(),
+                                    ty: ty_3.clone(),
+                                }))
+                            },
+                        )
+                    )
                 } else {
                     Fallible::new_fatal(vec![
                         TranslateError::new(&format!("unknown item `{id}`")),

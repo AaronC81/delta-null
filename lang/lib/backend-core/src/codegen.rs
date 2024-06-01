@@ -107,7 +107,8 @@ impl<'f> FunctionGenerator<'f> {
                 ));
             }
 
-            ir::InstructionKind::FunctionReference { name, .. } => {
+            ir::InstructionKind::FunctionReference { name, .. } 
+            | ir::InstructionKind::DataReference { name, .. } => {
                 let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return 0 };
                 buffer.push(AssemblyItem::new_word_put(
                     result,

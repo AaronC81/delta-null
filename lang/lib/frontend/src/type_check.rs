@@ -140,6 +140,17 @@ pub struct LocalContext {
     return_type: Type,
 }
 
+impl LocalContext {
+    /// Creates a blank context, useful for globally-evaluated expressions.
+    pub fn blank() -> Self {
+        LocalContext {
+            variables: HashMap::new(),
+            arguments: HashMap::new(),
+            return_type: Type::Direct(ir::Type::Void),
+        }
+    }
+}
+
 /// Type-checks an entire module. During this process, [node::Type]s are converted into [Type]s,
 /// and type information is associated with each expression.
 pub fn type_check_module(module: Module) -> Fallible<Module<Type, Type>, TypeError> {
@@ -175,7 +186,12 @@ pub fn type_check_module(module: Module) -> Fallible<Module<Type, Type>, TypeErr
             },
 
             // No context required for imports
-            TopLevelItemKind::Use { .. } => {}
+            TopLevelItemKind::Use { .. } => {},
+
+            TopLevelItemKind::VariableDeclaration { name, ty, value: _ } => {
+                let ty = convert_node_type(ty, &module_ctx).propagate(&mut errors);
+                module_ctx.globals.insert(name.clone(), ty);
+            }
         }
     }
 
@@ -226,7 +242,20 @@ pub fn type_check_module(module: Module) -> Fallible<Module<Type, Type>, TypeErr
                 },
 
                 // No type checking or conversion required for imports
-                TopLevelItemKind::Use { path } => TopLevelItemKind::Use { path }
+                TopLevelItemKind::Use { path } => TopLevelItemKind::Use { path },
+
+                TopLevelItemKind::VariableDeclaration { name, ty, value } => {
+                    let value = value.map(|v| {
+                        let mut ctx = Context {
+                            local: LocalContext::blank(),
+                            module: &module_ctx,
+                        };
+                        type_check_expression(v, &mut ctx).propagate(&mut errors)
+                    });
+
+                    let ty = convert_node_type(&ty, &module_ctx).propagate(&mut errors);
+                    TopLevelItemKind::VariableDeclaration { name, ty, value }
+                }
             })
         });
 

@@ -4,7 +4,8 @@
 #![feature(let_chains)]
 
 use codegen::FunctionGenerator;
-use delta_null_core_assembler::{BuildError, AssemblyItem};
+use delta_null_core_assembler::{AssemblyItem, AssemblyItemKind, BuildError};
+use delta_null_core_instructions::InstructionOpcode;
 use delta_null_lang_backend::{analysis::{flow::ControlFlowGraph, liveness::liveness_analysis, misc::is_leaf_function}, ir::{Function, Module}};
 use peephole::peephole_optimise;
 use reg_alloc::allocate;
@@ -33,6 +34,19 @@ pub fn compile_module(module: &Module) -> Result<Vec<AssemblyItem>, Vec<BuildErr
     let mut items = vec![];
     for func in entry_funcs.iter().chain(other_funcs.iter()) {
         items.extend(compile_function(func)?);
+    }
+
+    // Create data slots
+    for datum in &module.data {
+        let size_after_first_word = datum.ty.word_size() - 1;
+
+        items.push(AssemblyItem {
+            labels: vec![datum.name.clone()],
+            kind: AssemblyItemKind::Instruction(InstructionOpcode::Nop, vec![]),
+        });
+        for _ in 0..size_after_first_word {
+            items.push(AssemblyItem::new_instruction(InstructionOpcode::Nop, &[]));
+        }
     }
 
     Ok(items)

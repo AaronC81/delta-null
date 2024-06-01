@@ -39,6 +39,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             TokenKind::KwFn => self.parse_function_definition(),
             TokenKind::KwType => self.parse_type_alias(),
             TokenKind::KwUse => self.parse_use(),
+            TokenKind::KwVar => self.parse_top_level_var_declaration(),
 
             _ => {
                 let token = self.tokens.next().unwrap();
@@ -111,29 +112,17 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
             Some(TokenKind::KwVar) => {
                 self.tokens.next();
-                let mut errors = Fallible::new(());
 
-                // Parse name and type
-                let (name, ty) = self.parse_typed_identifier()?.propagate(&mut errors);
-
-                // Parse initial value, if given
-                let value =
-                    if let Some(TokenKind::Equals) = self.tokens.peek().map(|t| &t.kind) {
-                        self.tokens.next();
-                        Some(self.parse_expression()?.propagate(&mut errors))
-                    } else {
-                        None
-                    };
-
-                self.expect(TokenKind::Semicolon)?;
-
-                // Construct node
-                errors.map(|_|
-                    Statement::new(StatementKind::VariableDeclaration {
-                        name,
-                        ty,
-                        value,
-                    }, loc).into())
+                // Parse
+                self.parse_var_like_declaration()?
+                    .combine(self.expect(TokenKind::Semicolon)?)
+                    .map(|((name, ty, value), _)| {
+                        Statement::new(StatementKind::VariableDeclaration {
+                            name,
+                            ty,
+                            value,
+                        }, loc).into()
+                    })
             }
 
             Some(TokenKind::LBrace) => self.parse_body()
@@ -753,6 +742,45 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             kind: TopLevelItemKind::Use { path },
             loc,
         })
+    }
+
+    /// Parse a `var` declaration at the top-level of the file (a global).
+    pub fn parse_top_level_var_declaration(&mut self) -> Fallible<MaybeFatal<TopLevelItem>, ParseError> {
+        let loc = self.here_loc();
+        self.expect(TokenKind::KwVar)?;
+
+        // Parse
+        self.parse_var_like_declaration()?
+            .combine(self.expect(TokenKind::Semicolon)?)
+            .map(|((name, ty, value), _)| {
+                TopLevelItem::new(TopLevelItemKind::VariableDeclaration {
+                    name,
+                    ty,
+                    value,
+                }, loc).into()
+            })
+    }
+
+    /// Parses something which looks a bit like a variable declaration, without the starting keyword
+    /// or closing `;`.
+    /// 
+    /// Returns: `(name, type, initial_value)`
+    fn parse_var_like_declaration(&mut self) -> Fallible<MaybeFatal<(String, Type, Option<Expression>)>, ParseError> {
+        let mut errors = Fallible::new_ok(());
+
+        // Parse name and type
+        let (name, ty) = self.parse_typed_identifier()?.propagate(&mut errors);
+
+        // Parse initial value, if given
+        let value =
+        if let Some(TokenKind::Equals) = self.tokens.peek().map(|t| &t.kind) {
+            self.tokens.next();
+            Some(self.parse_expression()?.propagate(&mut errors))
+        } else {
+            None
+        };
+
+        errors.map_inner(|_| (name, ty, value))
     }
 
     /// Assume that the next token has the given [TokenKind], and returns it, else fail with a parse
