@@ -64,7 +64,6 @@ pub enum InstructionKind {
     /// (`ty` will be wrapped in a [Type::Pointer], it is not expected to itself be one.)
     DataReference {
         name: String,
-        ty: Type,
     },
 
     /// Reads the current value of a local.
@@ -363,8 +362,8 @@ impl PrintIR for Instruction {
                 format!("cast (reinterpret) {} as {}", value.print_ir(options), ty),
             InstructionKind::FunctionReference { name, ty } =>
                 format!("funcref `{name}` : {ty}"),
-            InstructionKind::DataReference { name, ty } =>
-                format!("dataref `{name}` : {ty} (as ptr)"),
+            InstructionKind::DataReference { name } =>
+                format!("dataref `{name}`"),
 
             InstructionKind::ReadLocal(l) => format!("read {}", l.print_ir(options)),
             InstructionKind::WriteLocal(l, v) => format!("write {} = {}", l.print_ir(options), v.print_ir(options)),

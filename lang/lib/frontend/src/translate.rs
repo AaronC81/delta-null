@@ -534,27 +534,23 @@ impl<'c> FunctionTranslator<'c> {
                 } else if let Some(ty) = self.data.get(id) {
                     // Fighting with the borrow checker, and losing. Very badly
                     let name_1 = id.clone();
-                    let ty_1 = ty.clone();
                     let name_2 = id.clone();
-                    let ty_2 = ty.clone();
                     let name_3 = id.clone();
-                    let ty_3 = ty.clone();
+                    let ty = ty.clone();
                     Fallible::new_ok(
                         Value::new_read_write_pointer(
                             move |target| {
                                 let address = target.add_instruction(ir::Instruction::new(ir::InstructionKind::DataReference {
                                     name: name_1.clone(),
-                                    ty: ty_1.clone(),
                                 }));
                                 target.add_instruction(ir::Instruction::new(ir::InstructionKind::ReadMemory {
                                     address,
-                                    ty: ty_1,
+                                    ty,
                                 }))
                             },
                             move |target, value| {
                                 let address = target.add_instruction(ir::Instruction::new(ir::InstructionKind::DataReference {
                                     name: name_2.clone(),
-                                    ty: ty_2.clone(),
                                 }));
                                 target.add_void_instruction(ir::Instruction::new(ir::InstructionKind::WriteMemory {
                                     address,
@@ -564,7 +560,6 @@ impl<'c> FunctionTranslator<'c> {
                             move |target| {
                                 target.add_instruction(ir::Instruction::new(ir::InstructionKind::DataReference {
                                     name: name_3.clone(),
-                                    ty: ty_3.clone(),
                                 }))
                             },
                         )
