@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Display, error::Error};
 
-use delta_null_lang_backend::ir::{self, BasicBlockBuilder, BasicBlockId, Data, FunctionBuilder, Instruction, LocalId, Module, VariableId};
+use delta_null_lang_backend::ir::{self, BasicBlockBuilder, BasicBlockId, Data, Function, FunctionBuilder, Instruction, LocalId, Module, VariableId};
 
 use crate::{fallible::{Fallible, MaybeFatal}, node::{self, ComparisonBinOp, Statement, TopLevelItemKind}, type_check::{self, Type}};
 
@@ -63,17 +63,12 @@ impl<'i> ModuleTranslator<'i> {
                         }, loc.clone());
                     }
 
-                    // Set up translator
-                    let (_, start_block) = func_trans.func.new_basic_block();
-                    func_trans.target = Some(start_block);
-
                     // Translate function body
+                    func_trans.create_root_block();
                     func_trans.translate_statement(&body)?;
-                    func_trans.finalize_target();
 
                     // Add to module
-                    let func = func_trans.func.finalize();
-                    self.module.functions.push(func);
+                    self.module.functions.push(func_trans.finalize());
                 },
 
                 // No translation required for type aliases - type-checker did that already
@@ -105,14 +100,8 @@ impl<'i> ModuleTranslator<'i> {
         let need_to_generate_init = !initialised_data.is_empty();
         if need_to_generate_init {
             // Create and initialise function builder
-            let mut init_func_trans = FunctionTranslator::new(
-                FunctionBuilder::new("__init", &[]),
-                &functions,
-                &data,
-                HashMap::new(),
-            );
-            let (_, start_block) = init_func_trans.func.new_basic_block();
-            init_func_trans.target = Some(start_block);
+            let mut init_func_trans = FunctionTranslator::new_nullary("__init", &functions, &data);
+            init_func_trans.create_root_block();
 
             // Generate assignments
             for (name, datum) in initialised_data {
@@ -132,29 +121,21 @@ impl<'i> ModuleTranslator<'i> {
                 );
             }
 
-            // Wrap it up
+            // Add terminator
             init_func_trans.target_mut().add_terminator(
                 Instruction::new(ir::InstructionKind::Return(None)),
             );
-            init_func_trans.finalize_target();
 
             // Add to module
-            let func = init_func_trans.func.finalize();
-            self.module.functions.push(func);
+            self.module.functions.push(init_func_trans.finalize());
         }
 
         // Generate a main function
         // This means we can do any setup, e.g. call `__init`, without it repeating if the input
         // code calls its own `main` recursively
         let main_func_name = "__main";
-        let mut main_func_trans = FunctionTranslator::new(
-            FunctionBuilder::new(&main_func_name, &[]),
-            &functions,
-            &data,
-            HashMap::new(),
-        );
-        let (_, start_block) = main_func_trans.func.new_basic_block();
-        main_func_trans.target = Some(start_block);
+        let mut main_func_trans = FunctionTranslator::new_nullary(&main_func_name, &functions, &data);
+        main_func_trans.create_root_block();
 
         // Generate call to `__init`, if it exists
         if need_to_generate_init {
@@ -184,11 +165,9 @@ impl<'i> ModuleTranslator<'i> {
         main_func_trans.target_mut().add_terminator(
             Instruction::new(ir::InstructionKind::Jump(main_func_ref)),
         );
-        main_func_trans.finalize_target();
 
         // Add to module
-        let func = main_func_trans.func.finalize();
-        self.module.functions.push(func);        
+        self.module.functions.push(main_func_trans.finalize());        
 
         // Set entry point to that `__main` we just made
         self.module.entry = Some(main_func_name.to_string());
@@ -235,44 +214,6 @@ impl<'i> ModuleTranslator<'i> {
         }
         initialised_data
     }
-}
-
-/// Translates the contents of a function into an IR function, using the [FunctionBuilder]
-/// interface.
-pub struct FunctionTranslator<'c> {
-    /// The function currently being built.
-    func: FunctionBuilder,
-
-    /// A map of local variables to their ID. Currently, this is pregenerated and static throughout
-    /// the entire function, even if certain locals are only defined in certain branches.
-    locals: HashMap<String, LocalId>,
-
-    /// The basic block which IR instructions are currently being generated onto the end of.
-    /// 
-    /// For simple sequential statements, this will stay the same, but any statements which
-    /// introduce control flow (like `if` or `loop`) could change this multiple times during their
-    /// translation.
-    /// 
-    /// Should never become [None] for any significant period of time, during usage - this is mainly
-    /// here to enable usage of `Option::take`.
-    target: Option<BasicBlockBuilder>,
-
-    /// The basic block to jump to if a `break` statement is executed.
-    /// 
-    /// Breakable constructs can be nested, so when introducing a new one, the implementation should
-    /// take care to preserve the current one and restore it afterwards.
-    /// 
-    /// If [None], a `break` is not valid here.
-    break_target: Option<BasicBlockId>,
-
-    /// The types of defined functions.
-    functions: &'c HashMap<String, ir::Type>,
-
-    /// The types of defined data items.
-    data: &'c HashMap<String, ir::Type>,
-
-    /// The types of defined arguments.
-    arguments: HashMap<String, ir::Type>,
 }
 
 /// Represents possible usages of a value returned by an expression.
@@ -358,6 +299,44 @@ impl Value {
     }
 }
 
+/// Translates the contents of a function into an IR function, using the [FunctionBuilder]
+/// interface.
+pub struct FunctionTranslator<'c> {
+    /// The function currently being built.
+    func: FunctionBuilder,
+
+    /// A map of local variables to their ID. Currently, this is pregenerated and static throughout
+    /// the entire function, even if certain locals are only defined in certain branches.
+    locals: HashMap<String, LocalId>,
+
+    /// The basic block which IR instructions are currently being generated onto the end of.
+    /// 
+    /// For simple sequential statements, this will stay the same, but any statements which
+    /// introduce control flow (like `if` or `loop`) could change this multiple times during their
+    /// translation.
+    /// 
+    /// Should never become [None] for any significant period of time, during usage - this is mainly
+    /// here to enable usage of `Option::take`.
+    target: Option<BasicBlockBuilder>,
+
+    /// The basic block to jump to if a `break` statement is executed.
+    /// 
+    /// Breakable constructs can be nested, so when introducing a new one, the implementation should
+    /// take care to preserve the current one and restore it afterwards.
+    /// 
+    /// If [None], a `break` is not valid here.
+    break_target: Option<BasicBlockId>,
+
+    /// The types of defined functions.
+    functions: &'c HashMap<String, ir::Type>,
+
+    /// The types of defined data items.
+    data: &'c HashMap<String, ir::Type>,
+
+    /// The types of defined arguments.
+    arguments: HashMap<String, ir::Type>,
+}
+
 impl<'c> FunctionTranslator<'c> {
     pub fn new(
         func: FunctionBuilder,
@@ -374,6 +353,27 @@ impl<'c> FunctionTranslator<'c> {
             data,
             arguments,
         }
+    }
+
+    /// Shorthand for creating a translator for a function with no arguments.
+    pub fn new_nullary(
+        name: &str,
+        functions: &'c HashMap<String, ir::Type>,
+        data: &'c HashMap<String, ir::Type>,
+    ) -> Self {
+        Self::new(
+            FunctionBuilder::new(name, &[]),
+            &functions,
+            &data,
+            HashMap::new(),
+        )
+    }
+
+    /// Create a new, disconnected block, and set it as the target for instruction generation.
+    /// Required before generating any instructions.
+    pub fn create_root_block(&mut self) {
+        let (_, start_block) = self.func.new_basic_block();
+        self.target = Some(start_block);
     }
 
     /// Builds a mapping of local variables to their IR [LocalId]s.
@@ -992,6 +992,13 @@ impl<'c> FunctionTranslator<'c> {
         self.finalize_target();
         self.target = Some(new);
     }
+
+    /// Finalise the current basic block and the inner instruction generator, then return the
+    /// translated function.
+    pub fn finalize(mut self) -> Function {
+        self.finalize_target();
+        self.func.finalize()
+    } 
 
     /// Given a target expression of type [type_check::Type::Array], and an index expression of
     /// integral type, generates an expression which evaluates to a pointer to the given element
