@@ -1,4 +1,4 @@
-type HCR = struct {
+type Hcr = struct {
     magic: u16,
     harness_indicator: u16,
     __pad: [14]u16,
@@ -9,6 +9,4 @@ type HCR = struct {
     pin_out_hi: u16,
 };
 
-fn hcr_get() -> *HCR {
-    return 0xF000 as *HCR;
-}
+var HCR: *Hcr = 0xF000 as *Hcr;

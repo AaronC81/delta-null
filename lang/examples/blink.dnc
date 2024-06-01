@@ -8,12 +8,11 @@ fn main() {
     // Set LED as output
     gpio_mode_output(led_bank, led_pin);
     
-    var timer: *Timer = timer_get();
-    timer_start_repeating(timer, 0x000F, 0x4240); // 000F 4240 = 1,000,000 us = 1s
+    timer_start_repeating(0x000F, 0x4240); // 000F 4240 = 1,000,000 us = 1s
     loop {
-        timer_wait(timer);
+        timer_wait();
         gpio_write(led_bank, led_pin, 1);
-        timer_wait(timer);
+        timer_wait();
         gpio_write(led_bank, led_pin, 0);
     }
 }

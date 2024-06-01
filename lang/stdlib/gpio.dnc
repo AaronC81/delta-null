@@ -1,9 +1,7 @@
 use "hcr.dnc";
 
 fn gpio_mode_output(bank: u16, pin: u16) {
-    var hcr: *HCR = hcr_get();
-
-    var banks_ptr: *u16 = &hcr.*.pin_mode_lo;
+    var banks_ptr: *u16 = &HCR.*.pin_mode_lo;
     var bank_ptr: *u16 = banks_ptr + bank;
 
     // Output is 1
@@ -11,9 +9,7 @@ fn gpio_mode_output(bank: u16, pin: u16) {
 }
 
 fn gpio_mode_input(bank: u16, pin: u16) {
-    var hcr: *HCR = hcr_get();
-
-    var banks_ptr: *u16 = &hcr.*.pin_mode_lo;
+    var banks_ptr: *u16 = &HCR.*.pin_mode_lo;
     var bank_ptr: *u16 = banks_ptr + bank;
 
     // Input is 0
@@ -21,9 +17,7 @@ fn gpio_mode_input(bank: u16, pin: u16) {
 }
 
 fn gpio_write(bank: u16, pin: u16, value: u16) {
-    var hcr: *HCR = hcr_get();
-
-    var banks_ptr: *u16 = &hcr.*.pin_out_lo;
+    var banks_ptr: *u16 = &HCR.*.pin_out_lo;
     var bank_ptr: *u16 = banks_ptr + bank;
 
     if (value > 0) { 

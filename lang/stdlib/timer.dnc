@@ -5,21 +5,19 @@ type Timer = struct {
     target_hi: u16,
 };
 
-fn timer_get() -> *Timer {
-    return 0xF100 as *Timer;
+var TIMER: *Timer = 0xF100 as *Timer;
+
+fn timer_start_repeating(time_hi: u16, time_lo: u16) {
+    TIMER.*.target_lo = time_lo;
+    TIMER.*.target_hi = time_hi;
+    TIMER.*.control = TIMER.*.control | 0b11; // repeating | running
 }
 
-fn timer_start_repeating(timer: *Timer, time_hi: u16, time_lo: u16) {
-    timer.*.target_lo = time_lo;
-    timer.*.target_hi = time_hi;
-    timer.*.control = timer.*.control | 0b11; // repeating | running
-}
-
-fn timer_wait(timer: *Timer) {
+fn timer_wait() {
     // Wait for `fired` bit
     loop {
-        if (timer.*.status & 0b1) == 1 {
-            timer.*.status = 0; // reset
+        if (TIMER.*.status & 0b1) == 1 {
+            TIMER.*.status = 0; // reset
             break;
         }
     }
