@@ -30,7 +30,33 @@ impl Module {
         Module { functions: vec![], data: vec![], entry: None }
     }
 
-    /// Outputs the GraphViz DOT source code for a `digraph` displaying each function's.
+    /// Outputs text describing the IR for this module.
+    pub fn print_ir(&self, options: &PrintOptions) -> String {
+        let data;
+        if !self.data.is_empty() {
+            data = format!(
+                "== Data\n\n{}\n\n",
+                self.data.iter()
+                    .map(|d| format!("{} : {}", d.name, d.ty))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            );
+        } else {
+            data = String::new();
+        }
+
+        let functions = format!(
+            "== Functions\n\n{}",
+            self.functions.iter()
+                .map(|f| f.print_ir(options))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+
+        format!("{data}{functions}")
+    }
+
+    /// Outputs the GraphViz DOT source code for a `digraph` displaying the IR for this module.
     pub fn print_ir_as_graph(&self, options: &PrintOptions) -> String {
         format!(
             "digraph module {{\n{}\n}}",

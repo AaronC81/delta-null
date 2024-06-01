@@ -67,10 +67,7 @@ fn main() {
     // `--ir` stops here
     if let Some(ir_format) = args.ir {
         let content = match ir_format {
-            IrFormat::Text => module.functions.iter()
-                .map(|f| f.print_ir(&PrintOptions::new()))
-                .collect::<Vec<_>>()
-                .join("\n"),
+            IrFormat::Text => module.print_ir(&PrintOptions::new()),
             IrFormat::Dot => module.print_ir_as_graph(&PrintOptions::new()),
         };
         println!("{}", content);
