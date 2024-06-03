@@ -102,12 +102,19 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             Some(TokenKind::KwReturn) => {
                 self.tokens.next();
 
-                // Parse rest of `return`
-                let value = self.parse_expression()?;
-                self.expect(TokenKind::Semicolon)?;
+                // Returns without a value will just end here
+                let return_value;
+                if let Some(TokenKind::Semicolon) = self.tokens.peek().map(|t| &t.kind) {
+                    self.tokens.next();
+                    return_value = Fallible::new(None);
+                } else {
+                    // Parse return value
+                    return_value = self.parse_expression()?.map(|v| Some(v));
+                    self.expect(TokenKind::Semicolon)?;
+                }
 
-                value.map(|e|
-                    Statement::new(StatementKind::Return(Some(e)), loc).into())
+                return_value.map(|e|
+                    Statement::new(StatementKind::Return(e), loc).into())
             },
 
             Some(TokenKind::KwVar) => {

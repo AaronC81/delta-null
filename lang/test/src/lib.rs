@@ -873,4 +873,26 @@ mod test {
             6 + 5 + 7 + 3
         );
     }
+
+    #[test]
+    fn test_valueless_return() {
+        assert_eq!(
+            util::compile_and_execute("
+                var x: u16;
+
+                fn setter() {
+                    x = 1;
+                    x = 2;
+                    return;
+                    x = 3; // unreachable
+                }
+
+                fn main() -> u16 {
+                    setter();
+                    return x;
+                }
+            ").unwrap(),
+            2
+        );
+    }
 }

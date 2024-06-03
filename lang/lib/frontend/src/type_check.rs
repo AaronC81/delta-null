@@ -316,7 +316,12 @@ pub fn type_check_statement(stmt: Statement<()>, ctx: &mut Context) -> Fallible<
                 if let Some(ref value) = value {
                     check_types_are_assignable(&ctx.local.return_type, &value.data, loc).propagate(&mut errors);
                 } else {
-                    todo!("valueless return")
+                    // Return without a value is only permitted in a function which returns `void`
+                    if !ctx.local.return_type.is_void() {
+                        errors.push_error(TypeError::new(
+                            &format!("must return a value of type `{}`", ctx.local.return_type), loc.clone()
+                        ));
+                    }
                 }
 
                 StatementKind::Return(value)
