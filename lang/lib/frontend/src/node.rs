@@ -86,7 +86,7 @@ pub enum TopLevelItemKind<D, Ty> {
         name: String,
         parameters: Vec<FunctionParameter<Ty>>,
         return_type: Ty,
-        body: Statement<D, Ty>,
+        body: FunctionBody<D, Ty>,
     },
     TypeAlias {
         name: String,
@@ -100,6 +100,16 @@ pub enum TopLevelItemKind<D, Ty> {
         ty: Ty,
         value: Option<Expression<D, Ty>>,
     },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FunctionBody<D = (), Ty = crate::node::Type> {
+    /// This function's body is provided in the source code, as a statement.
+    Statement(Statement<D, Ty>),
+
+    /// This function's body has been omitted, using the `extern` keyword. A definition will be
+    /// assumed to be provided elsewhere.
+    Extern,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

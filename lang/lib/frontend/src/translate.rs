@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Display, error::Error};
 
 use delta_null_lang_backend::ir::{self, BasicBlockBuilder, BasicBlockId, Data, Function, FunctionBuilder, Instruction, LocalId, Module, VariableId};
 
-use crate::{fallible::{Fallible, MaybeFatal}, node::{self, ComparisonBinOp, Statement, TopLevelItemKind}, type_check::{self, Type}};
+use crate::{fallible::{Fallible, MaybeFatal}, node::{self, ComparisonBinOp, FunctionBody, Statement, TopLevelItemKind}, type_check::{self, Type}};
 
 type ExpressionData = crate::type_check::Type;
 
@@ -29,6 +29,9 @@ impl<'i> ModuleTranslator<'i> {
         for item in &self.input.items {
             match &item.kind {
                 TopLevelItemKind::FunctionDefinition { name, parameters, return_type, body } => {
+                    // Only functions with bodies need any translation
+                    let FunctionBody::Statement(body) = body else { continue };
+
                     // Setup
                     let mut func_trans = FunctionTranslator::new(
                         FunctionBuilder::new(
@@ -47,8 +50,9 @@ impl<'i> ModuleTranslator<'i> {
                             })
                             .collect(),
                     );
-                    func_trans.populate_locals(body)?;
 
+                    func_trans.populate_locals(body)?;
+                    
                     // If the function returns `void`, then it's permitted not to have a `return` at
                     // the end. But for consistent codegen, we'll insert one here ourselves.
                     let mut body = body.clone();
@@ -68,7 +72,7 @@ impl<'i> ModuleTranslator<'i> {
                     func_trans.translate_statement(&body)?;
 
                     // Add to module
-                    self.module.functions.push(func_trans.finalize());
+                    self.module.functions.push(func_trans.finalize());    
                 },
 
                 // No translation required for type aliases - type-checker did that already

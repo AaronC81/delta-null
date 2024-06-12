@@ -2,7 +2,7 @@ use std::{fmt::Display, error::Error, collections::HashMap};
 
 use delta_null_lang_backend::ir::{self, IntegerSize};
 
-use crate::{fallible::Fallible, frontend_error, node::{self, Expression, ExpressionKind, Module, Statement, StatementKind, TopLevelItemKind}, source::SourceLocation};
+use crate::{fallible::Fallible, frontend_error, node::{self, Expression, ExpressionKind, FunctionBody, Module, Statement, StatementKind, TopLevelItemKind}, source::SourceLocation};
 
 /// Describes the type of an IR expression.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -219,16 +219,22 @@ pub fn type_check_module(module: Module) -> Fallible<Module<Type, Type>, TypeErr
                         },
                     };
 
-                    // Type-check body
-                    let body = type_check_statement(body, &mut ctx)
-                        .propagate(&mut errors);
+                    // Type-check body, if provided
+                    let body = match body {
+                        FunctionBody::Statement(stmt) => {
+                            let stmt = type_check_statement(stmt, &mut ctx).propagate(&mut errors);
 
-                    // Check that all control paths diverge (return something or loop forever)
-                    if ctx.local.return_type != Type::Direct(ir::Type::Void) && !do_all_paths_diverge(&body) {
-                        errors.push_error(TypeError::new(
-                            &format!("not all control-flow paths of `{name}` return a value"), loc
-                        ))
-                    }
+                            // Check that all control paths diverge (return something or loop forever)
+                            if ctx.local.return_type != Type::Direct(ir::Type::Void) && !do_all_paths_diverge(&stmt) {
+                                errors.push_error(TypeError::new(
+                                    &format!("not all control-flow paths of `{name}` return a value"), loc
+                                ))
+                            }
+
+                            FunctionBody::Statement(stmt)
+                        }
+                        FunctionBody::Extern => FunctionBody::Extern,
+                    };
 
                     TopLevelItemKind::FunctionDefinition { name, parameters, return_type, body }
                 },

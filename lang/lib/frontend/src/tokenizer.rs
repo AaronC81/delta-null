@@ -48,6 +48,7 @@ pub enum TokenKind {
     KwStruct,
     KwSizeof,
     KwUse,
+    KwExtern,
 
     Plus,
     Minus,
@@ -225,6 +226,7 @@ pub fn tokenize(input: &str, input_type: SourceInputType) -> (Vec<Token>, Vec<To
                     "struct" => TokenKind::KwStruct,
                     "sizeof" => TokenKind::KwSizeof,
                     "use" => TokenKind::KwUse,
+                    "extern" => TokenKind::KwExtern,
 
                     // Just an identifier
                     _ => TokenKind::Identifier(buffer),

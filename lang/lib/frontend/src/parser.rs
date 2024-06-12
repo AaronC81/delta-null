@@ -1,6 +1,6 @@
 use std::{iter::Peekable, fmt::Display, error::Error};
 
-use crate::{fallible::{Fallible, MaybeFatal}, frontend_error, node::{ArithmeticBinOp, ComparisonBinOp, Expression, ExpressionKind, FunctionParameter, Module, Statement, StatementKind, TopLevelItem, TopLevelItemKind, Type, TypeKind}, source::SourceLocation, tokenizer::{Token, TokenKind}};
+use crate::{fallible::{Fallible, MaybeFatal}, frontend_error, node::{ArithmeticBinOp, ComparisonBinOp, Expression, ExpressionKind, FunctionBody, FunctionParameter, Module, Statement, StatementKind, TopLevelItem, TopLevelItemKind, Type, TypeKind}, source::SourceLocation, tokenizer::{Token, TokenKind}};
 
 /// Parses an iterator of [Token]s, interpreting them into a "module" - a collection of
 /// [TopLevelItem]s (like functions and definitions).
@@ -36,7 +36,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     /// Parse one [TopLevelItem]. (Assumes that there is a token left in the input.)
     pub fn parse_top_level_item(&mut self) -> Fallible<MaybeFatal<TopLevelItem>, ParseError> {
         match self.tokens.peek().expect("`parse_top_level_item` called with no tokens").kind {
-            TokenKind::KwFn => self.parse_function_definition(),
+            TokenKind::KwFn | TokenKind::KwExtern => self.parse_function_definition(),
             TokenKind::KwType => self.parse_type_alias(),
             TokenKind::KwUse => self.parse_use(),
             TokenKind::KwVar => self.parse_top_level_var_declaration(),
@@ -53,6 +53,15 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     /// Parse a function definition.
     pub fn parse_function_definition(&mut self) -> Fallible<MaybeFatal<TopLevelItem>, ParseError> {
         let loc = self.here_loc();
+
+        // Look for `extern`
+        let mut is_extern = false;
+        if self.tokens.peek().map(|t| &t.kind) == Some(&TokenKind::KwExtern) {
+            is_extern = true;
+            self.tokens.next().unwrap();
+        }
+
+        // Take `fn`
         self.expect(TokenKind::KwFn)?;
 
         // Parse function name
@@ -75,19 +84,30 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             } else {
                 Fallible::new(Type::new(TypeKind::Void, loc.clone()))
             };
-
+            
         // Body
-        let statements = self.parse_body();
-        statements
+        let body;
+        if is_extern {
+            // Extern functions don't have a body, and write a semicolon instead
+            self.expect(TokenKind::Semicolon)?;
+            body = Fallible::new(FunctionBody::Extern);
+        } else {
+            let statements = self.parse_body();
+            body = statements.map(|stmts|
+                FunctionBody::Statement(Statement::new(StatementKind::Block {
+                    body: stmts,
+                    trailing_return: false, // TODO
+                }, loc.clone()))
+            );
+        }
+        
+        body
             .combine(return_type)
             .combine(parameters)
-            .map(|((stmts, return_type), parameters)| {
+            .map(|((body, return_type), parameters)| {
                 TopLevelItem::new(TopLevelItemKind::FunctionDefinition {
                     name,
-                    body: Statement::new(StatementKind::Block {
-                        body: stmts,
-                        trailing_return: false, // TODO
-                    }, loc.clone()),
+                    body,
                     parameters,
                     return_type,
                 }, loc).into()
