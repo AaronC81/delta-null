@@ -898,6 +898,26 @@ mod test {
 
     #[test]
     fn test_extern_fn() {
+        // Traditional inline assembly
+        assert_eq!(
+            util::compile_and_execute("
+                extern fn number() -> u16;
+                fn dummy() {
+                    asm {
+                        number:
+                            .put r0, 0xAB
+                            ret
+                    }
+                }
+
+                fn main() -> u16 {
+                    return number();
+                }
+            ").unwrap(),
+            0xAB
+        );
+
+        // Top-level assembly
         assert_eq!(
             util::compile_and_execute("
                 extern fn number() -> u16;
