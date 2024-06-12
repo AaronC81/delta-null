@@ -1,6 +1,6 @@
 use delta_null_core_assembler::Builder;
 use delta_null_core_emulator::{Core, memory::{Memory, SimpleMemory}, ExecutionError};
-use delta_null_lang_backend::ir::{Function, Module};
+use delta_null_lang_backend::ir::{Function, Module, ModuleItem};
 
 use crate::compile_module;
 
@@ -29,7 +29,7 @@ pub fn execute_function(instructions: &[u16]) -> Core<impl Memory> {
 /// Performs all necessary analysis on a function and then compiles it into DNA instructions.
 pub fn compile_function(func: &Function) -> Vec<u16> {
     let mut module = Module::new();
-    module.functions.push(func.clone());
+    module.items.push(ModuleItem::Function(func.clone()));
     module.entry = Some(func.name.clone());
 
     let asm = compile_module(&module).unwrap();

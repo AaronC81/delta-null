@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Display, error::Error};
 
-use delta_null_lang_backend::ir::{self, BasicBlockBuilder, BasicBlockId, Data, Function, FunctionBuilder, Instruction, LocalId, Module, VariableId};
+use delta_null_lang_backend::ir::{self, BasicBlockBuilder, BasicBlockId, Data, Function, FunctionBuilder, Instruction, LocalId, Module, ModuleItem, VariableId};
 
 use crate::{fallible::{Fallible, MaybeFatal}, node::{self, ComparisonBinOp, FunctionBody, Statement, TopLevelItemKind}, type_check::{self, Type}};
 
@@ -72,7 +72,7 @@ impl<'i> ModuleTranslator<'i> {
                     func_trans.translate_statement(&body)?;
 
                     // Add to module
-                    self.module.functions.push(func_trans.finalize());    
+                    self.module.items.push(ModuleItem::Function(func_trans.finalize()));
                 },
 
                 // No translation required for type aliases - type-checker did that already
@@ -83,10 +83,10 @@ impl<'i> ModuleTranslator<'i> {
 
                 TopLevelItemKind::VariableDeclaration { name, ty, value } => {
                     // Add data to module
-                    self.module.data.push(Data {
+                    self.module.items.push(ModuleItem::Data(Data {
                         name: name.clone(),
                         ty: ty.to_ir_type(),
-                    })
+                    }));
                 }
             }
         }
@@ -131,7 +131,7 @@ impl<'i> ModuleTranslator<'i> {
             );
 
             // Add to module
-            self.module.functions.push(init_func_trans.finalize());
+            self.module.items.push(ModuleItem::Function(init_func_trans.finalize()));
         }
 
         // Generate a main function
@@ -171,7 +171,7 @@ impl<'i> ModuleTranslator<'i> {
         );
 
         // Add to module
-        self.module.functions.push(main_func_trans.finalize());        
+        self.module.items.push(ModuleItem::Function(main_func_trans.finalize()));
 
         // Set entry point to that `__main` we just made
         self.module.entry = Some(main_func_name.to_string());

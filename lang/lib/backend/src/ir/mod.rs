@@ -17,8 +17,7 @@ pub use printer::*;
 /// A collection of functions which is compiled as a unit.
 #[derive(Debug, Clone)]
 pub struct Module {
-    pub functions: Vec<Function>,
-    pub data: Vec<Data>,
+    pub items: Vec<ModuleItem>,
 
     /// If this module is executable, the name of the function which acts as an entry point.
     pub entry: Option<String>,
@@ -27,27 +26,22 @@ pub struct Module {
 impl Module {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
-        Module { functions: vec![], data: vec![], entry: None }
+        Module { items: vec![], entry: None }
     }
 
     /// Outputs text describing the IR for this module.
     pub fn print_ir(&self, options: &PrintOptions) -> String {
-        let data;
-        if !self.data.is_empty() {
-            data = format!(
-                "== Data\n\n{}\n\n",
-                self.data.iter()
-                    .map(|d| format!("{} : {}", d.name, d.ty))
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-            );
-        } else {
-            data = String::new();
-        }
+        let data = format!(
+            "== Data\n\n{}\n\n",
+            self.data()
+                .map(|d| format!("{} : {}", d.name, d.ty))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        );
 
         let functions = format!(
             "== Functions\n\n{}",
-            self.functions.iter()
+            self.functions()
                 .map(|f| f.print_ir(options))
                 .collect::<Vec<_>>()
                 .join("\n")
@@ -60,12 +54,33 @@ impl Module {
     pub fn print_ir_as_graph(&self, options: &PrintOptions) -> String {
         format!(
             "digraph module {{\n{}\n}}",
-            self.functions.iter()
+            self.functions()
                 .map(|f| f.print_ir_as_graph(options))
                 .collect::<Vec<_>>()
                 .join("\n\n")
         )
     }
+
+    /// Gets all data items in the module.
+    pub fn data(&self) -> impl Iterator<Item = &Data> {
+        self.items.iter().filter_map(|i|
+            if let ModuleItem::Data(d) = i { Some(d) } else { None }
+        )
+    }
+
+    /// Gets all function items in the module.
+    pub fn functions(&self) -> impl Iterator<Item = &Function> {
+        self.items.iter().filter_map(|i|
+            if let ModuleItem::Function(f) = i { Some(f) } else { None }
+        )
+    }
+}
+
+/// An item contained within a module, ready for inclusion in the compiled binary.
+#[derive(Debug, Clone)]
+pub enum ModuleItem {
+    Function(Function),
+    Data(Data),
 }
 
 /// An allocation of some arbitrary data, like a global variable.

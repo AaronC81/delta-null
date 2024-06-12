@@ -25,7 +25,7 @@ pub fn compile_module(module: &Module) -> Result<Vec<AssemblyItem>, Vec<BuildErr
 
     // Find entry function and compile it first, as that's how our program's entry point currently
     // works
-    let (entry_funcs, other_funcs): (Vec<_>, Vec<_>) = module.functions.iter().partition(|f| &f.name == entry);
+    let (entry_funcs, other_funcs): (Vec<_>, Vec<_>) = module.functions().partition(|f| &f.name == entry);
     if entry_funcs.len() != 1 {
         panic!("expected 1 entry point function named {entry}, but found {}", entry.len())
     }
@@ -37,7 +37,7 @@ pub fn compile_module(module: &Module) -> Result<Vec<AssemblyItem>, Vec<BuildErr
     }
 
     // Create data slots
-    for datum in &module.data {
+    for datum in module.data() {
         let size_after_first_word = datum.ty.word_size() - 1;
 
         items.push(AssemblyItem {
