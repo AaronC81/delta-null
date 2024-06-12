@@ -895,4 +895,23 @@ mod test {
             2
         );
     }
+
+    #[test]
+    fn test_extern_fn() {
+        assert_eq!(
+            util::compile_and_execute("
+                extern fn number() -> u16;
+                asm {
+                    number:
+                        .put r0, 0xAB
+                        ret
+                }
+
+                fn main() -> u16 {
+                    return number();
+                }
+            ").unwrap(),
+            0xAB
+        );
+    }
 }
