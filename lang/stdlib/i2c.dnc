@@ -32,7 +32,7 @@ fn i2c_write(config: *I2CConfig, address: u16, data: *u16, length: u16) -> I2CRe
 
     // Start condition - pull SDA *THEN* SCL low
     gpio_write(config.*.sda_bank, config.*.sda_pin, 0);
-    gpio_write(config.*.scl_pin, config.*.scl_pin, 0);
+    gpio_write(config.*.scl_bank, config.*.scl_pin, 0);
     // Sorta hack this by manually setting SDA low, then invoking our standard bit transmission
     //gpio_write(config.*.sda_bank, config.*.sda_pin, 0);
     //i2c_transmit_bit(config, 0);
@@ -40,10 +40,14 @@ fn i2c_write(config: *I2CConfig, address: u16, data: *u16, length: u16) -> I2CRe
     // Address and mode
     i2c_transmit_byte(config, addressByte);
 
-    // TODO: check for ACK
-    // For now, fake a NACK - in the real thing, we'll need to pull clock low and read
+    // Pull down the clock, then release our control of SDA, so that the device can pull it down to
+    // ACK
+    // Then transmit a dummy bit to cycle the clock - because the SDA pin is an input, it won't
+    // actually write the pin's value
+    gpio_write(config.*.scl_bank, config.*.scl_pin, 0);
+    gpio_mode_input(config.*.sda_bank, config.*.sda_pin);
     i2c_transmit_bit(config, 1);
-    i2c_transmit_bit(config, 1);
+    gpio_write(config.*.scl_bank, config.*.scl_pin, 0);
     
     // TODO: transmit data
 
