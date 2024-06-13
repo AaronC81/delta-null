@@ -1,0 +1,200 @@
+use "gpio.dnc";
+use "timer.dnc";
+
+type I2CConfig = struct {
+    scl_bank: u16,
+    scl_pin: u16,
+    sda_bank: u16,
+    sda_pin: u16,
+
+    clock_time_us: u16,
+};
+
+type I2CResult = u16;
+
+// Initialise the SCL and SDA pins selected for I2C communication.
+fn i2c_init(config: *I2CConfig) {
+    i2c_bus_release(config);
+}
+
+// Performs a write to a specific device on the I2C bus, writing `length` bytes from the provided
+// buffer `data`.
+//
+// Only the lower 8 bits of the `address`, and the lower 8 bits of each element of `data`, are used.
+// (We don't currently have a type smaller than `u16`!)
+//
+// Returns an error code, where 0 indicates success.
+fn i2c_write(config: *I2CConfig, address: u16, data: *u16, length: u16) -> I2CResult {
+    // Process address to include write bit, which is a zero
+    var addressByte: u16 = (address << 1);
+
+    i2c_bus_take(config);
+
+    // Start condition - pull SDA *THEN* SCL low
+    gpio_write(config.*.sda_bank, config.*.sda_pin, 0);
+    gpio_write(config.*.scl_pin, config.*.scl_pin, 0);
+    // Sorta hack this by manually setting SDA low, then invoking our standard bit transmission
+    //gpio_write(config.*.sda_bank, config.*.sda_pin, 0);
+    //i2c_transmit_bit(config, 0);
+    
+    // Address and mode
+    i2c_transmit_byte(config, addressByte);
+
+    // TODO: check for ACK
+    // For now, fake a NACK - in the real thing, we'll need to pull clock low and read
+    i2c_transmit_bit(config, 1);
+    i2c_transmit_bit(config, 1);
+    
+    // TODO: transmit data
+
+    i2c_bus_release(config);
+
+    return 0;
+}
+
+// Performs a read from a specific device on the I2C bus, reading up to `length` bytes into the
+// provided buffer `data`.
+//
+// Only the lower 7 bits of the `address` are used, and only the lower 8 bits of each element of
+// `data` are written.
+// (We don't currently have a type smaller than `u16`!)
+//
+// Returns an error code, where 0 indicates success.
+fn i2c_read(config: *I2CConfig, address: u16, data: *u16, length: u16) -> I2CResult {
+    // TODO
+
+    return 1;
+}
+
+// Set the SCL and SDA pins into a driven output mode, ready to be controlled.
+fn i2c_bus_take(config: *I2CConfig) {
+    // Set the output value first, so that when we start driving the signal, it's still high, and
+    // peripherals don't see a change
+    gpio_write(config.*.scl_bank, config.*.scl_pin, 1);
+    gpio_write(config.*.sda_bank, config.*.sda_pin, 1);
+
+    // Set pins to output
+    gpio_mode_output(config.*.scl_bank, config.*.scl_pin);
+    gpio_mode_output(config.*.sda_bank, config.*.sda_pin);
+}
+
+// Set the SCL and SDA pins to a high-impedance state, releasing our control.
+fn i2c_bus_release(config: *I2CConfig) {
+    // Set pins to input (hi-Z)
+    gpio_mode_input(config.*.scl_bank, config.*.scl_pin);
+    gpio_mode_input(config.*.sda_bank, config.*.sda_pin);
+}
+
+// Transmits a byte over the I2C bus, from most- to least-significant bit.
+//
+// Assumes we already have control of the bus.
+fn i2c_transmit_byte(config: *I2CConfig, byte: u16) {
+    var mask: u16 = 0x80;
+    loop {
+        i2c_transmit_bit(config, byte & mask);
+        mask = mask >> 1;
+        if mask == 0 { break; }
+    }
+}
+
+extern fn i2c_transmit_bit(config: *I2CConfig, bit: u16);
+asm {
+i2c_transmit_bit:
+    push r4
+    push r5
+    push r6
+    push r7
+
+    ; Read necessary parts of configuration into registers:
+    ;   r3 = scl bank
+    ;   r4 = scl pin
+    ;   r5 = sda bank
+    ;   r6 = sda pin
+    ;   r7 = clock time
+    ; This will trash r0, but that's fine - we've got all the info we need from it.
+    read r3, r0
+    inc r0
+    read r4, r0
+    inc r0
+    read r5, r0
+    inc r0
+    read r6, r0
+    inc r0
+    read r7, r0
+
+    ; Start non-repeating timer for clock time
+    .put r0, 0xF102 ; Timer.target_lo
+    write r0, r7
+    .put r0, 0xF103 ; Timer.target_hi
+    .put r2, 0
+    write r0, r2
+    .put r0, 0xF100 ; Timer.control
+    .put r2, 1      ; running, not repeating
+    write r0, r2
+
+    ; Set SCL low
+    .put r0, 0xF012 ; HCR.pin_out_lo
+    add r0, r3      ; Select bank
+    eqz r0          ; set EF.cond = 0
+    read r2, r0
+    bitset r2, r4
+    write r0, r2
+
+    ; Set SDA based on `bit` parameter (after pulling the clock, this is required)
+    .put r0, 0xF012 ; HCR.pin_out_lo
+    add r0, r5      ; Select bank
+    eqz r1          ; Set EF.cond to `~bit`
+    inv             ; ...and invert to get `bit`
+    read r2, r0
+    bitset r2, r6
+    write r0, r2
+
+    ; Wait for timer
+    low_wait:
+        .put r0, 0xF101 ; Timer.status
+        read r2, r0
+        .put r0, 1
+        and r2, r0
+        eqz r2
+        cjmpoff low_wait/off
+
+    ; Clear timer status bit
+    .put r0, 0xF101 ; Timer.status
+    .put r2, 0
+    write r0, r2
+
+    ; Restart timer
+    ; (Assumes that target is still set)
+    .put r0, 0xF100 ; Timer.control
+    .put r2, 1      ; running, not repeating
+    write r0, r2
+
+    ; Set SCL high
+    .put r0, 0xF012 ; HCR.pin_out_lo
+    add r0, r3      ; Select bank
+    eqz r0
+    inv
+    read r2, r0
+    bitset r2, r4
+    write r0, r2
+
+    ; Wait for timer
+    high_wait:
+        .put r0, 0xF101 ; Timer.status
+        read r2, r0
+        .put r0, 1
+        and r2, r0
+        eqz r2
+        cjmpoff high_wait/off
+
+    ; Clear timer status bit
+    .put r0, 0xF101 ; Timer.status
+    .put r2, 0
+    write r0, r2
+
+    pop r7
+    pop r6
+    pop r5
+    pop r4
+    ret
+}

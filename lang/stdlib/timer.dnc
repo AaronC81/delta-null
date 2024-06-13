@@ -7,6 +7,13 @@ type Timer = struct {
 
 var TIMER: *Timer = 0xF100 as *Timer;
 
+fn timer_start(time_hi: u16, time_lo: u16) {
+    TIMER.*.target_lo = time_lo;
+    TIMER.*.target_hi = time_hi;
+    TIMER.*.control = TIMER.*.control & ~0b10; // not repeating
+    TIMER.*.control = TIMER.*.control | 0b1; // running
+}
+
 fn timer_start_repeating(time_hi: u16, time_lo: u16) {
     TIMER.*.target_lo = time_lo;
     TIMER.*.target_hi = time_hi;

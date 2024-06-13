@@ -1,0 +1,34 @@
+use "../stdlib/i2c.dnc";
+use "../stdlib/timer.dnc";
+
+fn main() {
+    // LED off
+    gpio_mode_output(0, 0);
+    gpio_write(0, 0, 0);
+
+    var i2c: I2CConfig;
+    i2c.scl_bank = 0;
+    i2c.sda_bank = 0;
+    i2c.scl_pin = 1;
+    i2c.sda_pin = 2;
+    i2c.clock_time_us = 100; // ~5KHz
+
+    i2c_init(&i2c);
+    gpio_write(0, 0, 1);
+
+    loop {
+        var datum: u16 = 0xAB;
+        i2c_write(&i2c, 0x12, &datum, 1);
+
+        blink();
+    }
+}
+
+fn blink() {
+    timer_start(0xF, 0);
+    timer_wait();
+    gpio_write(0, 0, 0);
+    timer_start(0xF, 0);
+    timer_wait();
+    gpio_write(0, 0, 1);
+}
