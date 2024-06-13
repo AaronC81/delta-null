@@ -81,6 +81,9 @@ impl Module {
 pub enum ModuleItem {
     Function(Function),
     Data(Data),
+
+    /// A block of inline assembly, in the target's assembly language.
+    Assembly(String),
 }
 
 /// An allocation of some arbitrary data, like a global variable.

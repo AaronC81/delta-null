@@ -3,6 +3,7 @@
 #![feature(extract_if)]
 #![feature(let_chains)]
 
+use asm::assemble;
 use codegen::FunctionGenerator;
 use delta_null_core_assembler::{AssemblyItem, AssemblyItemKind, BuildError};
 use delta_null_core_instructions::InstructionOpcode;
@@ -13,6 +14,7 @@ use reg_alloc::allocate;
 mod reg_alloc;
 mod codegen;
 mod peephole;
+mod asm;
 
 #[cfg(test)]
 mod test_utils;
@@ -48,7 +50,8 @@ pub fn compile_module(module: &Module) -> Result<Vec<AssemblyItem>, Vec<BuildErr
                 for _ in 0..size_after_first_word {
                     items.push(AssemblyItem::new_instruction(InstructionOpcode::Nop, &[]));
                 }        
-            }
+            },
+            ModuleItem::Assembly(asm) => items.extend(assemble(asm)),
         }
     }
 

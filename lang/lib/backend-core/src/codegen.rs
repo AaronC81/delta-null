@@ -4,7 +4,7 @@ use delta_null_core_assembler::{AssemblyItem, AssemblyOperand, LabelAccess};
 use delta_null_core_instructions::{GeneralPurposeRegister, GPR, InstructionOpcode, SPR};
 use delta_null_lang_backend::ir::{self, BasicBlockId, Function, InstructionKind, LocalId, LocalRepository, Type, VariableId, VariableRepository};
 
-use crate::reg_alloc::Allocation;
+use crate::{asm::assemble, reg_alloc::Allocation};
 
 /// Handles code generation for a single function.
 pub struct FunctionGenerator<'f> {
@@ -405,14 +405,7 @@ impl<'f> FunctionGenerator<'f> {
             }
 
             ir::InstructionKind::InlineAssembly(contents) => {
-                // TODO: better errors
-                let mut tokenizer = delta_null_core_assembler::Tokenizer::new(contents.chars().peekable());
-                let tokens = tokenizer.tokenize().unwrap();
-                
-                let mut parser = delta_null_core_assembler::Parser::from_tokens(&tokens);
-                let items = parser.parse().unwrap();
-
-                buffer.extend(items);
+                buffer.extend(assemble(contents));
             }
 
             ir::InstructionKind::Return(ret) => {

@@ -88,6 +88,8 @@ impl<'i> ModuleTranslator<'i> {
                         ty: ty.to_ir_type(),
                     }));
                 }
+
+                TopLevelItemKind::InlineAssembly(asm) => self.module.items.push(ModuleItem::Assembly(asm.clone())),
             }
         }
 

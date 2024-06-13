@@ -100,6 +100,7 @@ pub enum TopLevelItemKind<D, Ty> {
         ty: Ty,
         value: Option<Expression<D, Ty>>,
     },
+    InlineAssembly(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

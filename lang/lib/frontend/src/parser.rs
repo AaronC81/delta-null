@@ -40,6 +40,13 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             TokenKind::KwType => self.parse_type_alias(),
             TokenKind::KwUse => self.parse_use(),
             TokenKind::KwVar => self.parse_top_level_var_declaration(),
+            TokenKind::InlineAssemblyFragment(ref asm) => {
+                let asm = asm.clone();
+                let token = self.tokens.next().unwrap();
+                Fallible::new_ok(
+                    TopLevelItem::new(TopLevelItemKind::InlineAssembly(asm), token.loc)
+                )
+            },
 
             _ => {
                 let token = self.tokens.next().unwrap();

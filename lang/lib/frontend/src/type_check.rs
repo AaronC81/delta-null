@@ -192,6 +192,8 @@ pub fn type_check_module(module: Module) -> Fallible<Module<Type, Type>, TypeErr
                 let ty = convert_node_type(ty, &module_ctx).propagate(&mut errors);
                 module_ctx.globals.insert(name.clone(), ty);
             }
+
+            TopLevelItemKind::InlineAssembly(_) => {},
         }
     }
 
@@ -262,6 +264,9 @@ pub fn type_check_module(module: Module) -> Fallible<Module<Type, Type>, TypeErr
                     let ty = convert_node_type(&ty, &module_ctx).propagate(&mut errors);
                     TopLevelItemKind::VariableDeclaration { name, ty, value }
                 }
+
+                // Nothing to type check for assembly. It's a lawless world!
+                TopLevelItemKind::InlineAssembly(asm) => TopLevelItemKind::InlineAssembly(asm),
             })
         });
 
