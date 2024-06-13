@@ -206,6 +206,7 @@ class Core(Elaboratable):
                         "0100 0011 0--- 0---", # xor
                         "0100 0100 0--- 0---", # shl
                         "0100 0101 0--- 0---", # shr
+                        "0100 0111 0--- 0---", # bitset
                     ):
                         self.decode(m, read_1=ins[0:3], read_2=ins[4:7], write=ins[0:3])
 
@@ -444,6 +445,12 @@ class Core(Elaboratable):
                     with m.Case("0100 0101 0--- 0---"): # shr
                         m.d.sync += self.gprs.write_data.eq(self.reg_read_1_buffer >> self.reg_read_2_buffer)
 
+                    with m.Case("0100 0111 0--- 0---"): # bitset
+                        mask = 1 << self.reg_read_2_buffer
+                        with m.If(self.ef[1]):
+                            m.d.sync += self.gprs.write_data.eq(self.reg_read_1_buffer | mask)
+                        with m.Else():
+                            m.d.sync += self.gprs.write_data.eq(self.reg_read_1_buffer & ~mask)
 
                     # === Comparison ===
                     with m.Case("0101 0000 0000 0000"): # inv

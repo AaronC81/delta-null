@@ -119,6 +119,13 @@ impl<M: Memory> Core<M> {
                 => self.apply_gpr_binary(reg, val, |r, v| r << v),
             Shr { reg, val }
                 => self.apply_gpr_binary(reg, val, |r, v| r >> v),
+            Bitset { reg, idx } => {
+                if self.is_cond_set() {
+                    self.write_gpr(reg, self.read_gpr(reg) | (1 << self.read_gpr(idx)))
+                } else {
+                    self.write_gpr(reg, self.read_gpr(reg) & !(1 << self.read_gpr(idx)))
+                }
+            }
 
             // General-Purpose Arithmetic
             Neg { reg }

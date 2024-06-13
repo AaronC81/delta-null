@@ -2,7 +2,7 @@ from amaranth import *
 from .core import Core
 
 class CoreSimHarness(Elaboratable):
-    MEMORY_DEPTH = 0x100
+    MEMORY_DEPTH = 0x800
 
     def __init__(self, instructions, debug_led=None):
         # Arrays don't seem to show up on the simulator, so bind them to signals instead

@@ -58,6 +58,7 @@ fn operands_for_assembly(ins: &Instruction) -> Vec<&dyn ToAssembly> {
         Xor { reg, val } => vec![reg, val],
         Shl { reg, val } => vec![reg, val],
         Shr { reg, val } => vec![reg, val],
+        Bitset { reg, idx } => vec![reg, idx],
 
         // General-Purpose Arithmetic
         Neg { reg } => vec![reg],

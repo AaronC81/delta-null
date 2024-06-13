@@ -74,6 +74,8 @@ register `d`
 - `0100 0011 0xxx 0rrr` - `xor` - `r = r ^ x`
 - `0100 0100 0xxx 0rrr` - `shl` - `r = r << x`
 - `0100 0101 0xxx 0rrr` - `shr` - `r = r >> x`
+- `0100 0111 0iii 0rrr` - `bitset` - Set bit of register `r`, indexed by value in register `b`, to
+  `EF.cond`
 
 ## General-Purpose Arithmetic
 

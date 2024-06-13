@@ -579,3 +579,25 @@ def test_offset_jumps():
             putl r1, 11
             jmpoff end/offset
     """, after)
+
+def test_bitset():
+    """Tests the `bitset` instruction."""
+
+    def after(core):
+        assert (yield core.r0) == 5
+        assert (yield core.r2) == 15
+
+    run_sim("""
+        .put r0, 7
+        .put r1, 1
+        eqz r0 ; EF.cond == 0
+        bitset r0, r1 ; should clear 2s bit, leaving 5
+            
+        .put r2, 7
+        .put r3, 3
+        xor r7, r7
+        eqz r7 ; EF.cond == 1
+        bitset r2, r3 ; should set 8s bit, giving 15
+            
+        hlt
+    """, after)

@@ -64,6 +64,8 @@ impl Encodable for Instruction {
                 => 0b_0100_0100_0000_0000 | val.encode() << 4 | reg.encode(),
             Shr { reg, val }
                 => 0b_0100_0101_0000_0000 | val.encode() << 4 | reg.encode(),
+            Bitset { reg, idx }
+                => 0b_0100_0111_0000_0000 | idx.encode() << 4 | reg.encode(),
 
             // General-Purpose Arithmetic
             Neg { reg }

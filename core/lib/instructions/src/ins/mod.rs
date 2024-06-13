@@ -51,6 +51,7 @@ pub enum Instruction {
     Xor { reg: GPR, val: GPR },
     Shl { reg: GPR, val: GPR },
     Shr { reg: GPR, val: GPR },
+    Bitset { reg: GPR, idx: GPR },
 
     // General-Purpose Arithmetic
     Neg { reg: GPR },
