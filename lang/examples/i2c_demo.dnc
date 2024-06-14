@@ -17,9 +17,11 @@ fn main() {
     gpio_write(0, 0, 1);
 
     loop {
-        var datum: u16 = 0xAB;
-        i2c_write(&i2c, 0x12, &datum, 1);
-
+        var datum: u16 = 0xFF;
+        i2c_write(&i2c, 0x38, &datum, 1);
+        blink();
+        datum = 0;
+        i2c_write(&i2c, 0x38, &datum, 1);
         blink();
     }
 }
