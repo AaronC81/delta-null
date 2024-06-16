@@ -13,3 +13,7 @@ underside of the board.)
 
 Pins 1-31 match the silkscreen on the board, usable as both input and output. Note that only pins
 1-24 are usable with the board soldered through-hole; the others are on the underside.
+
+## Logger
+
+This platform does not currently implement the [logger peripheral](../peripherals/logger.md).

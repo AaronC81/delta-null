@@ -23,3 +23,19 @@ Pin 0 is the onboard LED pin (for consistency with the TinyFPGA BX), but this si
 PMOD_P2A_IO8, so the pin ordering for that port is a bit weird.
 
 Connector P1 is skipped because it appears to be intended for Ethernet connectivity.
+
+## Logger
+
+This platform implements the [logger peripheral](../peripherals/logger.md) using the USB UART
+interface provided by the Colorlight i5's carrier board.
+
+Serial data is transmitted with the following characteristics:
+
+- 9600 baud
+- 8 data bits
+- 1 stop bit
+- No parity
+- No flow control
+
+The UTF-16 message bytes are transmitted as **UTF-16 LE**, so the character `A` is transmitted as
+`0x41 0x00`.
