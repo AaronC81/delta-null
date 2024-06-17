@@ -1,0 +1,68 @@
+use "../stdlib/gpio.dnc";
+use "../stdlib/timer.dnc";
+
+var led_bank: u16 = 0;
+var led_pin:  u16 = 0;
+
+fn main() {    
+    // Set LED as output
+    gpio_mode_output(led_bank, led_pin);
+    
+    timer_start_repeating(0x000F, 0x4240); // 000F 4240 = 1,000,000 us = 1s
+    main_loop();
+}
+
+fn copy(dest: *u16, src: *u16, length: u16) {
+    var remaining_length: u16 = length;
+    loop {
+        if (remaining_length == 0) return;
+        *dest = *src;
+        asm {
+            inc r0
+            inc r1
+        }
+    }
+}
+
+fn logger_send(message: *u16, length: u16) {
+    // TODO: divide if longer than 64 words
+
+    // Copy into buffer
+    copy(0xF210 as *u16, message, length);
+    
+    // Send message
+    var logger_control: *u16 = 0xF200 as *u16;
+    *logger_control = 0x80 | length;
+}
+
+fn main_loop() {
+    asm {
+        push r0
+        main_loop_begin: pop r0
+    }
+
+    // Blink
+    timer_wait();
+    gpio_write(led_bank, led_pin, 1);
+    timer_wait();
+    gpio_write(led_bank, led_pin, 0);
+
+    // Compose and send message
+    var message: [8]u16;
+    message[0] = 72;  // H
+    message[1] = 101; // e
+    message[2] = 108; // l
+    message[3] = 108; // l
+    message[4] = 111; // o
+    message[5] = 33;  // !
+    message[6] = 13;  // \r
+    message[7] = 10;  // \n
+    logger_send(&message as *u16, 8);
+
+    // Tail call
+    asm {
+        push r0
+        .put r0, main_loop_begin
+        movsi ip, r0
+    }
+}
