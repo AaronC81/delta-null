@@ -2,6 +2,7 @@ from amaranth import *
 from amaranth.build import *
 from ..modules.core import Core
 from ..modules.timer import Timer
+from ..modules.uart_logger import UartLogger
 from typing import Optional
 
 class BaseMemoryMap(Elaboratable):
@@ -20,8 +21,14 @@ class BaseMemoryMap(Elaboratable):
     # The number of clock cycles which occur per microsecond on this platform.
     TICKS_PER_MICROSECOND = None
 
+    # The number of clock cycles which occur per tick of a 9600 baud clock on this platform.
+    TICKS_PER_9600_BAUD = None
+
     # The start address of the timer peripheral within the HCR.
     TIMER_START = 0x100
+
+    # The start address of the logger peripheral within the HCR.
+    LOGGER_START = 0x200
 
     def __init__(self, init_ram, depth):
         self.init_ram = init_ram
@@ -37,9 +44,18 @@ class BaseMemoryMap(Elaboratable):
         self.hcr_gpio_i =  Signal(type(self).HCR_GPIO_PIN_COUNT)
         self.hcr_gpio_oe = Signal(type(self).HCR_GPIO_PIN_COUNT)
 
+        self.logger_data_out = Signal()
+
         self.timer = Timer(
             type(self).TICKS_PER_MICROSECOND,
             self.addr - type(self).HCR_START - type(self).TIMER_START,
+            Signal(Core.DATA_WIDTH), Signal(), self.write_data, Signal()
+        )
+
+        self.uart_logger = UartLogger(
+            type(self).TICKS_PER_9600_BAUD,
+            self.logger_data_out,
+            self.addr - type(self).HCR_START - type(self).LOGGER_START,
             Signal(Core.DATA_WIDTH), Signal(), self.write_data, Signal()
         )
 
@@ -59,6 +75,7 @@ class BaseMemoryMap(Elaboratable):
         m.submodules.mem_write = mem_write
 
         m.submodules.timer = self.timer
+        m.submodules.uart_logger = self.uart_logger
 
         if platform is not None:
             self.bind_hcr_peripherals(platform, m)
@@ -85,6 +102,11 @@ class BaseMemoryMap(Elaboratable):
                     # === Timer ===
                     with m.Case(*range(type(self).TIMER_START, type(self).TIMER_START + 4)):
                         m.d.comb += self.timer.mem_write_en.eq(1)
+
+                    # == UART Logger ==
+                    # TODO: specify in platform override
+                    with m.Case(*range(type(self).LOGGER_START, type(self).LOGGER_START + UartLogger.LOGGER_SIZE)):
+                        m.d.comb += self.uart_logger.mem_write_en.eq(1)
 
             with m.Elif(self.read_en):
                 with m.Switch(hcr_rel_addr):

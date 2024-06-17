@@ -30,6 +30,9 @@ class ColorlightI5MemoryMap(BaseMemoryMap):
     # 25 MHz = 25 us^-1
     TICKS_PER_MICROSECOND = 25
 
+    # 25 MHz / 9600 Hz = 2604
+    TICKS_PER_9600_BAUD = 2604
+
     def bind_hcr_peripherals(self, platform: Platform, m: Module):
         # Create resources for each GPIO pin
         # Same hack as TinyFPGA, though it's a bit more complicated here because the pins have more
@@ -58,6 +61,10 @@ class ColorlightI5MemoryMap(BaseMemoryMap):
                 pin.oe.eq(self.hcr_gpio_oe[i]),
                 pin.o.eq(self.hcr_gpio_o[i]),
             ]
+
+        # Bind UART output
+        uart = platform.request("uart")
+        m.d.comb += uart.tx.eq(self.logger_data_out)
 
 
 class ColorlightI5Top(BaseTop):
