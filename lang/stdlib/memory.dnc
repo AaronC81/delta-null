@@ -1,0 +1,25 @@
+extern fn memory_copy(dest: *u16, src: *u16, length: u16);
+asm {
+    memory_copy:
+        ; r0 = dest, r1 = src, r2 = length
+
+        ; Exit if done
+        eqz r2
+        cjmpoff memory_copy___end/offset
+
+        ; Copy current word
+        read r3, r1
+        write r0, r3
+        
+        ; Advance both word pointers
+        inc r0
+        inc r1
+
+        ; Decrement remaining length
+        dec r2
+
+        ; Again!
+        jmpoff memory_copy/offset
+
+        memory_copy___end: ret
+}
