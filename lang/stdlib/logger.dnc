@@ -1,10 +1,13 @@
 use "../stdlib/memory.dnc";
+use "../stdlib/string.dnc";
 
-fn logger_send(message: *u16, length: u16) {
+fn logger_send(message: String) {
     // TODO: divide if longer than 64 words
 
+    var length: u16 = string_length(message);
+
     // Copy into buffer
-    memory_copy(0xF210 as *u16, message, length);
+    memory_copy(0xF210 as *u16, string_data(message), length);
     
     // Send message
     var logger_control: *u16 = 0xF200 as *u16;

@@ -12,15 +12,17 @@ fn main() {
     timer_start_repeating(0x000F, 0x4240); // 000F 4240 = 1,000,000 us = 1s
 
     // Compose a message to send repeatedly
-    var message: [8]u16;
-    message[0] = 72;  // H
-    message[1] = 101; // e
-    message[2] = 108; // l
-    message[3] = 108; // l
-    message[4] = 111; // o
-    message[5] = 33;  // !
-    message[6] = 13;  // \r
-    message[7] = 10;  // \n
+    var message_buffer: [9]u16;
+    message_buffer[0] = 8;   // String length
+    message_buffer[1] = 72;  // H
+    message_buffer[2] = 101; // e
+    message_buffer[3] = 108; // l
+    message_buffer[4] = 108; // l
+    message_buffer[5] = 111; // o
+    message_buffer[6] = 33;  // !
+    message_buffer[7] = 13;  // \r
+    message_buffer[8] = 10;  // \n
+    var message: String = &message_buffer as String;
 
     loop {
         // Blink
@@ -30,6 +32,6 @@ fn main() {
         gpio_write(led_bank, led_pin, 0);
 
         // Send message
-        logger_send(&message as *u16, 8);
+        logger_send(message);
     }
 }
