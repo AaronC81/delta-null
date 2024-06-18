@@ -37,7 +37,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     pub fn parse_top_level_item(&mut self) -> Fallible<MaybeFatal<TopLevelItem>, ParseError> {
         match self.tokens.peek().expect("`parse_top_level_item` called with no tokens").kind {
             TokenKind::KwFn | TokenKind::KwExtern => self.parse_function_definition(),
-            TokenKind::KwType => self.parse_type_alias(),
+            TokenKind::KwType | TokenKind::KwDistinct => self.parse_type_alias(),
             TokenKind::KwUse => self.parse_use(),
             TokenKind::KwVar => self.parse_top_level_var_declaration(),
             TokenKind::InlineAssemblyFragment(ref asm) => {
@@ -724,6 +724,15 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     /// Parse a type alias.
     pub fn parse_type_alias(&mut self) -> Fallible<MaybeFatal<TopLevelItem>, ParseError> {
         let loc = self.here_loc();
+
+        // Parse `distinct` keyword, if present
+        let mut distinct = false;
+        if self.tokens.peek().map(|t| &t.kind) == Some(&TokenKind::KwDistinct) {
+            self.tokens.next().unwrap();
+            distinct = true;
+        }
+
+        // Skip `type` keyword
         self.expect(TokenKind::KwType)?;
 
         // Parse type name
@@ -748,6 +757,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 kind: TopLevelItemKind::TypeAlias {
                     name,
                     ty,
+                    distinct,
                 },
                 loc,
             }

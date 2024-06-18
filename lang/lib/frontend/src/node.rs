@@ -91,6 +91,7 @@ pub enum TopLevelItemKind<D, Ty> {
     TypeAlias {
         name: String,
         ty: Ty,
+        distinct: bool,
     },
     Use {
         path: String,

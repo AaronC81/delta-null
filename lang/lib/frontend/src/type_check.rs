@@ -33,6 +33,10 @@ pub enum Type {
     /// contains the name of the alias to improve error messages.
     Aliased(Box<Type>, String),
 
+    /// Like [Type::Aliased], but automatic conversions between the base type and alias type are
+    /// not permitted. Casts must be explicit. 
+    DistinctAliased(Box<Type>, String),
+
     /// The type of this expression couldn't be determined. This will come along with some type
     /// errors.
     Unknown,
@@ -50,7 +54,7 @@ impl Type {
             Type::Pointer(_) => ir::Type::Pointer,
             Type::Array(ty, size) => ir::Type::Array(Box::new(ty.to_ir_type()), *size),
             Type::Struct(fields) => ir::Type::Struct(fields.iter().map(|(_, ty)| ty.to_ir_type()).collect()),
-            Type::Aliased(ty, _) => ty.to_ir_type(),
+            Type::Aliased(ty, _) | Type::DistinctAliased(ty, _) => ty.to_ir_type(),
             Type::Unknown => panic!(
                 "tried to convert `Unknown` type checker type to IR type; this only happens if something else went wrong which should've been caught!"
             ),
@@ -70,6 +74,37 @@ impl Type {
     pub fn is_void(&self) -> bool {
         *self == Type::Direct(ir::Type::Void)
     }
+
+    /// Returns `true` if this type can be cast to another type.
+    pub fn is_castable_to(&self, other: &Type) -> bool {
+        match (self, other) {
+            // The backend already has a utility method to see if two IR types are
+            // reinterpret-castable. Recycle that for conversions like `u16 -> i16`
+            (Type::Direct(src), Type::Direct(tgt))
+                if src.is_reinterpret_castable_to(tgt) => true,
+
+            // Pointers are castable to any other type of pointer, regardless of the pointee type
+            (Type::Pointer(_), Type::Pointer(_)) => true,
+
+            // Casts between pointers and pointer-sized integers are allowed
+            (Type::Pointer(_), Type::Direct(ir::Type::UnsignedInteger(IntegerSize::Bits16)))
+            | (Type::Direct(ir::Type::UnsignedInteger(IntegerSize::Bits16)), Type::Pointer(_))
+                => true,
+
+            // You can cast a type to itself
+            (_, _) if self.desugar() == other.desugar() => true,
+
+            // Casting "breaks through" distinct aliases, unlike the implicit conversions permitted
+            // by non-distinct aliases
+            (Type::DistinctAliased(box ty1, _), ty2)
+            | (ty1, Type::DistinctAliased(box ty2, _))
+            |  (Type::DistinctAliased(box ty1, _), Type::DistinctAliased(box ty2, _))
+                if ty1.is_castable_to(ty2)
+                => true,
+
+            _ => false,
+        }
+    }
 }
 
 impl Display for Type {
@@ -77,6 +112,7 @@ impl Display for Type {
         match self {
             Type::Direct(d) => write!(f, "{d}"),
             Type::Aliased(ty, name) => write!(f, "{name} (alias for {ty})"),
+            Type::DistinctAliased(ty, name) => write!(f, "{name}"),
             Type::FunctionReference { argument_types, return_type } =>
                 write!(f, "fn({}) -> {return_type}",
                     argument_types.iter().map(|a| a.to_string()).collect::<Vec<_>>().join(", ")),
@@ -176,10 +212,16 @@ pub fn type_check_module(module: Module) -> Fallible<Module<Type, Type>, TypeErr
                 );
             },
 
-            TopLevelItemKind::TypeAlias { name, ty } => {
+            TopLevelItemKind::TypeAlias { name, ty, distinct } => {
                 let ty = convert_node_type(ty, &module_ctx).propagate(&mut errors);
                 if !module_ctx.type_aliases.contains_key(name) {
-                    module_ctx.type_aliases.insert(name.clone(), Type::Aliased(Box::new(ty), name.clone()));
+                    let ty =
+                        if *distinct {
+                            Type::DistinctAliased(Box::new(ty), name.clone())
+                        } else {
+                            Type::Aliased(Box::new(ty), name.clone())
+                        };
+                    module_ctx.type_aliases.insert(name.clone(), ty);
                 } else {
                     errors.push_error(TypeError::new(&format!("duplicate type alias `{name}`"), item.loc.clone()))
                 }
@@ -244,9 +286,9 @@ pub fn type_check_module(module: Module) -> Fallible<Module<Type, Type>, TypeErr
                 // These are the same, but we have to convince the compiler that the generic type
                 // parameter to `TopLevelItemKind` has changed (which it does in 
                 // `FunctionDefinition`, as we sprinkle type information around the AST)
-                TopLevelItemKind::TypeAlias { name, ty } => {
+                TopLevelItemKind::TypeAlias { name, ty, distinct } => {
                     let ty = convert_node_type(&ty, &module_ctx).propagate(&mut errors);
-                    TopLevelItemKind::TypeAlias { name, ty }
+                    TopLevelItemKind::TypeAlias { name, ty, distinct }
                 },
 
                 // No type checking or conversion required for imports
@@ -462,24 +504,7 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
                 let ty = convert_node_type(&ty, ctx.module).propagate(&mut errors);
 
                 // Is a cast possible?
-                let is_castable = match (&value.data, &ty) {
-                    // The backend already has a utility method to see if two IR types are
-                    // reinterpret-castable. Recycle that for conversions like `u16 -> i16`
-                    (Type::Direct(src), Type::Direct(tgt))
-                        if src.is_reinterpret_castable_to(tgt) => true,
-
-                    // Pointers are castable to any other type of pointer, regardless of the
-                    // pointee type
-                    (Type::Pointer(_), Type::Pointer(_)) => true,
-
-                    (Type::Pointer(_), Type::Direct(ir::Type::UnsignedInteger(IntegerSize::Bits16)))
-                    | (Type::Direct(ir::Type::UnsignedInteger(IntegerSize::Bits16)), Type::Pointer(_))
-                        => true,
-
-                    _ => false,
-                };
-
-                if !is_castable {
+                if !value.data.is_castable_to(&ty) {
                     errors.push_error(TypeError::new(
                         &format!("cannot cast `{}` to `{}`", value.data, ty), loc
                     ));
@@ -973,6 +998,42 @@ mod test {
                 return 0;
             }
         "), "type `A (alias for u16)` is not assignable to `B (alias for i16)`");
+    }
+
+    #[test]
+    fn test_distinct_type_alias() {
+        // OK - instantiating aliases with appropriate casts
+        assert_ok(parse("
+            distinct type Word = u16;
+
+            fn main() -> u16 {
+                var x: Word = 0 as Word;
+                var y: Word = 3 as Word;
+
+                return 0;
+            }
+        "));
+
+        // Error - distinct aliases can't be converted automatically
+        assert_errors(parse("
+            distinct type Word = u16;
+
+            fn main() -> u16 {
+                var x: Word = 0;
+            }
+        "), "`u16` is not assignable to `Word`");
+
+        // Error - distinct aliases can't pass through calls
+        assert_errors(parse("
+            distinct type Word = u16;
+
+            fn main() -> u16 {
+                do_thing_with_word(0);
+                return 0;
+            }
+
+            fn do_thing_with_word(x: Word) {}
+        "), "invalid type for argument 1 - expected `Word`, got `u16`");
     }
 
     #[test]
