@@ -214,7 +214,11 @@ pub fn type_check_module(module: Module) -> Fallible<Module<Type, Type>, TypeErr
 
             TopLevelItemKind::TypeAlias { name, ty, distinct } => {
                 let ty = convert_node_type(ty, &module_ctx).propagate(&mut errors);
-                if !module_ctx.type_aliases.contains_key(name) {
+                if module_ctx.type_aliases.contains_key(name) {
+                    errors.push_error(TypeError::new(&format!("duplicate type alias `{name}`"), item.loc.clone()))
+                } else if get_primitive_type(name).is_some() {
+                    errors.push_error(TypeError::new(&format!("type alias `{name}` conflicts with a built-in type"), item.loc.clone()))
+                } else {
                     let ty =
                         if *distinct {
                             Type::DistinctAliased(Box::new(ty), name.clone())
@@ -222,8 +226,6 @@ pub fn type_check_module(module: Module) -> Fallible<Module<Type, Type>, TypeErr
                             Type::Aliased(Box::new(ty), name.clone())
                         };
                     module_ctx.type_aliases.insert(name.clone(), ty);
-                } else {
-                    errors.push_error(TypeError::new(&format!("duplicate type alias `{name}`"), item.loc.clone()))
                 }
             },
 
@@ -1044,6 +1046,19 @@ mod test {
 
             fn do_thing_with_word(x: Word) {}
         "), "invalid type for argument 1 - expected `Word`, got `u16`");
+    }
+
+    #[test]
+    fn test_type_alias_built_in_conflict() {
+        // Error - aliases can't clash with built-in (but not primitive) types
+        assert_errors(parse("
+            distinct type String = *u16;
+        "), "type alias `String` conflicts with a built-in type");
+
+        // Error - aliases can't clash with primitive types
+        assert_errors(parse("
+            type u16 = i16;
+        "), "type alias `u16` conflicts with a built-in type");    
     }
 
     #[test]
