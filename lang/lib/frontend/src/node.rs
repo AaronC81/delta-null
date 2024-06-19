@@ -215,8 +215,8 @@ pub enum ExpressionKind<D, Ty> {
     
     /// No base specifier in the string - see [crate::tokenizer::TokenKind::Integer].
     Integer(String, u32),
-
     Boolean(bool),
+    String(String),
 
     Call {
         target: Box<Expression<D, Ty>>,

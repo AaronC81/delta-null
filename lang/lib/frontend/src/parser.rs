@@ -482,6 +482,12 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 Fallible::new_ok(Expression::new(ExpressionKind::Identifier(i), t.loc))
             },
 
+            Some(TokenKind::String(_)) => {
+                let t = self.tokens.next().unwrap();
+                let TokenKind::String(s) = t.kind else { unreachable!() };
+                Fallible::new_ok(Expression::new(ExpressionKind::String(s), t.loc))
+            }
+
             Some(TokenKind::KwTrue) =>
                 Fallible::new_ok(Expression::new(ExpressionKind::Boolean(true), self.tokens.next().unwrap().loc)),
             Some(TokenKind::KwFalse) =>

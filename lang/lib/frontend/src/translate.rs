@@ -804,6 +804,8 @@ impl<'c> FunctionTranslator<'c> {
                 )
             },
 
+            node::ExpressionKind::String(_) => todo!(), // TODO
+
             node::ExpressionKind::ArithmeticBinOp(op, l, r) => {
                 let ir_kind = match op {
                     node::ArithmeticBinOp::Add => ir::InstructionKind::Add,

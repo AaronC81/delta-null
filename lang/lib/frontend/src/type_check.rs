@@ -586,6 +586,9 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
                 (ExpressionKind::Integer(int, base), Type::Direct(ir::Type::UnsignedInteger(ir::IntegerSize::Bits16)))
             },
 
+            ExpressionKind::String(s) =>
+                (ExpressionKind::String(s), get_primitive_type("String").unwrap()),
+
             ExpressionKind::Boolean(b) =>
                 (ExpressionKind::Boolean(b), Type::Direct(ir::Type::Boolean)),
 
@@ -747,11 +750,12 @@ fn convert_node_type(ty: &node::Type, module_ctx: &ModuleContext) -> Fallible<Ty
             }
 
             // Finally, try mapping primitive type
-            match primitive_type_name_to_ir_type(t) {
-                Some(v) => Fallible::new(Type::Direct(v)),
-                None => Fallible::new_with_errors(Type::Unknown,
-                    vec![TypeError::new(&format!("unknown type `{t}`"), ty.loc.clone())])
+            if let Some(t) = get_primitive_type(t) {
+                return Fallible::new(t);
             }
+
+            Fallible::new_with_errors(Type::Unknown,
+                vec![TypeError::new(&format!("unknown type `{t}`"), ty.loc.clone())])
         },
         node::TypeKind::Pointer(ty) =>
             convert_node_type(ty, module_ctx).map(|ty| Type::Pointer(Box::new(ty))),
@@ -771,12 +775,18 @@ fn convert_node_type(ty: &node::Type, module_ctx: &ModuleContext) -> Fallible<Ty
     }
 }
 
-/// Returns an [ir::Type] for a given primitive type name `u16`, if one exists.
-fn primitive_type_name_to_ir_type(name: &str) -> Option<ir::Type> {
+/// Returns a [Type] given the name of a primitive or reserved type, or [None] if the named type
+/// is not reserved.
+fn get_primitive_type(name: &str) -> Option<Type> {
     match name {
-        "u16" => Some(ir::Type::UnsignedInteger(ir::IntegerSize::Bits16)),
-        "i16" => Some(ir::Type::SignedInteger(ir::IntegerSize::Bits16)),
-        "bool" => Some(ir::Type::Boolean),
+        "u16" => Some(Type::Direct(ir::Type::UnsignedInteger(ir::IntegerSize::Bits16))),
+        "i16" => Some(Type::Direct(ir::Type::SignedInteger(ir::IntegerSize::Bits16))),
+        "bool" => Some(Type::Direct(ir::Type::Boolean)),
+        "String" => Some(
+            Type::DistinctAliased(Box::new(
+                Type::Pointer(Box::new(get_primitive_type("u16").unwrap()))
+            ), "String".to_string())
+        ),
         _ => None,
     }
 }
