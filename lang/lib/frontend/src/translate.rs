@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Display, error::Error};
+use std::{cell::RefCell, collections::HashMap, error::Error, fmt::Display, rc::Rc};
 
 use delta_null_lang_backend::ir::{self, BasicBlockBuilder, BasicBlockId, Data, Function, FunctionBuilder, Instruction, LocalId, Module, ModuleItem, VariableId};
 
@@ -11,6 +11,7 @@ pub struct ModuleTranslator<'i> {
     input: &'i node::Module<ExpressionData, Type>,
     module: Module,
     entry: String,
+    string_pool: StringPool,
 }
 
 impl<'i> ModuleTranslator<'i> {
@@ -20,6 +21,7 @@ impl<'i> ModuleTranslator<'i> {
             input,
             module: Module::new(),
             entry: entry.to_owned(),
+            string_pool: StringPool::new(),
         }
     }
 
@@ -49,6 +51,7 @@ impl<'i> ModuleTranslator<'i> {
                                 (p.name.clone(), p.ty.to_ir_type())
                             })
                             .collect(),
+                        &mut self.string_pool,
                     );
 
                     func_trans.populate_locals(body)?;
@@ -107,7 +110,7 @@ impl<'i> ModuleTranslator<'i> {
         let need_to_generate_init = !initialised_data.is_empty();
         if need_to_generate_init {
             // Create and initialise function builder
-            let mut init_func_trans = FunctionTranslator::new_nullary("__init", &functions, &data);
+            let mut init_func_trans = FunctionTranslator::new_nullary("__init", &functions, &data, &mut self.string_pool);
             init_func_trans.create_root_block();
 
             // Generate assignments
@@ -141,7 +144,7 @@ impl<'i> ModuleTranslator<'i> {
         // This means we can do any setup, e.g. call `__init`, without it repeating if the input
         // code calls its own `main` recursively
         let main_func_name = "__main";
-        let mut main_func_trans = FunctionTranslator::new_nullary(&main_func_name, &functions, &data);
+        let mut main_func_trans = FunctionTranslator::new_nullary(&main_func_name, &functions, &data, &mut self.string_pool);
         main_func_trans.create_root_block();
 
         // Generate call to `__init`, if it exists
@@ -178,6 +181,11 @@ impl<'i> ModuleTranslator<'i> {
 
         // Set entry point to that `__main` we just made
         self.module.entry = Some(main_func_name.to_string());
+
+        // Create data items for the string pool
+        for s in self.string_pool.into_data_items() {
+            self.module.items.push(ModuleItem::Data(s));
+        }
 
         errors.map_inner(|_| self.module)
     }
@@ -342,6 +350,9 @@ pub struct FunctionTranslator<'c> {
 
     /// The types of defined arguments.
     arguments: HashMap<String, ir::Type>,
+
+    /// The string pool where literal strings are allocated.
+    string_pool: &'c mut StringPool,
 }
 
 impl<'c> FunctionTranslator<'c> {
@@ -350,6 +361,7 @@ impl<'c> FunctionTranslator<'c> {
         functions: &'c HashMap<String, ir::Type>,
         data: &'c HashMap<String, ir::Type>,
         arguments: HashMap<String, ir::Type>,
+        string_pool: &'c mut StringPool,
     ) -> Self {
         Self {
             func,
@@ -359,6 +371,7 @@ impl<'c> FunctionTranslator<'c> {
             functions,
             data,
             arguments,
+            string_pool,
         }
     }
 
@@ -367,12 +380,14 @@ impl<'c> FunctionTranslator<'c> {
         name: &str,
         functions: &'c HashMap<String, ir::Type>,
         data: &'c HashMap<String, ir::Type>,
+        string_pool: &'c mut StringPool,
     ) -> Self {
         Self::new(
             FunctionBuilder::new(name, &[]),
             &functions,
             &data,
             HashMap::new(),
+            string_pool,
         )
     }
 
@@ -805,7 +820,14 @@ impl<'c> FunctionTranslator<'c> {
                 )
             },
 
-            node::ExpressionKind::String(_) => todo!(), // TODO
+            node::ExpressionKind::String(s) => {
+                let name = self.string_pool.get_or_insert(s);
+                Fallible::new_ok(
+                    Value::new_read_only(move |target|
+                        target.add_instruction(Instruction::new(ir::InstructionKind::DataReference { name }))
+                    )
+                )
+            }
 
             node::ExpressionKind::ArithmeticBinOp(op, l, r) => {
                 let ir_kind = match op {
@@ -1037,6 +1059,60 @@ impl<'c> FunctionTranslator<'c> {
             target.loc.clone(),
             type_check::Type::Pointer(pointee_ty.clone()),
         ))
+    }
+}
+
+/// Maps a collection of unique strings to data item names.
+pub struct StringPool {
+    // string => data item name
+    pool: HashMap<String, String>,
+}
+
+impl StringPool {
+    pub fn new() -> Self {
+        Self {
+            pool: HashMap::new(),
+        }
+    }
+
+    /// Get the data item name for a given string, or insert it into the pool if it doesn't exist.
+    pub fn get_or_insert(&mut self, s: &str) -> String {
+        if let Some(data_item) = self.pool.get(s) {
+            return data_item.clone();
+        }
+
+        let name = format!("___str_{}", self.pool.len());
+        self.pool.insert(s.to_owned(), name.clone());
+
+        name
+    }
+
+    /// Consume this string pool and create the data items required to implement it.
+    pub fn into_data_items(self) -> Vec<Data> {
+        self.pool.into_iter()
+            .map(|(string, name)| {
+                let value = StringPool::string_to_core_data(&string);
+                Data {
+                    name,
+                    ty: ir::Type::Array(Box::new(ir::Type::UnsignedInteger(ir::IntegerSize::Bits16)), value.len()),
+                    value,
+                }
+            })
+            .collect()
+    }
+
+    /// Convert a [String] into a list of words which implement that string for the language.
+    pub fn string_to_core_data(s: &str) -> Vec<u16> {
+        // Get data bytes
+        let mut utf16_bytes = s.encode_utf16().collect::<Vec<_>>();
+
+        // Add size to the beginning
+        if utf16_bytes.len() > (u16::MAX - 1) as usize {
+            panic!("string literal is too large")
+        }
+        utf16_bytes.insert(0, utf16_bytes.len() as u16);
+
+        utf16_bytes
     }
 }
 
