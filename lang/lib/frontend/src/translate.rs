@@ -81,11 +81,12 @@ impl<'i> ModuleTranslator<'i> {
                 // No translation required for imports - they were already resolved
                 TopLevelItemKind::Use { .. } => {},
 
-                TopLevelItemKind::VariableDeclaration { name, ty, value } => {
+                TopLevelItemKind::VariableDeclaration { name, ty, value: _ } => {
                     // Add data to module
                     self.module.items.push(ModuleItem::Data(Data {
                         name: name.clone(),
                         ty: ty.to_ir_type(),
+                        value: vec![0; ty.to_ir_type().word_size()],
                     }));
                 }
 

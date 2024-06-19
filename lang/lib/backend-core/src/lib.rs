@@ -41,15 +41,19 @@ pub fn compile_module(module: &Module) -> Result<Vec<AssemblyItem>, Vec<BuildErr
         match item {
             ModuleItem::Function(func) => items.extend(compile_function(func)?),
             ModuleItem::Data(datum) => {
-                let size_after_first_word = datum.ty.word_size() - 1;
+                if datum.ty.word_size() != datum.value.len() {
+                    panic!("value of data item `{}` does not match size of type", datum.name);
+                }
 
-                items.push(AssemblyItem {
-                    labels: vec![datum.name.clone()],
-                    kind: AssemblyItemKind::Instruction(InstructionOpcode::Nop, vec![]),
-                });
-                for _ in 0..size_after_first_word {
-                    items.push(AssemblyItem::new_instruction(InstructionOpcode::Nop, &[]));
-                }        
+                let mut is_first_word = true;
+                for word in &datum.value {
+                    let mut item = AssemblyItem::new_word_constant(*word);
+                    if is_first_word {
+                        item.labels.push(datum.name.clone());
+                        is_first_word = false;
+                    }
+                    items.push(item);
+                }
             },
             ModuleItem::Assembly(asm) => items.extend(assemble(asm)),
         }

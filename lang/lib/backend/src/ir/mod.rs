@@ -91,6 +91,9 @@ pub enum ModuleItem {
 pub struct Data {
     pub name: String,
     pub ty: Type,
+
+    /// An initial value for this data, as a list of words. Must match the size specified by `ty`.
+    pub value: Vec<u16>,
 }
 
 /// A single function, which is composed of many basic blocks.
