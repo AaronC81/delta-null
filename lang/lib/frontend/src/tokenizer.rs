@@ -168,7 +168,23 @@ pub fn tokenize(input: &str, input_type: SourceInputType) -> (Vec<Token>, Vec<To
                 // Consume characters up til (but not including) the closing quote
                 let mut buffer = String::new();
                 while let Some((next, _)) = chars.next_if(|(c, _)| *c != '"') {
-                    buffer.push(next);
+                    // Escape sequence
+                    let c;
+                    if next == '\\' {
+                        match chars.next() {
+                            Some(('r', _)) => c = '\r',
+                            Some(('n', _)) => c = '\n',
+                            Some(('t', _)) => c = '\t',
+                            _ => {
+                                errors.push(TokenizeError::new("unknown escape sequence", loc.clone()));
+                                continue;
+                            },
+                        }
+                    } else {
+                        c = next;
+                    }
+
+                    buffer.push(c);
                 }
 
                 // Take closing quote
