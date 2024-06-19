@@ -1,6 +1,7 @@
 // A `String` is a pointer to a buffer, where:
 //   - The first word is a string length (in words)
 //   - Subsequent words are the string's characters
+distinct internal type String = *u16;
 
 fn string_length(str: String) -> u16 {
     return *(str as *u16);

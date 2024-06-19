@@ -92,6 +92,7 @@ pub enum TopLevelItemKind<D, Ty> {
         name: String,
         ty: Ty,
         distinct: bool,
+        internal: bool,
     },
     Use {
         path: String,

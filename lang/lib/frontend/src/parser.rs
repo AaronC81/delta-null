@@ -37,7 +37,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     pub fn parse_top_level_item(&mut self) -> Fallible<MaybeFatal<TopLevelItem>, ParseError> {
         match self.tokens.peek().expect("`parse_top_level_item` called with no tokens").kind {
             TokenKind::KwFn | TokenKind::KwExtern => self.parse_function_definition(),
-            TokenKind::KwType | TokenKind::KwDistinct => self.parse_type_alias(),
+            TokenKind::KwType | TokenKind::KwDistinct | TokenKind::KwInternal => self.parse_type_alias(),
             TokenKind::KwUse => self.parse_use(),
             TokenKind::KwVar => self.parse_top_level_var_declaration(),
             TokenKind::InlineAssemblyFragment(ref asm) => {
@@ -731,11 +731,22 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     pub fn parse_type_alias(&mut self) -> Fallible<MaybeFatal<TopLevelItem>, ParseError> {
         let loc = self.here_loc();
 
-        // Parse `distinct` keyword, if present
+        // Parse `distinct` and/or `internal` keywords, if present
         let mut distinct = false;
-        if self.tokens.peek().map(|t| &t.kind) == Some(&TokenKind::KwDistinct) {
-            self.tokens.next().unwrap();
-            distinct = true;
+        let mut internal = false;
+        loop {
+            match self.tokens.peek().map(|t| &t.kind) {
+                Some(&TokenKind::KwDistinct) => {
+                    self.tokens.next().unwrap();
+                    distinct = true;
+                },
+                Some(&TokenKind::KwInternal) => {
+                    self.tokens.next().unwrap();
+                    internal = true;
+                },
+
+                _ => break,
+            }
         }
 
         // Skip `type` keyword
@@ -764,6 +775,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                     name,
                     ty,
                     distinct,
+                    internal,
                 },
                 loc,
             }

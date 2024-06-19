@@ -50,6 +50,7 @@ pub enum TokenKind {
     KwUse,
     KwExtern,
     KwDistinct,
+    KwInternal,
 
     Plus,
     Minus,
@@ -229,6 +230,7 @@ pub fn tokenize(input: &str, input_type: SourceInputType) -> (Vec<Token>, Vec<To
                     "use" => TokenKind::KwUse,
                     "extern" => TokenKind::KwExtern,
                     "distinct" => TokenKind::KwDistinct,
+                    "internal" => TokenKind::KwInternal,
 
                     // Just an identifier
                     _ => TokenKind::Identifier(buffer),

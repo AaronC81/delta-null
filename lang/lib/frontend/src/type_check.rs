@@ -70,6 +70,16 @@ impl Type {
         }
     }
 
+    /// Removes any layers of aliasing applied to this type, getting the true underlying data type.
+    /// Unlike `desugar`, this is potentially "destructive" due to the existence of
+    /// [Type::DistinctAliased] types, which are also unwrapped by this method.
+    pub fn remove_aliasing(&self) -> &Self {
+        match self {
+            Self::Aliased(ty, _) | Self::DistinctAliased(ty, _) => ty.remove_aliasing(),
+            ty => ty,
+        }
+    }
+
     /// Checks whether this type is `Void`.
     pub fn is_void(&self) -> bool {
         *self == Type::Direct(ir::Type::Void)
@@ -212,9 +222,21 @@ pub fn type_check_module(module: Module) -> Fallible<Module<Type, Type>, TypeErr
                 );
             },
 
-            TopLevelItemKind::TypeAlias { name, ty, distinct } => {
+            TopLevelItemKind::TypeAlias { name, ty, distinct, internal } => {
                 let ty = convert_node_type(ty, &module_ctx).propagate(&mut errors);
-                if module_ctx.type_aliases.contains_key(name) {
+
+                // Internal aliases exist to check that the standard library's idea of a type is
+                // still the same as the built-in one. They don't actually get added as aliases.
+                if *internal {
+                    let Some(prim_ty) = get_primitive_type(name) else {
+                        errors.push_error(TypeError::new(&format!("no built-in type exists to match `internal` alias of `{name}`"), item.loc.clone()));
+                        continue;
+                    };
+
+                    if ty.remove_aliasing() != prim_ty.remove_aliasing() {
+                        errors.push_error(TypeError::new(&format!("built-in type `{name}` ({prim_ty:?}) does not match `internal` definition ({ty:?})"), item.loc.clone()));
+                    }
+                } else if module_ctx.type_aliases.contains_key(name) {
                     errors.push_error(TypeError::new(&format!("duplicate type alias `{name}`"), item.loc.clone()))
                 } else if get_primitive_type(name).is_some() {
                     errors.push_error(TypeError::new(&format!("type alias `{name}` conflicts with a built-in type"), item.loc.clone()))
@@ -288,9 +310,9 @@ pub fn type_check_module(module: Module) -> Fallible<Module<Type, Type>, TypeErr
                 // These are the same, but we have to convince the compiler that the generic type
                 // parameter to `TopLevelItemKind` has changed (which it does in 
                 // `FunctionDefinition`, as we sprinkle type information around the AST)
-                TopLevelItemKind::TypeAlias { name, ty, distinct } => {
+                TopLevelItemKind::TypeAlias { name, ty, distinct, internal } => {
                     let ty = convert_node_type(&ty, &module_ctx).propagate(&mut errors);
-                    TopLevelItemKind::TypeAlias { name, ty, distinct }
+                    TopLevelItemKind::TypeAlias { name, ty, distinct, internal }
                 },
 
                 // No type checking or conversion required for imports
@@ -1058,7 +1080,17 @@ mod test {
         // Error - aliases can't clash with primitive types
         assert_errors(parse("
             type u16 = i16;
-        "), "type alias `u16` conflicts with a built-in type");    
+        "), "type alias `u16` conflicts with a built-in type");
+
+        // OK - `internal` alias checks against built-in definition
+        assert_ok(parse("
+            distinct internal type String = *u16;
+        "));
+
+        // Error - `internal` alias does not match definition
+        assert_errors(parse("
+            distinct internal type String = u16; // not ptr
+        "), "does not match `internal` definition");
     }
 
     #[test]
