@@ -934,4 +934,17 @@ mod test {
             0xAB
         );
     }
+
+    #[test]
+    fn test_string() {
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    var x: String = \"Hello\";
+                    return *(x as *u16);
+                }
+            ").unwrap(),
+            5
+        );
+    }
 }
