@@ -38,6 +38,9 @@ class TinyFPGABXMemoryMap(BaseMemoryMap):
     # 16 MHz = 16 us^-1
     TICKS_PER_MICROSECOND = 16
 
+    # 16 MHz / 9600 Hz = 1667
+    TICKS_PER_9600_BAUD = 1667
+
     def bind_hcr_peripherals(self, platform: Platform, m: Module):
         # Create a new resource for every mapped hardware GPIO pin
         # (There is a "connector" defined already, but I don't think we have direct access to
