@@ -593,11 +593,27 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
                     // Good!
                 } else {
                     errors.push_error(TypeError::new(
-                        &format!("operator `~` is not compatible with types `{}`", v.data), loc
+                        &format!("operator `~` is not compatible with type `{}`", v.data), loc
                     ))
                 }
 
                 (ExpressionKind::BitwiseNot(Box::new(v)), ty)
+            }
+            
+            ExpressionKind::BooleanNot(v) => {
+                let v = type_check_expression(*v, ctx).propagate(&mut errors);
+                let ty = v.data.clone();
+
+                // Type must be a boolean
+                if let Type::Direct(ref ir) = ty && *ir == ir::Type::Boolean {
+                    // Good!
+                } else {
+                    errors.push_error(TypeError::new(
+                        &format!("operator `!` can only be applied to booleans, not `{}`", v.data), loc
+                    ))
+                }
+
+                (ExpressionKind::BooleanNot(Box::new(v)), ty)
             }
 
             ExpressionKind::Integer(int, base) => {

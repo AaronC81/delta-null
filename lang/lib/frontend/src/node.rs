@@ -238,6 +238,7 @@ pub enum ExpressionKind<D, Ty> {
     },
 
     BitwiseNot(Box<Expression<D, Ty>>),
+    BooleanNot(Box<Expression<D, Ty>>),
     ArithmeticBinOp(ArithmeticBinOp, Box<Expression<D, Ty>>, Box<Expression<D, Ty>>),
     ComparisonBinOp(ComparisonBinOp, Box<Expression<D, Ty>>, Box<Expression<D, Ty>>),
 

@@ -114,6 +114,9 @@ pub enum InstructionKind {
     /// Performs bitwise NOT on an integer value.
     BitwiseNot(VariableId),
 
+    /// Inverts a boolean value.
+    BooleanNot(VariableId),
+
     /// Checks if two variables of the same type are equal.
     Equals(VariableId, VariableId),
 
@@ -233,7 +236,7 @@ impl Instruction {
             | InstructionKind::LeftShift(l, r)
             | InstructionKind::RightShift(l, r)
             | InstructionKind::BitwiseOr(l, r) => hashset!{ *l, *r },
-            InstructionKind::BitwiseNot(v) => hashset!{ *v },
+            InstructionKind::BitwiseNot(v) | InstructionKind::BooleanNot(v) => hashset!{ *v },
             InstructionKind::Call { target, arguments } =>
                 arguments.iter().copied().chain([*target]).collect(),
             InstructionKind::WordSize(_) => hashset!{},
@@ -316,6 +319,16 @@ impl Instruction {
                 Ok(Some(ty))
             }
 
+            InstructionKind::BooleanNot(v) => {
+                let ty = vars.get_variable(*v).ty.clone();
+
+                if ty != Type::Boolean {
+                    return Err(TypeError::new("boolean NOT can only be applied to a boolean"));
+                }
+
+                Ok(Some(Type::Boolean))
+            }
+
             InstructionKind::Equals(_, _)
             | InstructionKind::LessThan(_, _)
             | InstructionKind::GreaterThan(_, _) => Ok(Some(Type::Boolean)),
@@ -392,6 +405,7 @@ impl PrintIR for Instruction {
             InstructionKind::LeftShift(a, b) => format!("{} << {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::RightShift(a, b) => format!("{} >> {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::BitwiseNot(v) => format!("~{}", v.print_ir(options)),
+            InstructionKind::BooleanNot(v) => format!("!{}", v.print_ir(options)),
 
             InstructionKind::Equals(a, b) => format!("{} == {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::GreaterThan(a, b) => format!("{} > {}", a.print_ir(options), b.print_ir(options)),

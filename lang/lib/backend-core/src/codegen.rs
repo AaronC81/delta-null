@@ -228,6 +228,36 @@ impl<'f> FunctionGenerator<'f> {
                 ));
             }
 
+            ir::InstructionKind::BooleanNot(v) => {
+                // Most efficient way to do this is a bit fiddly:
+                //   1. Zero the result register
+                //   2. Check if the boolean is false, with `eqz`
+                //      This effectively sets `EF.cond` to the inverse of the boolean
+                //   3. Use `bitset` to write `EF.cond` into the LSB of the result register
+
+                let v = self.generate_read(buffer, *v);
+                let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return 0 };
+
+                // Zero result register
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Xor,
+                    &[result.into(), result.into()]
+                ));
+
+                // Load inverse of boolean into condition flag
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Eqz,
+                    &[v.into()]
+                ));
+
+                // Write condition flag into result register
+                // `bitset` expects a bit position - we just zeroed the result so can recycle that
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Bitset,
+                    &[result.into(), result.into()]
+                ));
+            }
+
             ir::InstructionKind::Equals(l, r) => {
                 let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return 0 };
                 let l = self.generate_read(buffer, *l);

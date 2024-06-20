@@ -62,6 +62,7 @@ pub enum TokenKind {
     Bar,
     Caret,
     Tilde,
+    Bang,
     Dot,
     DotStar, // .*
     LeftShift,
@@ -131,6 +132,7 @@ pub fn tokenize(input: &str, input_type: SourceInputType) -> (Vec<Token>, Vec<To
             '|' => { chars.next(); tokens.push(Token::new(TokenKind::Bar, loc)) },
             '^' => { chars.next(); tokens.push(Token::new(TokenKind::Caret, loc)) },
             '~' => { chars.next(); tokens.push(Token::new(TokenKind::Tilde, loc)) },
+            '!' => { chars.next(); tokens.push(Token::new(TokenKind::Bang, loc)) },
             '.' => {
                 chars.next();
                 if chars.next_if(|(c, _)| *c == '*').is_some() {

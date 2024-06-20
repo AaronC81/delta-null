@@ -800,6 +800,16 @@ impl<'c> FunctionTranslator<'c> {
                     })
             }
 
+            node::ExpressionKind::BooleanNot(v) => {
+                self.translate_expression(v)?
+                    .map(|v| {
+                        let v = v.consume_read(self.target_mut());
+                        Value::new_read_only(move |target| target.add_instruction(
+                            Instruction::new(ir::InstructionKind::BooleanNot(v))
+                        )).into()
+                    })
+            }
+
             // TODO: what about other types?
             node::ExpressionKind::Integer(i, base) => {
                 let i = i.clone();

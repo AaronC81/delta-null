@@ -409,6 +409,14 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 })
             }
 
+            Some(&TokenKind::Bang) => {
+                self.tokens.next();
+                self.parse_unary()?.map(|e| {
+                    let loc = e.loc.clone();
+                    Expression::new(ExpressionKind::BooleanNot(Box::new(e)), loc).into()
+                })
+            }
+
             _ => self.parse_field_access_or_index(),
         }
     }

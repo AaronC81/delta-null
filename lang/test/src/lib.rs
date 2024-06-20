@@ -947,4 +947,35 @@ mod test {
             5
         );
     }
+
+    #[test]
+    fn test_boolean_not() {
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    var x: bool = true;
+                    if (!x) {
+                        return 4;
+                    } else {
+                        return 8; // <<
+                    }
+                }
+            ").unwrap(),
+            8
+        );
+
+        assert_eq!(
+            util::compile_and_execute("
+                fn main() -> u16 {
+                    var x: bool = false;
+                    if (!x) {
+                        return 4; // <<
+                    } else {
+                        return 8; 
+                    }
+                }
+            ").unwrap(),
+            4
+        );
+    }
 }
