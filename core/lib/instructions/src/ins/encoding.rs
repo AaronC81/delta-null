@@ -146,6 +146,7 @@ impl Encodable for Instruction {
                 "0100_0011_0xxx_0rrr" => Xor { reg: GPR::decode(r)?, val: GPR::decode(x)? },
                 "0100_0100_0xxx_0rrr" => Shl { reg: GPR::decode(r)?, val: GPR::decode(x)? },
                 "0100_0101_0xxx_0rrr" => Shr { reg: GPR::decode(r)?, val: GPR::decode(x)? },
+                "0100_0111_0iii_0rrr" => Bitset { reg: GPR::decode(r)?, idx: GPR::decode(i)? },
 
                 // General-Purpose Arithmetic
                 "0100_1000_0000_0rrr" => Neg { reg: GPR::decode(r)? },
