@@ -69,9 +69,9 @@ fn test_string_validate() {
         util::compile_and_execute("
             use \"string.dnc\";
             fn main() -> u16 {
-                if (!(string_validate(\"Hello\"))) { return 1; }
-                if (!(string_validate(\"😻 Meow\"))) { return 2; }
-                if (!(string_validate(\"😻🚞🌄\"))) { return 3; }
+                if (!string_validate(\"Hello\")) { return 1; }
+                if (!string_validate(\"😻 Meow\")) { return 2; }
+                if (!string_validate(\"😻🚞🌄\")) { return 3; }
 
                 return 0;
             }
@@ -85,7 +85,7 @@ fn test_string_validate() {
             use \"string.dnc\";
             fn main() -> u16 {
                 var s: String = \"😻🚞🌄\";
-                *(string_data_length_ptr(s)) = string_data_length(s) - 1;
+                *string_data_length_ptr(s) = string_data_length(s) - 1;
 
                 if (string_validate(s)) {
                     return 1;
@@ -121,7 +121,7 @@ fn test_string_validate() {
             use \"string.dnc\";
             fn main() -> u16 {
                 var s: String = \"😻 Meow\";
-                *(string_data(s)) = 0x41; // 'A'
+                *string_data(s) = 0x41; // 'A'
 
                 if (string_validate(s)) {
                     return 1;

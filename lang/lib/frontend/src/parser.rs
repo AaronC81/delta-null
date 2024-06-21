@@ -332,7 +332,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
     /// Parses a cast with an `as` infix.
     pub fn parse_cast(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
-        let mut expr = self.parse_call()?;
+        let mut expr = self.parse_unary()?;
 
         while let Some(&TokenKind::KwAs) = self.tokens.peek().map(|t| &t.kind) {
             let Token { kind: _, loc } = self.tokens.next().unwrap();
@@ -343,45 +343,6 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         }
 
         expr.map(|e| e.into())
-    }
-
-    /// Parses a call.
-    pub fn parse_call(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
-        let mut expr = self.parse_sizeof()?;
-
-        if let Some(&TokenKind::LParen) = self.tokens.peek().map(|t| &t.kind) {
-            let mut errors = Fallible::new_ok(());
-
-            // Parse arguments, separated by commas
-            let arguments = self.parse_parenthesised_list_of(Self::parse_expression).propagate(&mut errors);
-
-            expr = expr
-                .map(|target| {
-                    let loc = target.loc.clone();
-                    Expression::new(ExpressionKind::Call {
-                        target: Box::new(target),
-                        arguments,
-                    }, loc)
-                });
-        }
-
-        expr.map(|e| e.into())
-    }
-
-    /// Parses a use of the `sizeof` operator.
-    pub fn parse_sizeof(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
-        if let Some(&TokenKind::KwSizeof) = self.tokens.peek().map(|t| &t.kind) {
-            let operator = self.tokens.next().unwrap();
-            self.expect(TokenKind::LParen)?;
-            let ty = self.parse_type()?;
-            self.expect(TokenKind::RParen)?;
-
-            ty.map(|ty|
-                Expression::new(ExpressionKind::Sizeof(ty), operator.loc).into()
-            )
-        } else {
-            self.parse_unary()
-        }
     }
 
     /// Parse a unary operator. All unary operators currently have the same precedence.
@@ -419,7 +380,46 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                 })
             }
 
-            _ => self.parse_field_access_or_index(),
+            _ => self.parse_call(),
+        }
+    }
+
+    /// Parses a call.
+    pub fn parse_call(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
+        let mut expr = self.parse_sizeof()?;
+
+        if let Some(&TokenKind::LParen) = self.tokens.peek().map(|t| &t.kind) {
+            let mut errors = Fallible::new_ok(());
+
+            // Parse arguments, separated by commas
+            let arguments = self.parse_parenthesised_list_of(Self::parse_expression).propagate(&mut errors);
+
+            expr = expr
+                .map(|target| {
+                    let loc = target.loc.clone();
+                    Expression::new(ExpressionKind::Call {
+                        target: Box::new(target),
+                        arguments,
+                    }, loc)
+                });
+        }
+
+        expr.map(|e| e.into())
+    }
+
+    /// Parses a use of the `sizeof` operator.
+    pub fn parse_sizeof(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
+        if let Some(&TokenKind::KwSizeof) = self.tokens.peek().map(|t| &t.kind) {
+            let operator = self.tokens.next().unwrap();
+            self.expect(TokenKind::LParen)?;
+            let ty = self.parse_type()?;
+            self.expect(TokenKind::RParen)?;
+
+            ty.map(|ty|
+                Expression::new(ExpressionKind::Sizeof(ty), operator.loc).into()
+            )
+        } else {
+            self.parse_field_access_or_index()
         }
     }
 
