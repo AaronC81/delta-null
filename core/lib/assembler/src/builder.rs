@@ -148,7 +148,7 @@ impl Display for BuildError {
         match self {
             BuildError::InvalidOperands(opcode) => write!(f, "invalid operands for {}", opcode.mnemonic()),
             BuildError::ImmediateOutOfRange(imm) => write!(f, "immediate {imm} is out-of-range"),
-            BuildError::OffsetOutOfRange { from, to } => write!(f, "offset operand cannot reach from {from} to {to}"),
+            BuildError::OffsetOutOfRange { from, to } => write!(f, "offset operand cannot reach from {from} to {to} (delta {})", (*to as i32) - (*from as i32)),
             BuildError::UndefinedLabel(label) => write!(f, "undefined label {label}"),
             BuildError::MissingAccess(label) => write!(f, "missing access specifier for operand usage of {label}"),
         }
