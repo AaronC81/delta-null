@@ -36,7 +36,12 @@ pub fn compile_to_machine_code(code: &str) -> Result<Vec<u16>, CommandError> {
 }
 
 pub fn compile_to_assembly(code: &str) -> Result<String, CommandError> {
-    run_just_command_with_stdin("compile", &["-"], code)
+    let stdlib_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../stdlib")
+        .canonicalize()
+        .expect("failed to find stdlib directory");
+
+    run_just_command_with_stdin("compile", &["--", "-", "--fake-directory", &stdlib_dir.to_string_lossy()], code)
 }
 
 pub fn assemble(code: &str) -> Result<Vec<u16>, CommandError> {
