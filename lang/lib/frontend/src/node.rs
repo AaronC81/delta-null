@@ -39,10 +39,12 @@ impl<D, Ty> Module<D, Ty> {
                 } else {
                     // Build absolute path, assuming that the path is relative to the current file's
                     // containing directory
-                    let SourceInputType::File(this_file) = &self.input_type else {
-                        panic!("relative imports are not supported in non-file modules")
+                    let relative_to = match &self.input_type {
+                        SourceInputType::File(f) => f.join(".."),
+                        SourceInputType::Buffer { fake_directory: Some(f) } => f.clone(),
+                        SourceInputType::Buffer { fake_directory: None } =>
+                            panic!("found relative `use` but don't know directory to use as root - pass `--fake-directory` to specify one"),
                     };
-                    let relative_to = this_file.join("..");
                     paths.push(relative_to.join(path).canonicalize().unwrap());
                 }
             }

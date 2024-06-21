@@ -840,7 +840,7 @@ mod test {
     use super::type_check_module;
 
     fn parse(code: &str) -> Module {
-        let (tokens, errors) = tokenize(code, SourceInputType::Buffer);
+        let (tokens, errors) = tokenize(code, SourceInputType::buffer());
         if !errors.is_empty() {
             panic!("{:?}", errors)
         }

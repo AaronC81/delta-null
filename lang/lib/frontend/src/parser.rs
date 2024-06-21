@@ -897,7 +897,7 @@ mod test {
         code: &str,
         func: impl FnOnce(&mut Parser<std::vec::IntoIter<Token>>) -> Fallible<MaybeFatal<T>, ParseError>
     ) -> T {
-        let (tokens, errors) = tokenize(code, SourceInputType::Buffer);
+        let (tokens, errors) = tokenize(code, SourceInputType::buffer());
         if !errors.is_empty() {
             panic!("{:?}", errors)
         }

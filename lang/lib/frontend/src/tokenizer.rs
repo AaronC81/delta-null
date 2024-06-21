@@ -350,7 +350,7 @@ mod test {
 
     #[test]
     fn test_fn() {
-        let (tokens, errors) = tokenize("fn foo() { }", SourceInputType::Buffer);
+        let (tokens, errors) = tokenize("fn foo() { }", SourceInputType::buffer());
         assert!(errors.is_empty());
         assert_eq!(
             vec![
@@ -367,7 +367,7 @@ mod test {
 
     #[test]
     fn test_integer() {
-        let (tokens, errors) = tokenize("123 + -456 + 10 + 0xAB + 0b1101", SourceInputType::Buffer);
+        let (tokens, errors) = tokenize("123 + -456 + 10 + 0xAB + 0b1101", SourceInputType::buffer());
         assert!(errors.is_empty());
         assert_eq!(
             vec![
@@ -389,21 +389,21 @@ mod test {
     fn test_add_locations() {
         assert_eq!(
             vec![
-                ('a',  SourceLocation::new(SourceInputType::Buffer, 1, 1)),
-                ('b',  SourceLocation::new(SourceInputType::Buffer, 1, 2)),
-                ('\n', SourceLocation::new(SourceInputType::Buffer, 1, 3)),
+                ('a',  SourceLocation::new(SourceInputType::buffer(), 1, 1)),
+                ('b',  SourceLocation::new(SourceInputType::buffer(), 1, 2)),
+                ('\n', SourceLocation::new(SourceInputType::buffer(), 1, 3)),
 
-                ('c', SourceLocation::new(SourceInputType::Buffer, 2, 1)),
-                ('d', SourceLocation::new(SourceInputType::Buffer, 2, 2)),
-                ('e', SourceLocation::new(SourceInputType::Buffer, 2, 3)),
+                ('c', SourceLocation::new(SourceInputType::buffer(), 2, 1)),
+                ('d', SourceLocation::new(SourceInputType::buffer(), 2, 2)),
+                ('e', SourceLocation::new(SourceInputType::buffer(), 2, 3)),
             ],
-            add_locations("ab\ncde".chars(), SourceInputType::Buffer).collect::<Vec<_>>()
+            add_locations("ab\ncde".chars(), SourceInputType::buffer()).collect::<Vec<_>>()
         )
     }
 
     #[test]
     fn test_dot_star() {
-        let (tokens, errors) = tokenize("a.b.*.c", SourceInputType::Buffer);
+        let (tokens, errors) = tokenize("a.b.*.c", SourceInputType::buffer());
         assert!(errors.is_empty());
         assert_eq!(
             vec![

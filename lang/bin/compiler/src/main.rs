@@ -28,6 +28,10 @@ struct Args {
     /// Print IR in given format and stop, without executing the compiler backend
     #[arg(long)]
     ir: Option<IrFormat>,
+
+    /// When reading code from stdin, a directory to use for relative imports
+    #[arg(long)]
+    fake_directory: Option<String>,
 }
 
 fn graceful_unwrap<T, E: std::fmt::Display>(result: Result<T, Vec<E>>) -> T {
@@ -47,7 +51,9 @@ fn main() {
 
     // Run frontend
     let input_type = match &args.input.source {
-        clap_stdin::Source::Stdin => SourceInputType::Buffer,
+        clap_stdin::Source::Stdin => SourceInputType::Buffer {
+            fake_directory: args.fake_directory.map(PathBuf::from)
+        },
         clap_stdin::Source::Arg(f) => SourceInputType::File(PathBuf::from(f).canonicalize().unwrap()),
     };
     let input = args.input.contents().unwrap();
@@ -56,7 +62,7 @@ fn main() {
     let parsed_modules = graceful_unwrap(parse_all_modules(&input, input_type));
 
     // Concatenate all of the modules into one big one
-    let mut module = node::Module::new(SourceInputType::Buffer);
+    let mut module = node::Module::new(SourceInputType::buffer());
     for parsed_module in parsed_modules {
         module.items.extend(parsed_module.items)
     }
