@@ -1,12 +1,189 @@
-// A `String` is a pointer to a buffer, where:
-//   - The first word is a string length (in words)
-//   - Subsequent words are the string's characters
+/// A pointer to a UTF-16 character buffer.
+/// 
+/// The current internal structure of a string:
+///   - The first word is a string data length (in words)
+///   - Subsequent words are the string's characters
+/// 
+/// This structure shouldn't be relied upon outside of this file, and you should use the methods it
+/// provides to safely access parts of the string instead.
 distinct internal type String = *u16;
 
-fn string_length(str: String) -> u16 {
+/// The number of words which comprise the string's character data.
+/// As strings are length-prefixed, this is `O(1)`.
+/// 
+/// This is not the same as the number of UTF-16 characters in the string (`string_char_length`).
+fn string_data_length(str: String) -> u16 {
     return *(str as *u16);
 }
 
+/// Returns a pointer to the word length field of the string.
+/// 
+/// This enables *careful* modification of the string's length.
+/// Shortening a string is trivial by subtracting from this (although may result in an invalid
+/// UTF-16 string if you cut a surrogate pair in half).
+/// Lengthening a string is permitted only if additional memory was allocated for the string
+/// originally.
+/// 
+/// If you just need to read the word length, use `string_data_length`.
+fn string_data_length_ptr(str: String) -> *u16 {
+    return str as *u16;
+}
+
+/// The number of UTF-16 characters in the string.
+/// This is calculated on-the-fly, so is `O(n)`.
+/// 
+/// This is not the same as the number of words of data in the string (`string_data_length`).
+fn string_char_length(str: String) -> u16 {
+    var iter: StringCharIterator;
+    string_char_iterator_init(&iter, str);
+
+    var count: u16 = 0;
+    while (string_char_iterator_advance(&iter)) {
+        count = count + 1;
+    }
+
+    return count;
+}
+
+/// Get a pointer to a string's raw character data.
 fn string_data(str: String) -> *u16 {
     return (str as *u16) + 1;
+}
+
+/// Validate that a string contains only valid UTF-16 with matched surrogate pairs.
+fn string_validate(str: String) -> bool {
+    var iter: StringCharIterator;
+    string_char_iterator_init(&iter, str);
+
+    while (string_char_iterator_advance(&iter)) {
+        if (!iter.this_character_valid) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/// Facilitates iterating over a string character-by-character.
+/// 
+/// To start iteration over a string, call `string_char_iterator_init`, then repeatedly call
+/// `string_char_iterator_advance` to get each character, until it returns `false`.
+/// 
+/// After each advance, the following fields should be used:
+///   - `this_character_size` - Whether the UTF-16 character is a one- or two-unit character.
+///   - `this_character_{low,high}` - The units of the character. For a one-unit character, only
+///     `low` is set.
+///   -  `this_character_valid` - Whether this is actually a well-formed character.
+/// 
+/// Mismatched surrogate halves are treated like one-unit characters, but with
+/// `this_character_valid` set to false.
+type StringCharIterator = struct {
+    data_pointer: *u16,
+    remaining_words: u16,
+
+    // TODO: when we have u32, use that!
+    this_character_high: u16,
+    this_character_low: u16,
+    this_character_size: u16,
+    this_character_valid: bool,
+};
+
+/// Initialise an iterator to use a particular string.
+/// 
+/// The iterator must only be used during the lifetime of the string. The string must not change
+/// during iteration.
+/// 
+/// After initialisation, the iterator still contains no character data. Call 
+/// `string_char_iterator_advance` to access the first character.
+fn string_char_iterator_init(iter: *StringCharIterator, str: String) {
+    iter.*.data_pointer = string_data(str);
+    iter.*.remaining_words = string_data_length(str);
+}
+
+/// Advance an iterator to the next character of a string.
+/// 
+/// Returns `true` if the iterator was updated with a new character, or `false` if there were no
+/// characters left, and the iterator's character data is now undefined.
+/// 
+/// (It is OK to continue calling this after it returns `false`, although there's little reason to.)
+fn string_char_iterator_advance(iter: *StringCharIterator) -> bool {
+    if (iter.*.remaining_words == 0) {
+        return false;
+    }
+
+    // Take next word and advance
+    var here: u16 = *iter.*.data_pointer;
+    iter.*.data_pointer = iter.*.data_pointer + 1;
+    iter.*.remaining_words = iter.*.remaining_words - 1;
+
+    // These are the usual parameters, so set them here for convenient. We'll override if they're
+    // wrong at the time.
+    iter.*.this_character_low = here;
+    iter.*.this_character_size = 1;
+    iter.*.this_character_valid = true;
+
+    // TODO: loop limit workaround
+    var here_is_high_surrogate: bool = and(here >= 0xD800, here <= 0xDBFF);
+    var second: u16 = *iter.*.data_pointer;
+    var second_is_low_surrogate: bool = and(second >= 0xDC00, second <= 0xDFFF);
+
+    // If this is a high surrogate...
+    if (here_is_high_surrogate) {
+        // If we ran out of words, this is an invalid and unmatched pair
+        if (iter.*.remaining_words == 0) {
+            iter.*.this_character_valid = false;
+            // this_character_low is already `here`
+            // this_character_size is already 1
+
+            return true;
+        }    
+
+        // Second word must be low surrogate
+        if (!second_is_low_surrogate) {
+            // Invalid unmatched surrogate
+            iter.*.this_character_valid = false;
+            // this_character_low is already `here`
+            // this_character_size is already 1
+            
+            return true;
+        }
+
+        // Cool, this is a valid UTF-16 surrogate pair
+        iter.*.this_character_high = here;
+        iter.*.this_character_low = second;
+        iter.*.this_character_size = 2;
+        // this_character_valid is already true
+
+        // Advance again
+        iter.*.data_pointer = iter.*.data_pointer + 1;
+        iter.*.remaining_words = iter.*.remaining_words - 1;
+
+        return true;
+    }
+
+    // We shouldn't encounter a low surrogate without a high one
+    if (and(here >= 0xDC00, here <= 0xDFFF)) {
+        // Invalid unmatched surrogate
+        iter.*.this_character_valid = false;
+        // this_character_low is already `here`
+        // this_character_size is already 1
+
+        return true;
+    }
+
+    // Otherwise, this is a standard one-unit BMP character
+    // All defaults set earlier are correct in this case
+
+    return true;
+}
+
+// TODO: temporary placeholder. Need && at some point!
+fn and(a: bool, b: bool) -> bool {
+    if (a) {
+        if (b) {
+            return true;
+        }
+    }
+
+    return false;
 }

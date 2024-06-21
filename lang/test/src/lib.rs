@@ -20,3 +20,6 @@ pub mod op;
 
 #[cfg(test)]
 pub mod asm;
+
+#[cfg(test)]
+pub mod stdlib;
