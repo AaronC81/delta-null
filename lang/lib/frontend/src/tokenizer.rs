@@ -75,7 +75,9 @@ pub enum TokenKind {
     LBracket,
     RBracket,
     LAngle,
+    LAngleEquals,
     RAngle,
+    RAngleEquals,
 
     Colon,
     Semicolon,
@@ -111,6 +113,8 @@ pub fn tokenize(input: &str, input_type: SourceInputType) -> (Vec<Token>, Vec<To
                 chars.next();
                 if chars.next_if(|(c, _)| *c == '<').is_some() {
                     tokens.push(Token::new(TokenKind::LeftShift, loc))
+                } else if chars.next_if(|(c, _)| *c == '=').is_some() {
+                    tokens.push(Token::new(TokenKind::LAngleEquals, loc))
                 } else {
                     tokens.push(Token::new(TokenKind::LAngle, loc))
                 }
@@ -119,6 +123,8 @@ pub fn tokenize(input: &str, input_type: SourceInputType) -> (Vec<Token>, Vec<To
                 chars.next();
                 if chars.next_if(|(c, _)| *c == '>').is_some() {
                     tokens.push(Token::new(TokenKind::RightShift, loc))
+                } else if chars.next_if(|(c, _)| *c == '=').is_some() {
+                    tokens.push(Token::new(TokenKind::RAngleEquals, loc))
                 } else {
                     tokens.push(Token::new(TokenKind::RAngle, loc))
                 }

@@ -899,7 +899,9 @@ impl<'c> FunctionTranslator<'c> {
                         let instr = match op {
                             ComparisonBinOp::Equals => ir::InstructionKind::Equals,
                             ComparisonBinOp::GreaterThan => ir::InstructionKind::GreaterThan,
+                            ComparisonBinOp::GreaterThanOrEquals => ir::InstructionKind::GreaterThanOrEquals,
                             ComparisonBinOp::LessThan => ir::InstructionKind::LessThan,
+                            ComparisonBinOp::LessThanOrEquals => ir::InstructionKind::LessThanOrEquals,
                         };
                         Value::new_read_only(move |target| {
                             let l = l.consume_read(target);

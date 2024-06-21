@@ -70,6 +70,72 @@ fn test_ordering_comparisons() {
         ")).unwrap(),
         0,
     );
+
+    // <=, truthy
+    assert_eq!(
+        util::compile_and_execute(&format!("
+            {bool_to_u16}
+            fn main() -> u16 {{
+                return bool_to_u16(3 <= 10);
+            }}
+        ")).unwrap(),
+        1,
+    );
+
+    // <=, equal
+    assert_eq!(
+        util::compile_and_execute(&format!("
+            {bool_to_u16}
+            fn main() -> u16 {{
+                return bool_to_u16(3 <= 3);
+            }}
+        ")).unwrap(),
+        1,
+    );
+
+    // <=, falsey
+    assert_eq!(
+        util::compile_and_execute(&format!("
+            {bool_to_u16}
+            fn main() -> u16 {{
+                return bool_to_u16(3 <= 2);
+            }}
+        ")).unwrap(),
+        0,
+    );
+
+    // >=, truthy
+    assert_eq!(
+        util::compile_and_execute(&format!("
+            {bool_to_u16}
+            fn main() -> u16 {{
+                return bool_to_u16(10 >= 3);
+            }}
+        ")).unwrap(),
+        1,
+    );
+
+    // >=, equal
+    assert_eq!(
+        util::compile_and_execute(&format!("
+            {bool_to_u16}
+            fn main() -> u16 {{
+                return bool_to_u16(3 >= 3);
+            }}
+        ")).unwrap(),
+        1,
+    );
+
+    // >=, falsey
+    assert_eq!(
+        util::compile_and_execute(&format!("
+            {bool_to_u16}
+            fn main() -> u16 {{
+                return bool_to_u16(3 >= 10);
+            }}
+        ")).unwrap(),
+        0,
+    );
 }
 
 #[test]

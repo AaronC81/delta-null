@@ -292,6 +292,23 @@ impl<'f> FunctionGenerator<'f> {
                 }
             },
 
+            ir::InstructionKind::GreaterThanOrEquals(l, r) => {
+                let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return 0 };
+                let l = self.generate_read(buffer, *l);
+                let r = self.generate_read(buffer, *r);
+
+                // Do comparison - this puts result in `ef`
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Gteq,
+                    &[l.into(), r.into()]
+                ));
+
+                // Convert to an object
+                if let Some(skips) = self.insert_comparison_value_conversion(buffer, result, stmt, after) {
+                    return skips;
+                }
+            },
+
             ir::InstructionKind::LessThan(l, r) => {
                 let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return 0 };
                 let l = self.generate_read(buffer, *l);
@@ -301,6 +318,28 @@ impl<'f> FunctionGenerator<'f> {
                 // seemed great at the time. Instead, invert the result of a `Gteq`.
                 buffer.push(AssemblyItem::new_instruction(
                     InstructionOpcode::Gteq,
+                    &[l.into(), r.into()]
+                ));
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Inv,
+                    &[]
+                ));
+
+                // Convert to an object
+                if let Some(skips) = self.insert_comparison_value_conversion(buffer, result, stmt, after) {
+                    return skips;
+                }
+            },
+
+            ir::InstructionKind::LessThanOrEquals(l, r) => {
+                let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return 0 };
+                let l = self.generate_read(buffer, *l);
+                let r = self.generate_read(buffer, *r);
+
+                // The architecture doesn't have a less-than-or-equals instruction either.
+                // Invert `Gt` instead.
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Gt,
                     &[l.into(), r.into()]
                 ));
                 buffer.push(AssemblyItem::new_instruction(

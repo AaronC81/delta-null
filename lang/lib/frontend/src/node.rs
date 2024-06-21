@@ -282,7 +282,9 @@ impl Display for ArithmeticBinOp {
 pub enum ComparisonBinOp {
     Equals,
     GreaterThan,
+    GreaterThanOrEquals,
     LessThan,
+    LessThanOrEquals,
 }
 
 impl Display for ComparisonBinOp {
@@ -290,7 +292,9 @@ impl Display for ComparisonBinOp {
         write!(f, "{}", match self {
             ComparisonBinOp::Equals => "==",
             ComparisonBinOp::GreaterThan => ">",
+            ComparisonBinOp::GreaterThanOrEquals => ">=",
             ComparisonBinOp::LessThan => "<",
+            ComparisonBinOp::LessThanOrEquals => "<=",
         })
     }
 }

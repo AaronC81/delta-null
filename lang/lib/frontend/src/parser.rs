@@ -256,11 +256,13 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     pub fn parse_comparison(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
         let mut expr = self.parse_bitwise_or()?;
 
-        if let Some(TokenKind::DoubleEquals | TokenKind::LAngle | TokenKind::RAngle) = self.tokens.peek().map(|t| &t.kind) {
+        if let Some(TokenKind::DoubleEquals | TokenKind::LAngle | TokenKind::LAngleEquals | TokenKind::RAngle | TokenKind::RAngleEquals) = self.tokens.peek().map(|t| &t.kind) {
             let op = match self.tokens.peek().unwrap().kind {
                 TokenKind::DoubleEquals => ComparisonBinOp::Equals,
                 TokenKind::LAngle => ComparisonBinOp::LessThan,
+                TokenKind::LAngleEquals => ComparisonBinOp::LessThanOrEquals,
                 TokenKind::RAngle => ComparisonBinOp::GreaterThan,
+                TokenKind::RAngleEquals => ComparisonBinOp::GreaterThanOrEquals,
                 _ => unreachable!(),
             };
             let loc = self.tokens.next().unwrap().loc;
