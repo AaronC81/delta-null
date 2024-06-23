@@ -59,6 +59,7 @@ pub enum TokenKind {
     Equals,
     DoubleEquals,
     Ampersand,
+    DoubleAmpersand,
     Bar,
     Caret,
     Tilde,
@@ -134,7 +135,14 @@ pub fn tokenize(input: &str, input_type: SourceInputType) -> (Vec<Token>, Vec<To
             '+' => { chars.next(); tokens.push(Token::new(TokenKind::Plus, loc)) },
             '*' => { chars.next(); tokens.push(Token::new(TokenKind::Star, loc)) },
             ',' => { chars.next(); tokens.push(Token::new(TokenKind::Comma, loc)) },
-            '&' => { chars.next(); tokens.push(Token::new(TokenKind::Ampersand, loc)) },
+            '&' => {
+                chars.next();
+                if chars.next_if(|(c, _)| *c == '&').is_some() {
+                    tokens.push(Token::new(TokenKind::DoubleAmpersand, loc))
+                } else {
+                    tokens.push(Token::new(TokenKind::Ampersand, loc))
+                }
+            },
             '|' => { chars.next(); tokens.push(Token::new(TokenKind::Bar, loc)) },
             '^' => { chars.next(); tokens.push(Token::new(TokenKind::Caret, loc)) },
             '~' => { chars.next(); tokens.push(Token::new(TokenKind::Tilde, loc)) },

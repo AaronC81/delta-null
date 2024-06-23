@@ -248,7 +248,22 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
     /// Parse an expression.
     pub fn parse_expression(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
-        self.parse_comparison()
+        self.parse_boolean_combinator()
+    }
+
+    /// Parse a usage of the `&&` boolean AND operator.
+    pub fn parse_boolean_combinator(&mut self) -> Fallible<MaybeFatal<Expression>, ParseError> {
+        let mut expr = self.parse_comparison()?;
+
+        if let Some(TokenKind::DoubleAmpersand) = self.tokens.peek().map(|t| &t.kind) {
+            let loc = self.tokens.next().unwrap().loc;
+
+            self.parse_comparison()?
+                .integrate(&mut expr, |lhs, rhs|
+                    *lhs = Expression::new(ExpressionKind::BooleanAnd(Box::new(lhs.clone()), Box::new(rhs)), loc));
+        }
+
+        expr.map(|e| e.into())
     }
 
     /// Parse a usage of the `==`, `<` or `>` binary operators, or any expression with higher

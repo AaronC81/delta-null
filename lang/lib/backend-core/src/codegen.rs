@@ -258,6 +258,9 @@ impl<'f> FunctionGenerator<'f> {
                 ));
             }
 
+            ir::InstructionKind::BooleanAnd(l, r) =>
+                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Booland),
+
             ir::InstructionKind::Equals(l, r) => {
                 let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return 0 };
                 let l = self.generate_read(buffer, *l);

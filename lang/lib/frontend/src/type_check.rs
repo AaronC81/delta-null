@@ -616,6 +616,31 @@ pub fn type_check_expression(expr: Expression<()>, ctx: &mut Context) -> Fallibl
                 (ExpressionKind::BooleanNot(Box::new(v)), ty)
             }
 
+            ExpressionKind::BooleanAnd(l, r) => {
+                let l = type_check_expression(*l, ctx).propagate(&mut errors);
+                let l_ty = l.data.clone();
+                let r = type_check_expression(*r, ctx).propagate(&mut errors);
+                let r_ty = r.data.clone();
+
+                if let Type::Direct(ref ir) = l_ty && *ir == ir::Type::Boolean {
+                    // Good!
+                } else {
+                    errors.push_error(TypeError::new(
+                        &format!("operator `&&` can only be applied to booleans, but left-hand side is `{}`", l_ty), loc.clone()
+                    ))
+                }
+
+                if let Type::Direct(ref ir) = r_ty && *ir == ir::Type::Boolean {
+                    // Good!
+                } else {
+                    errors.push_error(TypeError::new(
+                        &format!("operator `&&` can only be applied to booleans, but right-hand side is `{}`", r_ty), loc
+                    ))
+                }
+
+                (ExpressionKind::BooleanAnd(Box::new(l), Box::new(r)), l_ty)
+            }
+
             ExpressionKind::Integer(int, base) => {
                 if u16::from_str_radix(&int, base).is_err() {
                     errors.push_error(TypeError::new(

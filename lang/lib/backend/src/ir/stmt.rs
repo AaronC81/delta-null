@@ -117,6 +117,9 @@ pub enum InstructionKind {
     /// Inverts a boolean value.
     BooleanNot(VariableId),
 
+    /// Performs boolean AND on two boolean values.
+    BooleanAnd(VariableId, VariableId),
+
     /// Checks if two variables of the same type are equal.
     Equals(VariableId, VariableId),
 
@@ -243,7 +246,8 @@ impl Instruction {
             | InstructionKind::BitwiseXor(l, r)
             | InstructionKind::LeftShift(l, r)
             | InstructionKind::RightShift(l, r)
-            | InstructionKind::BitwiseOr(l, r) => hashset!{ *l, *r },
+            | InstructionKind::BitwiseOr(l, r)
+            | InstructionKind::BooleanAnd(l, r) => hashset!{ *l, *r },
             InstructionKind::BitwiseNot(v) | InstructionKind::BooleanNot(v) => hashset!{ *v },
             InstructionKind::Call { target, arguments } =>
                 arguments.iter().copied().chain([*target]).collect(),
@@ -337,6 +341,17 @@ impl Instruction {
                 Ok(Some(Type::Boolean))
             }
 
+            InstructionKind::BooleanAnd(a, b) => {
+                let a_ty = vars.get_variable(*a).ty.clone();
+                let b_ty = vars.get_variable(*b).ty.clone();
+
+                if a_ty != Type::Boolean || b_ty != Type::Boolean {
+                    return Err(TypeError::new("both sides of boolean AND must be a boolean"));
+                }
+                
+                Ok(Some(Type::Boolean))
+            }
+
             InstructionKind::Equals(_, _)
             | InstructionKind::LessThan(_, _)
             | InstructionKind::LessThanOrEquals(_, _)
@@ -416,6 +431,7 @@ impl PrintIR for Instruction {
             InstructionKind::RightShift(a, b) => format!("{} >> {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::BitwiseNot(v) => format!("~{}", v.print_ir(options)),
             InstructionKind::BooleanNot(v) => format!("!{}", v.print_ir(options)),
+            InstructionKind::BooleanAnd(a, b) => format!("{} && {}", a.print_ir(options), b.print_ir(options)),
 
             InstructionKind::Equals(a, b) => format!("{} == {}", a.print_ir(options), b.print_ir(options)),
             InstructionKind::GreaterThan(a, b) => format!("{} > {}", a.print_ir(options), b.print_ir(options)),

@@ -352,3 +352,62 @@ fn test_boolean_not() {
         4
     );
 }
+
+#[test]
+fn test_boolean_and() {
+    // True
+    assert_eq!(
+        util::compile_and_execute("
+            fn main() -> u16 {
+                if (true && true) {
+                    return 4; // <<
+                } else {
+                    return 8;
+                }
+            }
+        ").unwrap(),
+        4
+    );
+
+    // Falsey RHS
+    assert_eq!(
+        util::compile_and_execute("
+            fn main() -> u16 {
+                if (true && false) {
+                    return 4;
+                } else {
+                    return 8; // <<
+                }
+            }
+        ").unwrap(),
+        8
+    );
+
+    // Falsey LHS
+    assert_eq!(
+        util::compile_and_execute("
+            fn main() -> u16 {
+                if (false && true) {
+                    return 4;
+                } else {
+                    return 8; // <<
+                }
+            }
+        ").unwrap(),
+        8
+    );
+
+    // Both falsey
+    assert_eq!(
+        util::compile_and_execute("
+            fn main() -> u16 {
+                if (false && false) {
+                    return 4;
+                } else {
+                    return 8; // <<
+                }
+            }
+        ").unwrap(),
+        8
+    );
+}
