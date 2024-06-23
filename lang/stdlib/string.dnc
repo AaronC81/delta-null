@@ -123,9 +123,9 @@ fn string_char_iterator_advance(iter: *StringCharIterator) -> bool {
     iter.*.this_character_valid = true;
 
     // TODO: loop limit workaround
-    var here_is_high_surrogate: bool = and(here >= 0xD800, here <= 0xDBFF);
+    var here_is_high_surrogate: bool = here >= 0xD800 && here <= 0xDBFF;
     var second: u16 = *iter.*.data_pointer;
-    var second_is_low_surrogate: bool = and(second >= 0xDC00, second <= 0xDFFF);
+    var second_is_low_surrogate: bool = second >= 0xDC00 && second <= 0xDFFF;
 
     // If this is a high surrogate...
     if (here_is_high_surrogate) {
@@ -162,7 +162,7 @@ fn string_char_iterator_advance(iter: *StringCharIterator) -> bool {
     }
 
     // We shouldn't encounter a low surrogate without a high one
-    if (and(here >= 0xDC00, here <= 0xDFFF)) {
+    if (here >= 0xDC00 && here <= 0xDFFF) {
         // Invalid unmatched surrogate
         iter.*.this_character_valid = false;
         // this_character_low is already `here`
@@ -175,15 +175,4 @@ fn string_char_iterator_advance(iter: *StringCharIterator) -> bool {
     // All defaults set earlier are correct in this case
 
     return true;
-}
-
-// TODO: temporary placeholder. Need && at some point!
-fn and(a: bool, b: bool) -> bool {
-    if (a) {
-        if (b) {
-            return true;
-        }
-    }
-
-    return false;
 }
