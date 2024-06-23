@@ -111,6 +111,8 @@ impl<M: Memory> Core<M> {
                 => self.apply_gpr_unary(reg, |r| !r),
             And { reg, val }
                 => self.apply_gpr_binary(reg, val, |r, v| r & v),
+            Booland { reg, val }
+                => self.apply_gpr_binary(reg, val, |r, v| if (r > 0) && (v > 0) { 1 } else { 0 }),
             Or { reg, val } 
                 => self.apply_gpr_binary(reg, val, |r, v| r | v),
             Xor { reg, val } 

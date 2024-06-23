@@ -70,6 +70,7 @@ register `d`
 
 - `0100 0000 0000 0rrr` - `not` - `r = ~r`
 - `0100 0001 0xxx 0rrr` - `and` - `r = r & x`
+- `0100 0001 1xxx 0rrr` - `booland` - `r = (r > 0 and x > 0) ? 1 : 0`
 - `0100 0010 0xxx 0rrr` - `or` - `r = r | x`
 - `0100 0011 0xxx 0rrr` - `xor` - `r = r ^ x`
 - `0100 0100 0xxx 0rrr` - `shl` - `r = r << x`

@@ -47,6 +47,7 @@ pub enum Instruction {
     // Bit Manipulation
     Not { reg: GPR },
     And { reg: GPR, val: GPR },
+    Booland { reg: GPR, val: GPR },
     Or { reg: GPR, val: GPR },
     Xor { reg: GPR, val: GPR },
     Shl { reg: GPR, val: GPR },

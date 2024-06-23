@@ -56,6 +56,8 @@ impl Encodable for Instruction {
                 => 0b_0100_0000_0000_0000 | reg.encode(),
             And { reg, val }
                 => 0b_0100_0001_0000_0000 | val.encode() << 4 | reg.encode(),
+            Booland { reg, val }
+                => 0b_0100_0001_1000_0000 | val.encode() << 4 | reg.encode(),
             Or { reg, val }
                 => 0b_0100_0010_0000_0000 | val.encode() << 4 | reg.encode(),
             Xor { reg, val }
@@ -142,6 +144,7 @@ impl Encodable for Instruction {
                 // Bit Manipulation
                 "0100_0000_0000_0rrr" => Not { reg: GPR::decode(r)? },
                 "0100_0001_0xxx_0rrr" => And { reg: GPR::decode(r)?, val: GPR::decode(x)? },
+                "0100_0001_1xxx_0rrr" => Booland { reg: GPR::decode(r)?, val: GPR::decode(x)? },
                 "0100_0010_0xxx_0rrr" => Or { reg: GPR::decode(r)?, val: GPR::decode(x)? },
                 "0100_0011_0xxx_0rrr" => Xor { reg: GPR::decode(r)?, val: GPR::decode(x)? },
                 "0100_0100_0xxx_0rrr" => Shl { reg: GPR::decode(r)?, val: GPR::decode(x)? },

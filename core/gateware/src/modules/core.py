@@ -201,7 +201,8 @@ class Core(Elaboratable):
                         self.decode(m, read_1=ins[0:3], write=ins[0:3])
 
                     with m.Case(
-                        "0100 0001 0--- 0---", # and
+                        "0100 0001 ---- 0---", # (bool)and
+                        #          ^--------------- bool flag
                         "0100 0010 0--- 0---", # or
                         "0100 0011 0--- 0---", # xor
                         "0100 0100 0--- 0---", # shl
@@ -424,6 +425,12 @@ class Core(Elaboratable):
 
                     with m.Case("0100 0001 0--- 0---"): # and
                         m.d.sync += self.gprs.write_data.eq(self.reg_read_1_buffer & self.reg_read_2_buffer)
+
+                    with m.Case("0100 0001 1--- 0---"): # booland
+                        with m.If(self.reg_read_1_buffer.bool() & self.reg_read_2_buffer.bool()):
+                            m.d.sync += self.gprs.write_data.eq(1)
+                        with m.Else():
+                            m.d.sync += self.gprs.write_data.eq(0)
 
                     with m.Case("0100 0010 0--- 0---"): # or
                         m.d.sync += self.gprs.write_data.eq(self.reg_read_1_buffer | self.reg_read_2_buffer)

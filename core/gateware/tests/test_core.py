@@ -601,3 +601,36 @@ def test_bitset():
             
         hlt
     """, after)
+
+def test_booland():
+    """Tests the `booland` instruction."""
+
+    def after(core):
+        assert (yield core.r0) == 1
+        assert (yield core.r2) == 1
+        assert (yield core.r4) == 0
+        assert (yield core.r6) == 0
+
+    run_sim("""
+        ; normal booleans
+        .put r0, 1
+        .put r1, 1
+        booland r0, r1
+            
+        ; big booleans
+        .put r2, 63
+        .put r3, 41
+        booland r2, r3
+            
+        ; falsey one way
+        .put r4, 63
+        .put r5, 0
+        booland r4, r5
+            
+        ; falsey the other way
+        .put r6, 0
+        .put r7, 63
+        booland r6, r7
+            
+        hlt
+    """, after)

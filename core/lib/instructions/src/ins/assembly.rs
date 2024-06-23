@@ -54,6 +54,7 @@ fn operands_for_assembly(ins: &Instruction) -> Vec<&dyn ToAssembly> {
         // Bit Manipulation
         Not { reg } => vec![reg],
         And { reg, val } => vec![reg, val],
+        Booland { reg, val } => vec![reg, val],
         Or { reg, val } => vec![reg, val],
         Xor { reg, val } => vec![reg, val],
         Shl { reg, val } => vec![reg, val],
