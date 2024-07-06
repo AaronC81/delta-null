@@ -376,7 +376,7 @@ impl<'f, 'l> FunctionGenerator<'f, 'l> {
                 //     calculated into `r1` and parameter 2 in `r0`, you need to "swap" them.)
                 //
                 // This is tricky to get right - instead, TEMPORARILY take an easier approach.
-                // We push the _entire set_ of (used) GPRs to the stack, which has two functions:
+                // We push the _entire set_ of (live) GPRs to the stack, which has two functions:
                 //   - We can cherry-pick the registers we need back off this copy on the stack,
                 //     without worrying about that swapping problem.
                 //   - To preserve (most of) them for later. We don't want to restore over a
@@ -385,20 +385,21 @@ impl<'f, 'l> FunctionGenerator<'f, 'l> {
                 //
                 // This is inefficient, but easy to implement, and trivially correct.
 
-                // Find the set of GPRs which this function uses
-                let mut used_gprs = self.allocations.iter()
-                    .filter_map(|(_, alloc)| match alloc {
-                        Allocation::Register(r) => Some(*r),
-                        _ => None
-                    })
-                    .collect::<HashSet<_>>() // unique
-                    .into_iter()
+                // Find the set of currently-live GPRs
+                let mut live_gprs = self.liveness.live_in(stmt.id)
+                    .iter()
+                    .filter_map(|var|
+                        if let Some(Allocation::Register(r)) = self.allocations.get(var) {
+                            Some(*r)
+                        } else {
+                            None
+                        })
                     .collect::<Vec<_>>();
-                used_gprs.sort_by_key(|r| r.number());
+                live_gprs.sort_by_key(|r| r.number());
 
-                // Push all used GPRs
+                // Push all live GPRs
                 let mut gpr_stack_offsets = HashMap::new();
-                for reg in &used_gprs {
+                for reg in &live_gprs {
                     buffer.push(AssemblyItem::new_instruction(InstructionOpcode::Push, &[(*reg).into()]));
 
                     // There's now one more GPR on the stack, so you need to access one offset
@@ -451,7 +452,7 @@ impl<'f, 'l> FunctionGenerator<'f, 'l> {
                 }
 
                 // Restore registers
-                for reg in used_gprs.iter().rev() {
+                for reg in live_gprs.iter().rev() {
                     // ...except result register
                     if Some(*reg) == result {
                         buffer.push(AssemblyItem::new_instruction(InstructionOpcode::Spinc, &[]));
