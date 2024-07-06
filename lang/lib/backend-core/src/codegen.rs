@@ -2,21 +2,22 @@ use std::collections::{HashMap, HashSet};
 
 use delta_null_core_assembler::{AssemblyItem, AssemblyOperand, LabelAccess};
 use delta_null_core_instructions::{GeneralPurposeRegister, GPR, InstructionOpcode, SPR};
-use delta_null_lang_backend::ir::{self, BasicBlockId, Function, InstructionKind, LocalId, LocalRepository, Type, VariableId, VariableRepository};
+use delta_null_lang_backend::{analysis::liveness::LivenessAnalysis, ir::{self, BasicBlockId, Function, InstructionKind, LocalId, LocalRepository, Type, VariableId, VariableRepository}};
 
 use crate::{asm::assemble, reg_alloc::Allocation};
 
 /// Handles code generation for a single function.
-pub struct FunctionGenerator<'f> {
+pub struct FunctionGenerator<'f, 'l> {
     func: &'f Function,
     allocations: HashMap<VariableId, Allocation>,
+    liveness: &'l LivenessAnalysis,
 
     is_leaf: bool,
 }
 
-impl<'f> FunctionGenerator<'f> {
-    pub fn new(func: &'f Function, allocations: HashMap<VariableId, Allocation>, is_leaf: bool) -> Self {
-        Self { func, allocations, is_leaf }
+impl<'f, 'l> FunctionGenerator<'f, 'l> {
+    pub fn new(func: &'f Function, allocations: HashMap<VariableId, Allocation>, liveness: &'l LivenessAnalysis, is_leaf: bool) -> Self {
+        Self { func, allocations, liveness, is_leaf }
     }
 
     /// Converts this entire function to a complete list of Assembly instructions.

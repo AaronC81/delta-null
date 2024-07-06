@@ -63,12 +63,12 @@ pub fn compile_module(module: &Module) -> Result<Vec<AssemblyItem>, Vec<BuildErr
 }
 
 fn compile_function(func: &Function) -> Result<Vec<AssemblyItem>, Vec<BuildError>> {
-    let analysis = liveness_analysis(func);
+    let liveness = liveness_analysis(func);
     let cfg = ControlFlowGraph::generate(func);
-    let allocation = allocate(func, &cfg, &analysis);
+    let allocation = allocate(func, &cfg, &liveness);
     let is_leaf = is_leaf_function(func);
 
-    let generator = FunctionGenerator::new(func, allocation, is_leaf);
+    let generator = FunctionGenerator::new(func, allocation, &liveness, is_leaf);
     let mut assembly = generator.to_assembly();
 
     peephole_optimise(&mut assembly);
