@@ -1,6 +1,6 @@
-use std::collections::{HashMap, HashSet};
+use std::{assert_matches::assert_matches, collections::{HashMap, HashSet}};
 
-use crate::ir::{StatementId, VariableId, Function};
+use crate::ir::{Function, Instruction, InstructionKind, Statement, StatementId, VariableId};
 
 use super::flow::ControlFlowGraph;
 
@@ -98,6 +98,29 @@ pub fn liveness_analysis(func: &Function) -> LivenessAnalysis {
         .collect::<HashMap<_, _>>();
     let mut out_map = in_map.clone();
 
+    // Gets the result variables for a statement.
+    fn results(func: &Function, stmt: &Statement) -> HashSet<VariableId> {
+        // Wait, variable*s*!? Doesn't SSA only have one result!?
+        // Well, yes - and it fact, every statement will only have one result.
+        //
+        // *Except* the first statement - we pretend that the first statement also defined all of
+        // the function's arguments. They need to come from somewhere!
+        //
+        // This is a bit of a cludge, but it means the rest of the algorithm doesn't need to worry
+        // about arguments.
+        //
+        // This runs into problems if the argument is used only in the first IR statement, which is
+        // why we have the `begin` statement.
+
+        if func.first_statement().id == stmt.id && !func.arguments.is_empty() {
+            assert_matches!(stmt.instruction.kind, InstructionKind::Begin);
+            func.arguments.iter().chain(stmt.result.iter()).copied().collect()
+        } else {
+            // Just this statement's result
+            stmt.result.into_iter().collect()
+        }
+    }
+
     // Iterate
     loop {
         let previous_in_map = in_map.clone();
@@ -117,7 +140,7 @@ pub fn liveness_analysis(func: &Function) -> LivenessAnalysis {
                 stmt.instruction.referenced_variables()
                     .union(
                         &out_map[&stmt.id]
-                            .difference(&stmt.result.into_iter().collect())
+                            .difference(&results(func, stmt))
                             .copied()
                             .collect()
                     )
@@ -128,16 +151,6 @@ pub fn liveness_analysis(func: &Function) -> LivenessAnalysis {
         
         // If we've found a fixed point, we're done!
         if previous_in_map == in_map && previous_out_map == out_map {
-            // One late addition we'll make - parameters need to come from _somewhere_, else we end
-            // up with weird inconsistencies between which variables exist.
-            // To make our life easy, let's pretend that function arguments are live all the time.
-            for arg in &func.arguments {
-                for stmt in func.statements() {
-                    in_map.get_mut(&stmt.id).unwrap().insert(*arg);
-                    out_map.get_mut(&stmt.id).unwrap().insert(*arg);
-                }
-            }
-
             return LivenessAnalysis {
                 live_in: in_map,
                 live_out: out_map,
@@ -150,7 +163,7 @@ pub fn liveness_analysis(func: &Function) -> LivenessAnalysis {
 mod test {
     use maplit::hashset;
 
-    use crate::ir::{FunctionBuilder, Instruction, InstructionKind, ConstantValue};
+    use crate::ir::{ConstantValue, FunctionBuilder, Instruction, InstructionKind, IntegerSize, Type};
 
     use super::liveness_analysis;
 
@@ -158,6 +171,7 @@ mod test {
     fn test_liveness_simple() {
         let func = FunctionBuilder::new("foo", &[]);
         let (block_id, mut block) = func.new_basic_block();
+        block.add_void_instruction(Instruction::new(InstructionKind::Begin));
         let a = block.add_constant(ConstantValue::U16(123));
         let b = block.add_constant(ConstantValue::U16(456));
         let a_plus_b = block.add_instruction(Instruction::new(InstructionKind::Add(a, b)));
@@ -191,6 +205,44 @@ mod test {
         );
         assert_eq!(
             (&hashset! { a_plus_c }, &hashset! { }),
+            analysis.live_in_out(func.blocks[&block_id].terminator().id)
+        );
+    }
+
+    #[test]
+    fn test_liveness_args() {
+        let func = FunctionBuilder::new("foo", &[
+            ("x".to_owned(), Type::UnsignedInteger(IntegerSize::Bits16)),
+            ("y".to_owned(), Type::UnsignedInteger(IntegerSize::Bits16)),
+        ]);
+        let x = func.get_argument("x").unwrap();
+        let y = func.get_argument("y").unwrap();
+
+        let (block_id, mut block) = func.new_basic_block();
+        block.add_void_instruction(Instruction::new(InstructionKind::Begin));
+        let a = block.add_constant(ConstantValue::U16(123));
+        let a_plus_x = block.add_instruction(Instruction::new(InstructionKind::Add(a, x)));
+        let a_plus_y = block.add_instruction(Instruction::new(InstructionKind::Add(a, y)));
+        block.add_terminator(Instruction::new(InstructionKind::Return(Some(a_plus_y))));
+        block.finalize();
+        let func = func.finalize();
+
+        let analysis = liveness_analysis(&func);
+
+        assert_eq!(
+            (&hashset! { x, y }, &hashset! { a, x, y }),
+            analysis.live_in_out(func.statement_assigning_to(a).id)
+        );
+        assert_eq!(
+            (&hashset! { a, x, y }, &hashset! { a, y }),
+            analysis.live_in_out(func.statement_assigning_to(a_plus_x).id)
+        );
+        assert_eq!(
+            (&hashset! { a, y }, &hashset! { a_plus_y }),
+            analysis.live_in_out(func.statement_assigning_to(a_plus_y).id)
+        );
+        assert_eq!(
+            (&hashset! { a_plus_y }, &hashset! { }),
             analysis.live_in_out(func.blocks[&block_id].terminator().id)
         );
     }

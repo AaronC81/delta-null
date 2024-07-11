@@ -43,6 +43,12 @@ impl Instruction {
 /// All possible [Instruction] operations.
 #[derive(Debug, Clone)]
 pub enum InstructionKind {
+    /// Magic marker instruction which signifies the beginning of an instruction.
+    /// 
+    /// No codegen effect, but used to simplify analysis passes - for example to ascribe an origin
+    /// statement to "static" items like parameters.
+    Begin,
+
     /// Evaluates to a constant value.
     Constant(ConstantValue),
 
@@ -225,6 +231,7 @@ impl Instruction {
     /// read as part of the instruction itself.
     pub fn referenced_variables(&self) -> HashSet<VariableId> {
         match &self.kind {
+            InstructionKind::Begin => hashset!{},
             InstructionKind::Constant(_) => hashset!{},
             InstructionKind::CastReinterpret { value, ty: _ } => hashset!{ *value },
             InstructionKind::FunctionReference { .. } => hashset!{},
@@ -278,6 +285,8 @@ impl Instruction {
         locals: impl Deref<Target = impl LocalRepository>,
     ) -> Result<Option<Type>, TypeError> {
         match &self.kind {
+            InstructionKind::Begin => Ok(None),
+
             InstructionKind::Constant(v) => Ok(Some(v.ty())),
             InstructionKind::CastReinterpret { value: _, ty } => Ok(Some(ty.clone())),
             InstructionKind::FunctionReference { ty, .. } => Ok(Some(ty.clone())),
@@ -405,6 +414,8 @@ impl Instruction {
 impl PrintIR for Instruction {
     fn print_ir(&self, options: &super::PrintOptions) -> String {
         match &self.kind {
+            InstructionKind::Begin => "begin".to_owned(),
+
             InstructionKind::Constant(c) => c.print_ir(options),
             InstructionKind::CastReinterpret { value, ty } =>
                 format!("cast (reinterpret) {} as {}", value.print_ir(options), ty),

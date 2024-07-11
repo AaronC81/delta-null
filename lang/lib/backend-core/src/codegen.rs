@@ -81,6 +81,10 @@ impl<'f, 'l> FunctionGenerator<'f, 'l> {
     /// been able to optimise them out. (If it hasn't, this should be 0.)
     pub fn ir_statement_to_assembly(&self, buffer: &mut Vec<AssemblyItem>, stmt: &ir::Statement, after: &[ir::Statement]) -> usize {
         match &stmt.instruction.kind {
+            ir::InstructionKind::Begin => {
+                // Nothing to do. We insert our preamble manually
+            }
+
             ir::InstructionKind::Constant(c) => {
                 let Some(reg) = self.variable_reg(stmt.result.unwrap()) else { return 0 };
                 

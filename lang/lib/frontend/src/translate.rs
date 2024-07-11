@@ -393,9 +393,13 @@ impl<'c> FunctionTranslator<'c> {
 
     /// Create a new, disconnected block, and set it as the target for instruction generation.
     /// Required before generating any instructions.
+    /// 
+    /// Also inserts an [ir::InstructionKind::Begin] at the beginning of the block automatically.
     pub fn create_root_block(&mut self) {
         let (_, start_block) = self.func.new_basic_block();
         self.target = Some(start_block);
+
+        self.target_mut().add_void_instruction(Instruction::new(ir::InstructionKind::Begin));
     }
 
     /// Builds a mapping of local variables to their IR [LocalId]s.

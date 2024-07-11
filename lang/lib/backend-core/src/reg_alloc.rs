@@ -39,17 +39,24 @@ pub fn allocate(func: &Function, cfg: &ControlFlowGraph, liveness: &LivenessAnal
     // Reverse iterator, so we start with R0
     let mut free_registers = GPR::all().rev().collect::<Vec<_>>();
 
-    // Remove any registers which are reserved for parameters.
-    // Currently, parameters always live in their registers, reserved there for the entirety of the
-    // function - it makes accessing them easier!
+    // Set up vector to track active allocations
+    let mut active = vec![];
+
+    // Allocate any registers for parameters first
+    // These aren't really "allocated", more so "required" - the values are *already there* once the
+    // function is called, so we have to make sure we don't trash them
     let parameter_passing_registers = [GPR::R0, GPR::R1, GPR::R2, GPR::R3];
     for (var, reg) in func.arguments.iter().zip(parameter_passing_registers) {
-        free_registers.extract_if(|r| r == &reg).for_each(|_| ());
+        // If the parameter isn't used for the entire function, we can free up the register for
+        // other variables later on
+        let (start, end) = intervals[var];
         mapping.insert(*var, Allocation::Register(reg));
+        active.push((*var, start, end));
+        active.sort_by_key(|(_, _, end)| indexes[end]);
+        free_registers.retain(|r| *r != reg);
         internals_by_increasing_start.extract_if(|(v, _)| v == &var).for_each(|_| ());
     }
 
-    let mut active = vec![];
     for (var, (start, end)) in internals_by_increasing_start {
         // Expire old intervals
         active.retain(|(active_var, _, active_end)| {

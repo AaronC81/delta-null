@@ -128,6 +128,16 @@ impl Function {
         self.blocks.get(&id).expect("missing basic block")
     }
 
+    /// Gets the first basic block of this function.
+    pub fn first_block(&self) -> &BasicBlock {
+        self.ordered_blocks().next().expect("no blocks")
+    }
+
+    /// Gets the first statement of this function.
+    pub fn first_statement(&self) -> &Statement {
+        self.first_block().first_statement()
+    }
+
     /// Gets the successor statements which could be executed after the given statement.
     /// 
     /// If the statement is not a terminator, then this is the statement immediately following it
