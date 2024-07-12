@@ -18,7 +18,11 @@ mod codegen;
 mod peephole;
 mod asm;
 
+/// The registers used to pass parameters, according to the EABI.
 const PARAMETER_PASSING_REGISTERS: [GPR; 4] = [GPR::R0, GPR::R1, GPR::R2, GPR::R3];
+
+/// The register which we use, by convention, to hold the call destination address.
+const CALL_TARGET_REGISTER: GPR = GPR::R4;
 
 #[cfg(test)]
 mod test_utils;

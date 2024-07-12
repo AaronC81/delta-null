@@ -4,7 +4,7 @@ use delta_null_core_assembler::{AssemblyItem, AssemblyOperand, LabelAccess};
 use delta_null_core_instructions::{GeneralPurposeRegister, GPR, InstructionOpcode, SPR};
 use delta_null_lang_backend::{analysis::liveness::LivenessAnalysis, ir::{self, BasicBlockId, Function, InstructionKind, LocalId, LocalRepository, Type, VariableId, VariableRepository}};
 
-use crate::{asm::assemble, reg_alloc::Allocation, PARAMETER_PASSING_REGISTERS};
+use crate::{asm::assemble, reg_alloc::Allocation, CALL_TARGET_REGISTER, PARAMETER_PASSING_REGISTERS};
 
 /// Handles code generation for a single function.
 pub struct FunctionGenerator<'f, 'l> {
@@ -433,19 +433,20 @@ impl<'f, 'l> FunctionGenerator<'f, 'l> {
                     ));
                 }
                 
-                // Use `r4`, an arbitrarily-chosen (non-parameter-passing) register, to hold our
-                // target
+                // Use an arbitrarily-chosen (non-parameter-passing) register, to hold our target
+                // (No need to read it off the stack if it's already in the right register)
                 let target = self.generate_read(buffer, *target);
-                let true_target = GPR::R4;
-                buffer.push(AssemblyItem::new_instruction(
-                    InstructionOpcode::Spread,
-                    &[true_target.into(), gpr_stack_offsets[&target].into()],
-                ));
+                if target != CALL_TARGET_REGISTER {
+                    buffer.push(AssemblyItem::new_instruction(
+                        InstructionOpcode::Spread,
+                        &[CALL_TARGET_REGISTER.into(), gpr_stack_offsets[&target].into()],
+                    ));
+                }
 
                 // Call, and copy result (in `r0`) to result register
                 buffer.push(AssemblyItem::new_instruction(
                     InstructionOpcode::Call,
-                    &[true_target.into()],
+                    &[CALL_TARGET_REGISTER.into()],
                 ));
                 if let Some(result) = result {
                     buffer.push(AssemblyItem::new_instruction(

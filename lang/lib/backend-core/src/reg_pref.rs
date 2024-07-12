@@ -12,7 +12,7 @@ use std::collections::{HashMap, HashSet};
 use delta_null_core_instructions::GPR;
 use delta_null_lang_backend::ir::{BasicBlock, Function, InstructionKind, VariableId};
 
-use crate::PARAMETER_PASSING_REGISTERS;
+use crate::{CALL_TARGET_REGISTER, PARAMETER_PASSING_REGISTERS};
 
 /// Tracks the preferred register allocations for variables.
 #[derive(Debug, Clone)]
@@ -60,7 +60,7 @@ fn find_preferences_in_block(block: &BasicBlock, prefs: &mut RegisterPreferences
     // Walk backwards along the instructions in the block, so we can trace where they're used
     for stmt in block.statements.iter().rev() {
         // We only currently act on calls
-        let InstructionKind::Call { target: _, arguments } = &stmt.instruction.kind else { continue };
+        let InstructionKind::Call { target, arguments } = &stmt.instruction.kind else { continue };
 
         // If the call returns something, ideally that should continue to be allocated to `r0`,
         // since the EABI will put it there anyway
@@ -72,5 +72,8 @@ fn find_preferences_in_block(block: &BasicBlock, prefs: &mut RegisterPreferences
         for (reg, arg) in PARAMETER_PASSING_REGISTERS.iter().zip(arguments) {
             prefs.insert(*arg, *reg);
         }
+
+        // We use a particular register for targets by convention
+        prefs.insert(*target, CALL_TARGET_REGISTER);
     }
 }
