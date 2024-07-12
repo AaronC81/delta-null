@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use delta_null_core_instructions::GPR;
 use delta_null_lang_backend::{ir::{VariableId, Function}, analysis::{liveness::LivenessAnalysis, flow::ControlFlowGraph}};
@@ -38,16 +38,8 @@ pub fn allocate(func: &Function, cfg: &ControlFlowGraph, liveness: &LivenessAnal
     let mut internals_by_increasing_start = intervals.iter().collect::<Vec<_>>();
     internals_by_increasing_start.sort_by_key(|(_, (start, _))| indexes[start]);
 
-    // Reverse iterator
-    // We pop from this list, so the registers we should pick *first* go at the *end*.
-    // Put any registers which specific variables would like to prefer to use at the *start*, so
-    // they get picked *last*.
-    let mut free_registers = reg_prefs.all_registers();
-    for reg in GPR::all().rev() {
-        if !free_registers.contains(&reg) {
-            free_registers.push(reg);
-        }
-    }
+    // Set up our register tracker
+    let mut regs = RegisterAllocator::new(reg_prefs);
 
     // Set up vector to track active allocations
     let mut active = vec![];
@@ -62,7 +54,7 @@ pub fn allocate(func: &Function, cfg: &ControlFlowGraph, liveness: &LivenessAnal
         mapping.insert(*var, Allocation::Register(reg));
         active.push((*var, start, end));
         active.sort_by_key(|(_, _, end)| indexes[end]);
-        free_registers.retain(|r| *r != reg);
+        regs.take(reg);
         internals_by_increasing_start.extract_if(|(v, _)| v == &var).for_each(|_| ());
     }
 
@@ -73,22 +65,13 @@ pub fn allocate(func: &Function, cfg: &ControlFlowGraph, liveness: &LivenessAnal
                 return true;
             }
             if let Allocation::Register(r) = mapping[active_var] {
-                free_registers.push(r);
+                regs.free(r);
             }
             false
         });
 
         // Allocate this variable
-        if !free_registers.is_empty() {
-            // If there is an available preferred allocation, use it - else just pop anything
-            let reg;
-            if let Some(pref_reg) = reg_prefs.get(*var) && free_registers.contains(&pref_reg) {
-                free_registers.retain(|r| *r != pref_reg);
-                reg = pref_reg;
-            } else {
-                reg = free_registers.pop().expect("free registers pop failed");
-            }
-
+        if let Some(reg) = regs.allocate(*var) {
             mapping.insert(*var, Allocation::Register(reg));
             active.push((*var, *start, *end));
             active.sort_by_key(|(_, _, end)| indexes[end]);
@@ -111,4 +94,61 @@ pub fn allocate(func: &Function, cfg: &ControlFlowGraph, liveness: &LivenessAnal
     }
 
     mapping
+}
+
+/// Tracks registers and allocation preferences.
+struct RegisterAllocator<'p> {
+    preferences: &'p RegisterPreferences,
+
+    all_preferred: HashSet<GPR>,
+    all_rest: HashSet<GPR>,
+
+    remaining_preferred: Vec<GPR>,
+    remaining_rest: Vec<GPR>,
+}
+
+impl<'p> RegisterAllocator<'p> {
+    /// Creates a new allocator based on the given preferences.
+    pub fn new(preferences: &'p RegisterPreferences) -> Self {
+        let remaining_preferred = preferences.all_registers()
+            .into_iter().collect::<Vec<_>>();
+        let remaining_rest = GPR::all().rev()
+            .filter(|r| !remaining_preferred.contains(r)).collect::<Vec<_>>();
+
+        Self {
+            preferences,
+            all_preferred: remaining_preferred.iter().copied().collect(),
+            all_rest: remaining_rest.iter().copied().collect(),
+            remaining_preferred,
+            remaining_rest,
+        }
+    }
+
+    /// Allocates a register for the given variable.
+    pub fn allocate(&mut self, var: VariableId) -> Option<GPR> {
+        if let Some(pref_reg) = self.preferences.get(var) && self.remaining_preferred.contains(&pref_reg) {
+            self.remaining_preferred.retain(|r| *r != pref_reg);
+            return Some(pref_reg)
+        } else {
+            self.remaining_rest.pop()
+        }
+    }
+
+    /// "Steals" a register allocation for no particular variable.
+    pub fn take(&mut self, gpr: GPR) {
+        self.remaining_preferred.retain(|r| *r != gpr);
+        self.remaining_rest.retain(|r| *r != gpr);
+    }
+
+    /// Return a register so that it may be allocated again. *Must* have been removed from the
+    /// allocator with [allocate] or [take] first.
+    pub fn free(&mut self, gpr: GPR) {
+        if self.all_preferred.contains(&gpr) {
+            self.remaining_preferred.push(gpr);
+        } else if self.all_rest.contains(&gpr) {
+            self.remaining_rest.push(gpr);
+        } else {
+            unreachable!("register {gpr:?} belongs to neither set");
+        }
+    }
 }
