@@ -55,3 +55,18 @@ fn test_variables() {
         5 + 12
     )
 }
+
+#[test]
+fn test_init_entry_flow() {
+    // Initialised
+    assert_eq!(
+        util::compile_and_execute("
+            var x: u16 = 5;
+
+            fn main() -> u16 {
+                return x;
+            }
+        ").unwrap(),
+        5
+    );    
+}
