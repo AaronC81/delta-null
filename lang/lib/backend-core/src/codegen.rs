@@ -4,7 +4,7 @@ use delta_null_core_assembler::{AssemblyItem, AssemblyOperand, LabelAccess};
 use delta_null_core_instructions::{GeneralPurposeRegister, GPR, InstructionOpcode, SPR};
 use delta_null_lang_backend::{analysis::liveness::LivenessAnalysis, ir::{self, BasicBlockId, Function, InstructionKind, LocalId, LocalRepository, Type, VariableId, VariableRepository}};
 
-use crate::{asm::assemble, reg_alloc::Allocation};
+use crate::{asm::assemble, reg_alloc::Allocation, PARAMETER_PASSING_REGISTERS};
 
 /// Handles code generation for a single function.
 pub struct FunctionGenerator<'f, 'l> {
@@ -417,14 +417,13 @@ impl<'f, 'l> FunctionGenerator<'f, 'l> {
                 }
 
                 // Push parameters into registers
-                let parameter_passing_registers = [GPR::R0, GPR::R1, GPR::R2, GPR::R3];
-                if arguments.len() > parameter_passing_registers.len() {
+                if arguments.len() > PARAMETER_PASSING_REGISTERS.len() {
                     panic!(
                         "too many parameters for EABI (found {} but maximum is {})",
-                        arguments.len(), parameter_passing_registers.len(),
+                        arguments.len(), PARAMETER_PASSING_REGISTERS.len(),
                     );
                 }
-                for (argument, reg) in arguments.iter().zip(parameter_passing_registers) {
+                for (argument, reg) in arguments.iter().zip(PARAMETER_PASSING_REGISTERS) {
                     let source = self.generate_read(buffer, *argument);
 
                     // Generate `spread` to grab the parameter off our stack copy

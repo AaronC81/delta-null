@@ -6,15 +6,19 @@
 use asm::assemble;
 use codegen::FunctionGenerator;
 use delta_null_core_assembler::{AssemblyItem, AssemblyItemKind, BuildError};
-use delta_null_core_instructions::InstructionOpcode;
+use delta_null_core_instructions::{InstructionOpcode, GPR};
 use delta_null_lang_backend::{analysis::{flow::ControlFlowGraph, liveness::liveness_analysis, misc::is_leaf_function}, ir::{Function, Module, ModuleItem}};
 use peephole::peephole_optimise;
 use reg_alloc::allocate;
+use reg_pref::find_preferences;
 
 mod reg_alloc;
+mod reg_pref;
 mod codegen;
 mod peephole;
 mod asm;
+
+const PARAMETER_PASSING_REGISTERS: [GPR; 4] = [GPR::R0, GPR::R1, GPR::R2, GPR::R3];
 
 #[cfg(test)]
 mod test_utils;
@@ -65,7 +69,8 @@ pub fn compile_module(module: &Module) -> Result<Vec<AssemblyItem>, Vec<BuildErr
 fn compile_function(func: &Function) -> Result<Vec<AssemblyItem>, Vec<BuildError>> {
     let liveness = liveness_analysis(func);
     let cfg = ControlFlowGraph::generate(func);
-    let allocation = allocate(func, &cfg, &liveness);
+    let reg_prefs = find_preferences(func);
+    let allocation = allocate(func, &cfg, &liveness, &reg_prefs);
     let is_leaf = is_leaf_function(func);
 
     let generator = FunctionGenerator::new(func, allocation, &liveness, is_leaf);

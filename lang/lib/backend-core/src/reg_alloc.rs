@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use delta_null_core_instructions::GPR;
 use delta_null_lang_backend::{ir::{VariableId, Function}, analysis::{liveness::LivenessAnalysis, flow::ControlFlowGraph}};
 
+use crate::{reg_pref::RegisterPreferences, PARAMETER_PASSING_REGISTERS};
+
 /// Describes how an IR variable was allocated onto the core during a function's execution.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Allocation {
@@ -21,7 +23,7 @@ pub enum Allocation {
 /// This is an implementation of linear scanning, as described by this journal article:
 ///   http://web.cs.ucla.edu/~palsberg/course/cs132/linearscan.pdf
 /// Specifically following the pseudocode in §4.1.
-pub fn allocate(func: &Function, cfg: &ControlFlowGraph, liveness: &LivenessAnalysis) -> HashMap<VariableId, Allocation> {
+pub fn allocate(func: &Function, cfg: &ControlFlowGraph, liveness: &LivenessAnalysis, reg_prefs: &RegisterPreferences) -> HashMap<VariableId, Allocation> {
     let intervals = liveness.live_intervals(cfg);
     let indexes = cfg.statement_ordering();
 
@@ -36,8 +38,16 @@ pub fn allocate(func: &Function, cfg: &ControlFlowGraph, liveness: &LivenessAnal
     let mut internals_by_increasing_start = intervals.iter().collect::<Vec<_>>();
     internals_by_increasing_start.sort_by_key(|(_, (start, _))| indexes[start]);
 
-    // Reverse iterator, so we start with R0
-    let mut free_registers = GPR::all().rev().collect::<Vec<_>>();
+    // Reverse iterator
+    // We pop from this list, so the registers we should pick *first* go at the *end*.
+    // Put any registers which specific variables would like to prefer to use at the *start*, so
+    // they get picked *last*.
+    let mut free_registers = reg_prefs.all_registers();
+    for reg in GPR::all().rev() {
+        if !free_registers.contains(&reg) {
+            free_registers.push(reg);
+        }
+    }
 
     // Set up vector to track active allocations
     let mut active = vec![];
@@ -45,8 +55,7 @@ pub fn allocate(func: &Function, cfg: &ControlFlowGraph, liveness: &LivenessAnal
     // Allocate any registers for parameters first
     // These aren't really "allocated", more so "required" - the values are *already there* once the
     // function is called, so we have to make sure we don't trash them
-    let parameter_passing_registers = [GPR::R0, GPR::R1, GPR::R2, GPR::R3];
-    for (var, reg) in func.arguments.iter().zip(parameter_passing_registers) {
+    for (var, reg) in func.arguments.iter().zip(PARAMETER_PASSING_REGISTERS) {
         // If the parameter isn't used for the entire function, we can free up the register for
         // other variables later on
         let (start, end) = intervals[var];
@@ -70,8 +79,17 @@ pub fn allocate(func: &Function, cfg: &ControlFlowGraph, liveness: &LivenessAnal
         });
 
         // Allocate this variable
-        if let Some(free_reg) = free_registers.pop() {
-            mapping.insert(*var, Allocation::Register(free_reg));
+        if !free_registers.is_empty() {
+            // If there is an available preferred allocation, use it - else just pop anything
+            let reg;
+            if let Some(pref_reg) = reg_prefs.get(*var) && free_registers.contains(&pref_reg) {
+                free_registers.retain(|r| *r != pref_reg);
+                reg = pref_reg;
+            } else {
+                reg = free_registers.pop().expect("free registers pop failed");
+            }
+
+            mapping.insert(*var, Allocation::Register(reg));
             active.push((*var, *start, *end));
             active.sort_by_key(|(_, _, end)| indexes[end]);
         } else {
