@@ -113,7 +113,7 @@ These get converted into an SSA IR, inspired by LLVM:
 
 ![Control-flow graph of SSA IR instructions for the above program](img/fact_dot.png)
 
-And finally end up as (horrifically unoptimised) assembly programs.
+And finally end up as assembly programs with an "acceptable" level of optimisation.
 
 ## Repository Structure
 
