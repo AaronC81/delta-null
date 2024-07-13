@@ -462,6 +462,9 @@ impl<'f, 'l> FunctionGenerator<'f, 'l> {
         0 // Assume no optimisation, unless a branch of the `match` returns before
     }
 
+    /// Translates a [InstructionKind::Call] to assembly and adds it to the given buffer.
+    /// 
+    /// This is a very complex statement to translate, so it's broken out into a helper function.
     fn call_statement_to_assembly(&self, buffer: &mut Vec<AssemblyItem>, stmt: &ir::Statement, target: VariableId, arguments: &[VariableId]) {
         // Fetch result register. The call puts its result in `r0`, so we'll copy it here
         // later.
@@ -471,47 +474,64 @@ impl<'f, 'l> FunctionGenerator<'f, 'l> {
         // because the call probably has side effects.
         let result = self.variable_reg(stmt.result.unwrap());
 
-        // TODO
-        // There's quite a lot which needs to be done to prepare for a function call:
-        //   - Get the target, and move it away from the parameter-passing registers, which
-        //     we need to set to specific values
-        //   - Preserve any caller-saved registers which are in use
-        //   - Shuffle parameters around so that they're in the correct registers for the
-        //     call. This can be tricky in some scenarios (e.g. if parameter 1 was
-        //     calculated into `r1` and parameter 2 in `r0`, you need to "swap" them.)
-        //
-        // This is tricky to get right - instead, TEMPORARILY take an easier approach.
-        // We push the _entire set_ of (live) GPRs to the stack, which has two functions:
-        //   - We can cherry-pick the registers we need back off this copy on the stack,
-        //     without worrying about that swapping problem.
-        //   - To preserve (most of) them for later. We don't want to restore over a
-        //     function call's return value though, so we won't restore whichever register
-        //     that gets stored in.
-        //
-        // This is inefficient, but easy to implement, and trivially correct.
+        // Right now, we put arguments and the target in their registers using a naive approach;
+        // push them all to the stack (along with anything which actually needs to be preserved),
+        // then cherry-pick them off.
 
-        // TODO: only need to push if one (or more) of the following:
-        //  - live-in AND live-out AND caller saved
+        // Therefore, we need to push if one (or more) of the following:
+        //  - live-in AND live-out AND caller-saved
+        //      (so that it still has its old value after the call)
         //  - live-in AND contains an argument
         //  - live-in AND contains the target AND NOT the `CALL_TARGET_REGISTER`
+        //      (both so that its value can be retrieved during our stack-twiddling)
         // In any other case, no need to push and restore.
-        // (Can be refined later: can skip push IF: NOT live-out AND used as ONE argument which is already in the correct register)
+        //
+        // Additionally, we can skip pushing an argument if it's not live-out (i.e. not reused
+        // elsewhere) and is already in the correct register.
 
-        // Find the set of currently-live GPRs
-        let mut live_gprs = self.liveness.live_in(stmt.id)
+        // Find the set of GPRs we need to push
+        let (live_in_gprs, live_out_gprs) = self.liveness.live_in_out(stmt.id);
+        let mut pushed_gprs = live_in_gprs
             .iter()
             .filter_map(|var|
+                // We only care about variables which are allocated to registers
                 if let Some(Allocation::Register(r)) = self.allocations.get(var) {
-                    Some(*r)
+                    Some((*var, *r))
                 } else {
                     None
                 })
+            .filter(|(var, reg)|
+                // We only searched the live GPR set, so all of these include that "live-in AND..."
+                // precondition already.
+
+                // ... live-out AND caller-saved
+                (live_out_gprs.contains(var) && Self::CALLER_SAVED_GPRS.contains(reg))
+                // ... contains an argument
+                || arguments.contains(var)
+                // ... conatins the target AND NOT the `CALL_TARGET_REGISTER` 
+                || *var == target && *reg != CALL_TARGET_REGISTER
+            )
+            .filter(|(var, reg)| {
+                // Optimisation!
+                // We *do NOT* need to push if the variable is NOT live-out, and represents an
+                // argument which is already in the correct register.
+                // We can just leave it where it is, and permit it to get trashed.
+                let arg_index = arguments.iter()
+                    .enumerate().find(|(_, arg)| *arg == var)
+                    .map(|(i, _)| i);
+                !(
+                    !live_out_gprs.contains(var)
+                    && arg_index.is_some()
+                    && PARAMETER_PASSING_REGISTERS.get(arg_index.unwrap()) == Some(reg)
+                )
+            })
+            .map(|(_, r)| r)
             .collect::<Vec<_>>();
-        live_gprs.sort_by_key(|r| r.number());
+        pushed_gprs.sort_by_key(|r| r.number());
 
         // Push all live GPRs
         let mut gpr_stack_offsets = HashMap::new();
-        for reg in &live_gprs {
+        for reg in &pushed_gprs {
             buffer.push(AssemblyItem::new_instruction(InstructionOpcode::Push, &[(*reg).into()]));
 
             // There's now one more GPR on the stack, so you need to access one offset
@@ -535,10 +555,16 @@ impl<'f, 'l> FunctionGenerator<'f, 'l> {
             let source = self.generate_read(buffer, *argument);
 
             // Generate `spread` to grab the parameter off our stack copy
-            buffer.push(AssemblyItem::new_instruction(
-                InstructionOpcode::Spread,
-                &[reg.into(), gpr_stack_offsets[&source].into()],
-            ));
+            if let Some(offset) = gpr_stack_offsets.get(&source) {
+                buffer.push(AssemblyItem::new_instruction(
+                    InstructionOpcode::Spread,
+                    &[reg.into(), (*offset).into()],
+                ));
+            } else {
+                // If there's no offset, we can assume that the argument is already in the correct
+                // register.
+                assert!(self.allocations[argument] == Allocation::Register(reg))
+            }
         }
         
         // Use an arbitrarily-chosen (non-parameter-passing) register, to hold our target
@@ -564,7 +590,7 @@ impl<'f, 'l> FunctionGenerator<'f, 'l> {
         }
 
         // Restore registers
-        for reg in live_gprs.iter().rev() {
+        for reg in pushed_gprs.iter().rev() {
             // ...except result register
             if Some(*reg) == result {
                 buffer.push(AssemblyItem::new_instruction(InstructionOpcode::Spinc, &[]));
@@ -649,6 +675,7 @@ impl<'f, 'l> FunctionGenerator<'f, 'l> {
         }
     }
 
+    const CALLER_SAVED_GPRS: [GPR; 4] = [GPR::R0, GPR::R1, GPR::R2, GPR::R3];
     const CALLEE_SAVED_GPRS: [GPR; 4] = [GPR::R4, GPR::R5, GPR::R6, GPR::R7];
 
     /// Inserts instructions at the end of the instruction buffer to save callee-saved registers,
