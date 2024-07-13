@@ -50,7 +50,12 @@ pub fn allocate(func: &Function, cfg: &ControlFlowGraph, liveness: &LivenessAnal
     for (var, reg) in func.arguments.iter().zip(PARAMETER_PASSING_REGISTERS) {
         // If the parameter isn't used for the entire function, we can free up the register for
         // other variables later on
-        let (start, end) = intervals[var];
+        let Some((start, end)) = intervals.get(var).copied() else {
+            // The parameter has no interval - it was probably never used. We don't really have a
+            // way of checking this at this stage... assume liveness analysis did its job right and
+            // skip this parameter.
+            continue;
+        };
         mapping.insert(*var, Allocation::Register(reg));
         active.push((*var, start, end));
         active.sort_by_key(|(_, _, end)| indexes[end]);

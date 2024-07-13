@@ -285,3 +285,21 @@ fn test_discard() {
         2,
     )
 }
+
+/// Regression test: this has previously caused a panic because the unused parameters were never
+/// considered during liveness analysis, so allocating storage for them failed
+#[test]
+fn test_unused_parameters() {
+    assert_eq!(
+        util::compile_and_execute("
+            fn foo(a: u16, b: u16) -> u16 {
+                return 5;
+            }
+            
+            fn main() -> u16 {
+                return foo(1, 2);
+            }
+        ").unwrap(),
+        5,
+    )
+}
