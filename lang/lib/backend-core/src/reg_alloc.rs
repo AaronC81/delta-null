@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use delta_null_core_instructions::GPR;
 use delta_null_lang_backend::{ir::{VariableId, Function}, analysis::{liveness::LivenessAnalysis, flow::ControlFlowGraph}};
 
-use crate::{reg_pref::RegisterPreferences, PARAMETER_PASSING_REGISTERS};
+use crate::{codegen::info::in_place_usage_variables, reg_pref::RegisterPreferences, PARAMETER_PASSING_REGISTERS};
 
 /// Describes how an IR variable was allocated onto the core during a function's execution.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -75,8 +75,40 @@ pub fn allocate(func: &Function, cfg: &ControlFlowGraph, liveness: &LivenessAnal
             false
         });
 
+        // Optimisation: does the statement which introduces this variable support in-place usage?
+        let mut force_allocation = None;
+        let start_stmt = func.get_statement(*start);
+        if let Some(candidates) = in_place_usage_variables(&start_stmt.instruction.kind) {
+            // Are any of the parameters stored in registers, which are going to expire immediately
+            // after this statement?
+            let possible_regs = candidates.into_iter()
+                .filter_map(|var| 
+                    if let Allocation::Register(reg) = mapping[&var] {
+                        Some((var, reg))
+                    } else {
+                        None
+                    }
+                )
+                .filter(|(var, _)|
+                    active.iter().any(|(active_var, _, active_end)|
+                        active_var == var && active_end == start
+                    )
+                )
+                .collect::<Vec<_>>();
+
+            if let Some((reuse_var, reuse_reg)) = possible_regs.first() {
+                // Yes! We can re-use this one
+                force_allocation = Some(*reuse_reg);
+                
+                // Purge the active allocation for this variable.
+                // This prevents it from being freed on the next interval - we don't want that
+                // because it would release our re-used register back into the pool
+                active.retain(|(var, _, _)| var != reuse_var);
+            }
+        }
+
         // Allocate this variable
-        if let Some(reg) = regs.allocate(*var) {
+        if let Some(reg) = force_allocation.or_else(|| regs.allocate(*var)) {
             mapping.insert(*var, Allocation::Register(reg));
             active.push((*var, *start, *end));
             active.sort_by_key(|(_, _, end)| indexes[end]);

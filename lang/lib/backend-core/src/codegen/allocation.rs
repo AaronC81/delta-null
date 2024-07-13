@@ -69,22 +69,37 @@ impl<'f, 'l> FunctionGenerator<'f, 'l> {
         }
     }
 
-    pub(super) fn generate_arithmetic_bin_op(&self, buffer: &mut Vec<AssemblyItem>, stmt: &ir::Statement, l: VariableId, r: VariableId, op: InstructionOpcode) {
+    pub(super) fn generate_arithmetic_bin_op(&self, buffer: &mut Vec<AssemblyItem>, stmt: &ir::Statement, l: VariableId, r: VariableId, op: InstructionOpcode, supports_in_place: bool) {
         let l = self.generate_read(buffer, l);
         let r = self.generate_read(buffer, r);
 
         let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return };
 
-        // Our binop instructions are "mutating" - for example, `add` acts like a `+=`.
-        // So copy one of the values into the result register, then add onto that
-        buffer.push(AssemblyItem::new_instruction(
-            InstructionOpcode::Mov,
-            &[result.into(), l.into()]
-        ));
-        buffer.push(AssemblyItem::new_instruction(
-            op,
-            &[result.into(), r.into()]
-        ));
+        // Handle in-place usage
+        if l == result {
+            assert!(supports_in_place, "registers allocated in-place for an operation which doesn't support it");
+            buffer.push(AssemblyItem::new_instruction(
+                op,
+                &[result.into(), r.into()]
+            ));
+        } else if r == result {
+            assert!(supports_in_place, "registers allocated in-place for an operation which doesn't support it");
+            buffer.push(AssemblyItem::new_instruction(
+                op,
+                &[result.into(), l.into()]
+            ));
+        } else {
+            // Our binop instructions are "mutating" - for example, `add` acts like a `+=`.
+            // So copy one of the values into the result register, then add onto that
+            buffer.push(AssemblyItem::new_instruction(
+                InstructionOpcode::Mov,
+                &[result.into(), l.into()]
+            ));
+            buffer.push(AssemblyItem::new_instruction(
+                op,
+                &[result.into(), r.into()]
+            ));
+        }
     }
 
     // TODO: generate_write(buffer, var, value)

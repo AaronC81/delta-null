@@ -161,21 +161,21 @@ impl<'f, 'l> FunctionGenerator<'f, 'l> {
             }
 
             ir::InstructionKind::Add(l, r) =>
-                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Add),
+                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Add, true),
             ir::InstructionKind::Subtract(l, r) =>
-                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Sub),
+                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Sub, false),
             ir::InstructionKind::Multiply(l, r) =>
-                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Mul),
+                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Mul, false),
             ir::InstructionKind::BitwiseAnd(l, r) =>
-                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::And),
+                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::And, false),
             ir::InstructionKind::BitwiseXor(l, r) =>
-                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Xor),
+                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Xor, false),
             ir::InstructionKind::LeftShift(l, r) =>
-                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Shl),
+                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Shl, false),
             ir::InstructionKind::RightShift(l, r) =>
-                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Shr),
+                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Shr, false),
             ir::InstructionKind::BitwiseOr(l, r) =>
-                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Or),
+                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Or, false),
 
             ir::InstructionKind::BitwiseNot(v) => {
                 let v = self.generate_read(buffer, *v);
@@ -223,7 +223,7 @@ impl<'f, 'l> FunctionGenerator<'f, 'l> {
             }
 
             ir::InstructionKind::BooleanAnd(l, r) =>
-                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Booland),
+                self.generate_arithmetic_bin_op(buffer, stmt, *l, *r, InstructionOpcode::Booland, false),
 
             ir::InstructionKind::Equals(l, r) => {
                 let Some(result) = self.variable_reg(stmt.result.unwrap()) else { return 0 };

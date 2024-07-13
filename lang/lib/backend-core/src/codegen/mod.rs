@@ -10,6 +10,7 @@ mod compile_call;
 mod amble;
 mod helpers;
 mod allocation;
+pub mod info;
 
 /// Handles code generation for a single function.
 pub struct FunctionGenerator<'f, 'l> {
