@@ -1,8 +1,7 @@
 from amaranth import *
+from .peripheral import Peripheral, Register
 
-class Timer(Elaboratable):
-
-
+class Timer(Peripheral):
     # NOTE: Input address should start at 0 (i.e. pre-compensated for position in memory map)
         
     def __init__(
@@ -10,6 +9,8 @@ class Timer(Elaboratable):
         ticks_per_microsecond: int,
         mem_addr: Signal, mem_read_data: Signal, mem_read_en: Signal, mem_write_data: Signal, mem_write_en: Signal,
     ):
+        super().__init__(mem_addr, mem_read_data, mem_read_en, mem_write_data, mem_write_en)
+
         # Static configuration
         self.ticks_per_microsecond = ticks_per_microsecond
 
@@ -23,13 +24,6 @@ class Timer(Elaboratable):
 
         # Internal divider
         self.sub_microsecond_counter = Signal(16)
-
-        # Memory interface signals
-        self.mem_addr = mem_addr
-        self.mem_read_data = mem_read_data
-        self.mem_read_en = mem_read_en
-        self.mem_write_data = mem_write_data
-        self.mem_write_en = mem_write_en
 
     def elaborate(self, platform):
         m = Module()
@@ -59,35 +53,41 @@ class Timer(Elaboratable):
                         self.sub_microsecond_counter.eq(1),
                     ]
 
-        
-        # Handle memory access
-        with m.If(self.mem_write_en):
-            with m.Switch(self.mem_addr):
-                with m.Case(0x00): # Control register
+        self.handle_registers(m, [
+            # Control register
+            Register(
+                address=0x00,
+                read=lambda: self.control_register,
+                write=lambda: [
                     # Writing to the control register resets the state of the timer, too
-                    m.d.sync += [
-                        self.control_register.eq(self.mem_write_data),
-                        self.microsecond_counter.eq(0),
-                        self.sub_microsecond_counter.eq(1),
-                        self.has_fired.eq(0),
-                    ]
-                with m.Case(0x01): # Status register
-                    # Regardless of value, reset state on write
-                    m.d.sync += self.has_fired.eq(0)
-                with m.Case(0x02): # Target (low)
-                    m.d.sync += self.microsecond_target[0:16].eq(self.mem_write_data)
-                with m.Case(0x03): # Target (high)
-                    m.d.sync += self.microsecond_target[16:32].eq(self.mem_write_data)
-        with m.Elif(self.mem_read_en):
-            with m.Switch(self.mem_addr):
-                with m.Case(0x00): # Control register
-                    m.d.comb += self.mem_read_data.eq(self.control_register)
-                with m.Case(0x01): # Status register - can't write to this!
-                    m.d.comb += self.mem_read_data.eq(self.has_fired)
-                with m.Case(0x02): # Target (low)
-                    m.d.comb += self.mem_read_data.eq(self.microsecond_target[0:16])
-                with m.Case(0x03): # Target (high)
-                    m.d.comb += self.mem_read_data.eq(self.microsecond_target[16:32])
+                    self.control_register.eq(self.mem_write_data),
+                    self.microsecond_counter.eq(0),
+                    self.sub_microsecond_counter.eq(1),
+                    self.has_fired.eq(0),
+                ]
+            ),
+
+            # Status register
+            Register(
+                address=0x01,
+                read=lambda: self.has_fired,
+                write=lambda: self.has_fired.eq(0), # Regardless of value, reset state on write
+            ),
+
+            # Target (low)
+            Register(
+                address=0x02,
+                read=lambda: self.microsecond_target[0:16],
+                write=lambda: self.microsecond_target[0:16].eq(self.mem_write_data),
+            ),
+
+            # Target (high)
+            Register(
+                address=0x03,
+                read=lambda: self.microsecond_target[16:32],
+                write=lambda: self.microsecond_target[16:32].eq(self.mem_write_data),
+            )
+        ])
 
         return m
     

@@ -1,8 +1,9 @@
 from amaranth import *
 import math
 from .core import Core
+from .peripheral import Peripheral, Register
 
-class UartLogger(Elaboratable):
+class UartLogger(Peripheral):
     DATA_BUFFER_SIZE = 64
 
     # The range of addresses, from the beginning of the logger, which should be directed to it.
@@ -14,6 +15,8 @@ class UartLogger(Elaboratable):
         data_out: Signal,
         mem_addr: Signal, mem_read_data: Signal, mem_read_en: Signal, mem_write_data: Signal, mem_write_en: Signal,
     ):
+        super().__init__(mem_addr, mem_read_data, mem_read_en, mem_write_data, mem_write_en)
+
         # Static configuration
         self.ticks_per_baud = ticks_per_baud
 
@@ -29,13 +32,6 @@ class UartLogger(Elaboratable):
 
         # Tick counter
         self.tick_counter = Signal(32)
-
-        # Memory interface signals
-        self.mem_addr = mem_addr
-        self.mem_read_data = mem_read_data
-        self.mem_read_en = mem_read_en
-        self.mem_write_data = mem_write_data
-        self.mem_write_en = mem_write_en
     
         # Protocol interface signals
         self.data_out = data_out
@@ -95,31 +91,35 @@ class UartLogger(Elaboratable):
         with m.Else():
             m.d.sync += self.data_out.eq(1) # Idle high
         
-        # Handle memory access
-        with m.If(self.mem_write_en):
-            with m.Switch(self.mem_addr):
-                with m.Case(0x00): # Control register
+        self.handle_registers(m, [
+            # Control register
+            Register(
+                address=0x00,
+                read=lambda: Cat(self.data_length, self.is_sending),
+                write=lambda: [
                     # Writing to the control register resets the state, too
-                    m.d.sync += [
-                        self.data_length.eq(self.mem_write_data[0:7]),
-                        self.is_sending.eq(self.mem_write_data[7]),
-                        self.has_finished.eq(0),
-                        self.data_out.eq(0), # Start bit
-                        self.send_buffer_bit_index.eq(10), # Magic marker for start bit
-                        self.send_buffer_byte_index.eq(0),
-                    ]
-                with m.Case(0x01): # Status register
-                    # Regardless of value, reset state on write
-                    m.d.sync += self.has_finished.eq(0)
-                with m.Case(*range(0x10, 0x10 + UartLogger.DATA_BUFFER_SIZE)): # Buffer
-                    m.d.sync += self.data_buffer[self.mem_addr - 0x10].eq(self.mem_write_data)
-        with m.Elif(self.mem_read_en):
-            with m.Switch(self.mem_addr):
-                with m.Case(0x00): # Control register
-                    m.d.comb += self.mem_read_data.eq(Cat(self.data_length, self.is_sending))
-                with m.Case(0x01): # Status register
-                    m.d.comb += self.mem_read_data.eq(self.has_finished)
-                with m.Case(*range(0x10, 0x10 + UartLogger.DATA_BUFFER_SIZE)): # Buffer
-                    m.d.comb += self.mem_read_data.eq(self.data_buffer[self.mem_addr - 0x10])
+                    self.data_length.eq(self.mem_write_data[0:7]),
+                    self.is_sending.eq(self.mem_write_data[7]),
+                    self.has_finished.eq(0),
+                    self.data_out.eq(0), # Start bit
+                    self.send_buffer_bit_index.eq(10), # Magic marker for start bit
+                    self.send_buffer_byte_index.eq(0),
+                ],
+            ),
+
+            # Status register
+            Register(
+                address=0x01,
+                read=lambda: self.has_finished,
+                write=lambda: self.has_finished.eq(0) # Regardless of value, reset state on write
+            ),
+
+            # Buffer
+            Register(
+                address=range(0x10, 0x10 + UartLogger.DATA_BUFFER_SIZE),
+                read=lambda: self.data_buffer[self.mem_addr - 0x10],
+                write=lambda: self.data_buffer[self.mem_addr - 0x10].eq(self.mem_write_data),
+            )
+        ])
 
         return m
