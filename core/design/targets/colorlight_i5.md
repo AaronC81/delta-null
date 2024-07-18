@@ -39,3 +39,13 @@ Serial data is transmitted with the following characteristics:
 
 The UTF-16 message bytes are transmitted as **UTF-16 LE**, so the character `A` is transmitted as
 `0x41 0x00`.
+
+## SPI
+
+This platform implements the SPI peripheral, using the following pins:
+
+| SPI Purpose | Physical Pin |
+|-------------|--------------|
+| COPI        | PMOD_P4A_IO1 |
+| SCLK        | PMOD_P4A_IO2 |
+| CS          | PMOD_P4A_IO3 |

@@ -3,6 +3,7 @@ from amaranth.build import *
 from ..modules.core import Core
 from ..modules.timer import Timer
 from ..modules.uart_logger import UartLogger
+from ..modules.spi import SPI
 from typing import Optional
 
 class BaseMemoryMap(Elaboratable):
@@ -29,6 +30,9 @@ class BaseMemoryMap(Elaboratable):
 
     # The start address of the logger peripheral within the HCR.
     LOGGER_START = 0x200
+
+    # The start address of the SPI peripheral within the HCR.
+    SPI_START = 0x300
 
     def __init__(self, init_ram, depth):
         self.init_ram = init_ram
@@ -59,6 +63,12 @@ class BaseMemoryMap(Elaboratable):
             Signal(Core.DATA_WIDTH), Signal(), self.write_data, Signal()
         )
 
+        self.spi = SPI(
+            Signal(), Signal(), Signal(),
+            self.addr - type(self).HCR_START - type(self).SPI_START,
+            Signal(Core.DATA_WIDTH), Signal(), self.write_data, Signal()
+        )
+
     def bind_hcr_peripherals(self, platform: Platform, m: Module):
         raise NotImplementedError()
 
@@ -76,6 +86,7 @@ class BaseMemoryMap(Elaboratable):
 
         m.submodules.timer = self.timer
         m.submodules.uart_logger = self.uart_logger
+        m.submodules.spi = self.spi
 
         if platform is not None:
             self.bind_hcr_peripherals(platform, m)
@@ -108,6 +119,10 @@ class BaseMemoryMap(Elaboratable):
                     with m.Case(*range(type(self).LOGGER_START, type(self).LOGGER_START + UartLogger.LOGGER_SIZE)):
                         m.d.comb += self.uart_logger.mem_write_en.eq(1)
 
+                    # == SPI ==
+                    with m.Case(*range(type(self).SPI_START, type(self).SPI_START + SPI.LOGGER_SIZE)):
+                        m.d.comb += self.spi.mem_write_en.eq(1)
+
             with m.Elif(self.read_en):
                 with m.Switch(hcr_rel_addr):
                     # === Metadata ===
@@ -131,6 +146,17 @@ class BaseMemoryMap(Elaboratable):
                     with m.Case(*range(type(self).TIMER_START, type(self).TIMER_START + 4)):
                         m.d.comb += self.timer.mem_read_en.eq(1)
                         m.d.comb += self.read_data.eq(self.timer.mem_read_data)
+
+                    # == UART Logger ==
+                    # TODO: specify in platform override
+                    with m.Case(*range(type(self).LOGGER_START, type(self).LOGGER_START + UartLogger.LOGGER_SIZE)):
+                        m.d.comb += self.uart_logger.mem_read_en.eq(1)
+                        m.d.comb += self.read_data.eq(self.uart_logger.mem_read_data)
+
+                    # == SPI ==
+                    with m.Case(*range(type(self).SPI_START, type(self).SPI_START + SPI.LOGGER_SIZE)):
+                        m.d.comb += self.spi.mem_read_en.eq(1)
+                        m.d.comb += self.read_data.eq(self.spi.mem_read_data)
 
                     # Something we don't know!
                     with m.Default():

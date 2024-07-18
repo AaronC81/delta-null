@@ -66,6 +66,18 @@ class ColorlightI5MemoryMap(BaseMemoryMap):
         uart = platform.request("uart")
         m.d.comb += uart.tx.eq(self.logger_data_out)
 
+        # Bind SPI pins
+        spi_pins = [
+            Resource("spi_copi", 0, Pins("H3", dir="o")),
+            Resource("spi_sclk", 0, Pins("F3", dir="o")),
+            Resource("spi_cs",   0, Pins("E4", dir="o")),
+        ]
+        platform.add_resources(spi_pins)
+        m.d.comb += [
+            platform.request("spi_copi").eq(self.spi.copi),
+            platform.request("spi_sclk").eq(self.spi.sclk),
+            platform.request("spi_cs").eq(self.spi.cs),
+        ]
 
 class ColorlightI5Top(BaseTop):
     MEMORY_MAP = ColorlightI5MemoryMap

@@ -1,0 +1,29 @@
+use "../stdlib/gpio.dnc";
+use "../stdlib/timer.dnc";
+use "../stdlib/spi.dnc";
+
+var led_bank: u16 = 0;
+var led_pin:  u16 = 0;
+
+fn main() {
+    // Set LED as output
+    gpio_mode_output(led_bank, led_pin);
+    
+    timer_start_repeating(0x000F, 0x4240); // 000F 4240 = 1,000,000 us = 1s
+
+    spi_configure_clock_shift(2);
+    var buffer: [2]u16;
+    buffer[0] = 0x3412;
+    buffer[1] = 0xCDAB;
+
+    loop {
+        // Blink
+        timer_wait();
+        gpio_write(led_bank, led_pin, 1);
+        timer_wait();
+        gpio_write(led_bank, led_pin, 0);
+
+        // Send message
+        spi_send(&buffer, 4);
+    }
+}

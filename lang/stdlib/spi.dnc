@@ -1,0 +1,27 @@
+use "../stdlib/memory.dnc";
+use "../stdlib/string.dnc";
+
+fn spi_send(data: *u16, byte_length: u16) {
+    // TODO: divide if longer than 64 bytes
+
+    // Copy into buffer
+    memory_copy(0xF310 as *u16, data, (byte_length + 1) >> 1);
+    
+    // Transmit data
+    var spi_control: *u16 = 0xF300 as *u16;
+    *spi_control = 0x80 | byte_length;
+}
+
+fn spi_configure_clock_shift(shift: u16) {
+    *(0xF302 as *u16) = shift;
+}
+
+fn spi_wait() {
+    // Wait for "has finished" bit
+    loop {
+        if *(0xF301 as *u16) & 0b1 == 1 {
+            *(0xF301 as *u16) = 0; // reset
+            break;
+        }
+    }
+}
