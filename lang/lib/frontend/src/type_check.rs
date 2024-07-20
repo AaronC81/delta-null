@@ -2,7 +2,7 @@ use std::{fmt::Display, error::Error, collections::HashMap};
 
 use delta_null_lang_backend::ir::{self, IntegerSize};
 
-use crate::{fallible::Fallible, frontend_error, node::{self, Compound, CompoundField, CompoundKind, Expression, ExpressionKind, FunctionBody, Module, Statement, StatementKind, TopLevelItemKind}, source::SourceLocation};
+use crate::{fallible::Fallible, frontend_error, node::{self, Compound, CompoundField, CompoundKind, DeclarationInitialValue, Expression, ExpressionKind, FunctionBody, Module, Statement, StatementKind, TopLevelItemKind}, source::SourceLocation};
 
 /// Describes the type of an IR expression.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -319,15 +319,28 @@ pub fn type_check_module(module: Module) -> Fallible<Module<Type, Type>, TypeErr
                 TopLevelItemKind::Use { path } => TopLevelItemKind::Use { path },
 
                 TopLevelItemKind::VariableDeclaration { name, ty, value } => {
-                    let value = value.map(|v| {
-                        let mut ctx = Context {
-                            local: LocalContext::blank(),
-                            module: &module_ctx,
-                        };
-                        type_check_expression(v, &mut ctx).propagate(&mut errors)
-                    });
-
+                    let mut blank_ctx = Context {
+                        local: LocalContext::blank(),
+                        module: &module_ctx,
+                    };
                     let ty = convert_node_type(&ty, &module_ctx).propagate(&mut errors);
+
+                    let value = match value {
+                        DeclarationInitialValue::Assignment(v) => {
+                            DeclarationInitialValue::Assignment(
+                                type_check_expression(v, &mut blank_ctx).propagate(&mut errors)
+                            )
+                        },
+
+                        DeclarationInitialValue::CompoundAssignment(c) => {
+                            DeclarationInitialValue::CompoundAssignment(
+                                type_check_compound_assignment(&ty, &c, &mut blank_ctx).propagate(&mut errors)
+                            )
+                        },
+
+                        DeclarationInitialValue::None => DeclarationInitialValue::None,
+                    };
+
                     TopLevelItemKind::VariableDeclaration { name, ty, value }
                 }
 
@@ -368,10 +381,21 @@ pub fn type_check_statement(stmt: Statement<()>, ctx: &mut Context) -> Fallible<
                 }
 
                 // Check type matches initial value, if specified
-                let value = value.map(|e| type_check_expression(e, ctx).propagate(&mut errors));
-                if let Some(ref value) = value {
-                    check_types_are_assignable(&ty, &value.data, value.loc.clone()).propagate(&mut errors);
-                }
+                let value = match value {
+                    DeclarationInitialValue::Assignment(value) => {
+                        let value = type_check_expression(value, ctx).propagate(&mut errors);
+                        check_types_are_assignable(&ty, &value.data, value.loc.clone()).propagate(&mut errors);
+                        DeclarationInitialValue::Assignment(value)
+                    },
+
+                    DeclarationInitialValue::CompoundAssignment(c) => {
+                        DeclarationInitialValue::CompoundAssignment(
+                            type_check_compound_assignment(&ty, &c, ctx).propagate(&mut errors)
+                        )
+                    },
+
+                    DeclarationInitialValue::None => DeclarationInitialValue::None,
+                };
 
                 StatementKind::VariableDeclaration { name, ty, value }
             },
@@ -387,77 +411,8 @@ pub fn type_check_statement(stmt: Statement<()>, ctx: &mut Context) -> Fallible<
 
             StatementKind::CompoundAssignment { target, value } => {
                 let target = type_check_expression(target, ctx).propagate(&mut errors);
-
-                match value.kind {
-                    CompoundKind::Array(elements) => {
-                        let elements = elements.into_iter()
-                            .map(|e| type_check_expression(e, ctx).propagate(&mut errors))
-                            .collect::<Vec<_>>();
-
-                        // Target must be an array
-                        if let Type::Array(inner_ty, size) = target.data.desugar() {
-                            // Must be same size
-                            if *size != elements.len() {
-                                errors.push_error(TypeError::new(
-                                    &format!("compound assignment target has length {}, but array compound has length {}", *size, elements.len()), loc.clone()
-                                ));
-                            }
-
-                            // All elements must match array type
-                            for element in &elements {
-                                check_types_are_assignable(&inner_ty, &element.data, loc.clone()).propagate(&mut errors);
-                            }
-                        } else {
-                            errors.push_error(TypeError::new(
-                                &format!("target of array compound assignment cannot be `{}`", target.data), loc
-                            ));
-                        }
-
-                        StatementKind::CompoundAssignment { target, value: Compound::new(CompoundKind::Array(elements), value.loc) }
-                    },
-
-                    CompoundKind::Struct(fields) => {
-                        let fields = fields.into_iter()
-                            .map(|field|
-                                CompoundField::new(
-                                    field.name,
-                                    type_check_expression(field.value, ctx).propagate(&mut errors),
-                                    field.loc
-                                )
-                            )
-                            .collect::<Vec<_>>();
-
-                        // Target must be a struct
-                        if let Type::Struct(ty_fields) = target.data.desugar() {
-                            for field in &fields {
-                                // Field must exist on the target struct type
-                                if let Some((_, field_ty)) = ty_fields.iter().find(|(n, _)| *n == field.name) {
-                                    // Field type must be assignable
-                                    check_types_are_assignable(field_ty, &field.value.data, field.loc.clone()).propagate(&mut errors);
-                                } else {
-                                    errors.push_error(TypeError::new(
-                                        &format!("target of struct compound assignment has no field named `{}`", field.name), field.loc.clone()
-                                    ));
-                                }
-                            }
-                        } else {
-                            errors.push_error(TypeError::new(
-                                &format!("target of struct compound assignment cannot be `{}`", target.data), loc
-                            ));
-                        }
-
-                        // Record must contain no duplicate fields
-                        for field in &fields {
-                            if fields.iter().filter(|f| f.name == field.name).count() > 1 {
-                                errors.push_error(TypeError::new(
-                                    &format!("struct compound assigns `{}` more than once", field.name), field.loc.clone()
-                                ));
-                            }
-                        }
-                        
-                        StatementKind::CompoundAssignment { target, value: Compound::new(CompoundKind::Struct(fields), value.loc) }
-                    },
-                }
+                let compound = type_check_compound_assignment(&target.data, &value, ctx).propagate(&mut errors);
+                StatementKind::CompoundAssignment { target, value: compound }
             }
 
             StatementKind::InlineAssembly(contents) => StatementKind::InlineAssembly(contents),
@@ -789,6 +744,85 @@ pub fn check_types_are_assignable(target: &Type, source: &Type, loc: SourceLocat
         Fallible::new_with_errors((), vec![
             TypeError::new(&format!("type `{source}` is not assignable to `{target}`"), loc)
         ])
+    }
+}
+
+#[must_use]
+pub fn type_check_compound_assignment(target: &Type, compound: &Compound, ctx: &mut Context) -> Fallible<Compound<Type, Type>, TypeError> {
+    let mut errors = Fallible::new_ok(());
+
+    let loc = compound.loc.clone();
+    match &compound.kind {
+        CompoundKind::Array(elements) => {
+            let elements = elements.into_iter()
+                .cloned()
+                .map(|e| type_check_expression(e, ctx).propagate(&mut errors))
+                .collect::<Vec<_>>();
+
+            // Target must be an array
+            if let Type::Array(inner_ty, size) = target.desugar() {
+                // Must be same size
+                if *size != elements.len() {
+                    errors.push_error(TypeError::new(
+                        &format!("compound assignment target has length {}, but array compound has length {}", *size, elements.len()), loc.clone()
+                    ));
+                }
+
+                // All elements must match array type
+                for element in &elements {
+                    check_types_are_assignable(&inner_ty, &element.data, loc.clone()).propagate(&mut errors);
+                }
+            } else {
+                errors.push_error(TypeError::new(
+                    &format!("target of array compound assignment cannot be `{}`", target), loc
+                ));
+            }
+
+            errors.map(|_| Compound::new(CompoundKind::Array(elements), compound.loc.clone()))
+        },
+
+        CompoundKind::Struct(fields) => {
+            let fields = fields.into_iter()
+                .cloned()
+                .map(|field|
+                    CompoundField::new(
+                        field.name,
+                        type_check_expression(field.value, ctx).propagate(&mut errors),
+                        field.loc
+                    )
+                )
+                .collect::<Vec<_>>();
+
+            // Target must be a struct
+            if let Type::Struct(ty_fields) = target.desugar() {
+                for field in &fields {
+                    // Field must exist on the target struct type
+                    if let Some((_, field_ty)) = ty_fields.iter().find(|(n, _)| *n == field.name) {
+                        // Field type must be assignable
+                        check_types_are_assignable(field_ty, &field.value.data, field.loc.clone()).propagate(&mut errors);
+                    } else {
+                        errors.push_error(TypeError::new(
+                            &format!("target of struct compound assignment has no field named `{}`", field.name), field.loc.clone()
+                        ));
+                    }
+                }
+            } else {
+                errors.push_error(TypeError::new(
+                    &format!("target of struct compound assignment cannot be `{}`", target), loc
+                ));
+            }
+
+            // Record must contain no duplicate fields
+            for field in &fields {
+                if fields.iter().filter(|f| f.name == field.name).count() > 1 {
+                    errors.push_error(TypeError::new(
+                        &format!("struct compound assigns `{}` more than once", field.name), field.loc.clone()
+                    ));
+                }
+            }
+            
+            errors.map(|_| Compound::new(CompoundKind::Struct(fields), compound.loc.clone()))
+        },
     }
 }
 

@@ -1,6 +1,6 @@
 use std::{iter::Peekable, fmt::Display, error::Error};
 
-use crate::{fallible::{Fallible, MaybeFatal}, frontend_error, node::{ArithmeticBinOp, ComparisonBinOp, Compound, CompoundField, CompoundKind, Expression, ExpressionKind, FunctionBody, FunctionParameter, Module, Statement, StatementKind, TopLevelItem, TopLevelItemKind, Type, TypeKind}, source::SourceLocation, tokenizer::{Token, TokenKind}};
+use crate::{fallible::{Fallible, MaybeFatal}, frontend_error, node::{ArithmeticBinOp, ComparisonBinOp, Compound, CompoundField, CompoundKind, DeclarationInitialValue, Expression, ExpressionKind, FunctionBody, FunctionParameter, Module, Statement, StatementKind, TopLevelItem, TopLevelItemKind, Type, TypeKind}, source::SourceLocation, tokenizer::{Token, TokenKind}};
 
 /// Parses an iterator of [Token]s, interpreting them into a "module" - a collection of
 /// [TopLevelItem]s (like functions and definitions).
@@ -857,7 +857,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
     /// or closing `;`.
     /// 
     /// Returns: `(name, type, initial_value)`
-    fn parse_var_like_declaration(&mut self) -> Fallible<MaybeFatal<(String, Type, Option<Expression>)>, ParseError> {
+    fn parse_var_like_declaration(&mut self) -> Fallible<MaybeFatal<(String, Type, DeclarationInitialValue)>, ParseError> {
         let mut errors = Fallible::new_ok(());
 
         // Parse name and type
@@ -865,12 +865,19 @@ impl<I: Iterator<Item = Token>> Parser<I> {
 
         // Parse initial value, if given
         let value =
-        if let Some(TokenKind::Equals) = self.tokens.peek().map(|t| &t.kind) {
-            self.tokens.next();
-            Some(self.parse_expression()?.propagate(&mut errors))
-        } else {
-            None
-        };
+            match self.tokens.peek().map(|t| &t.kind) {
+                Some(TokenKind::Equals) => {
+                    self.tokens.next();
+                    DeclarationInitialValue::Assignment(self.parse_expression()?.propagate(&mut errors))        
+                },
+
+                Some(TokenKind::LArrow) => {
+                    self.tokens.next();
+                    DeclarationInitialValue::CompoundAssignment(self.parse_compound()?.propagate(&mut errors))        
+                },
+
+                _ => DeclarationInitialValue::None,
+            };
 
         errors.map_inner(|_| (name, ty, value))
     }

@@ -102,7 +102,7 @@ pub enum TopLevelItemKind<D, Ty> {
     VariableDeclaration {
         name: String,
         ty: Ty,
-        value: Option<Expression<D, Ty>>,
+        value: DeclarationInitialValue<D, Ty>,
     },
     InlineAssembly(String),
 }
@@ -162,7 +162,7 @@ pub enum StatementKind<D = (), Ty = crate::node::Type> {
     VariableDeclaration {
         name: String,
         ty: Ty,
-        value: Option<Expression<D, Ty>>,
+        value: DeclarationInitialValue<D, Ty>,
     },
     Assignment {
         target: Expression<D, Ty>,
@@ -357,4 +357,18 @@ impl<D, Ty> CompoundField<D, Ty> {
     pub fn new(name: String, value: Expression<D, Ty>, loc: SourceLocation) -> Self {
         Self { name, value, loc }
     }
+}
+
+/// The initial value for a [StatementKind::VariableDeclaration] or
+/// [TopLevelItemKind::VariableDeclaration].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DeclarationInitialValue<D = (), Ty = crate::node::Type> {
+    /// The variable is not initialised.
+    None,
+
+    /// The variable is initialised by copying another value.
+    Assignment(Expression<D, Ty>),
+
+    /// The variable is initialised by performing compound assignment on its elements.
+    CompoundAssignment(Compound<D, Ty>),
 }

@@ -104,6 +104,18 @@ fn test_array_compound_assign() {
         ").unwrap(),
         (10 + 20 + 30 + 40) + (2 + 4 + 6 + 8)
     );
+
+    // Inline with declaration
+    assert_eq!(
+        util::compile_and_execute("
+            fn main() -> u16 {
+                var a: [4]u16 <- #[ 10, 20, 30, 40 ];
+
+                return a[0] + a[1] + a[2] + a[3];
+            }
+        ").unwrap(),
+        10 + 20 + 30 + 40
+    );
 }
 
 #[test]
@@ -138,5 +150,17 @@ fn test_struct_compound_assign() {
             }
         ").unwrap(),
         (10 + 20) + (2 + 4)
+    );
+
+    // Inline with declaration
+    assert_eq!(
+        util::compile_and_execute("
+            fn main() -> u16 {
+                var a: struct { x: u16, y: u16 } <- #{ x = 10, y = 20 };
+
+                return a.x + a.y;
+            }
+        ").unwrap(),
+        10 + 20
     );
 }

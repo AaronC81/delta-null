@@ -2,7 +2,7 @@ use std::{cell::RefCell, collections::HashMap, error::Error, fmt::Display, rc::R
 
 use delta_null_lang_backend::ir::{self, BasicBlockBuilder, BasicBlockId, Data, Function, FunctionBuilder, Instruction, LocalId, Module, ModuleItem, VariableId};
 
-use crate::{fallible::{Fallible, MaybeFatal}, node::{self, ComparisonBinOp, FunctionBody, Statement, TopLevelItemKind}, type_check::{self, Type}};
+use crate::{fallible::{Fallible, MaybeFatal}, node::{self, ComparisonBinOp, DeclarationInitialValue, FunctionBody, Statement, TopLevelItemKind}, source::SourceLocation, type_check::{self, Type}};
 
 type ExpressionData = crate::type_check::Type;
 
@@ -115,6 +115,11 @@ impl<'i> ModuleTranslator<'i> {
 
             // Generate assignments
             for (name, datum) in initialised_data {
+                // TODO: no reason why compounds can't work for top-level items
+                let DeclarationInitialValue::Assignment(datum) = datum else {
+                    panic!("unsupported initialisation type for global");
+                };
+
                 // Translate value expression
                 let value = init_func_trans.translate_expression(&datum)?
                     .propagate(&mut errors)
@@ -220,11 +225,13 @@ impl<'i> ModuleTranslator<'i> {
     }
 
     /// Finds data item names and expressions which require initialisation.
-    fn data_to_initialise(&self) -> Vec<(String, node::Expression<Type, Type>)> {
+    fn data_to_initialise(&self) -> Vec<(String, DeclarationInitialValue<Type, Type>)> {
         let mut initialised_data = vec![];
         for item in &self.input.items {
-            if let TopLevelItemKind::VariableDeclaration { name, value: Some(value), .. } = &item.kind {
-                initialised_data.push((name.clone(), value.clone()))
+            if let TopLevelItemKind::VariableDeclaration { name, value, .. } = &item.kind {
+                if !matches!(value, DeclarationInitialValue::None) {
+                    initialised_data.push((name.clone(), value.clone()))
+                }
             }
         }
         initialised_data
@@ -462,20 +469,37 @@ impl<'c> FunctionTranslator<'c> {
                 self.translate_expression(e)?;
             },
 
-            node::StatementKind::VariableDeclaration { name, ty: _, value } => {
+            node::StatementKind::VariableDeclaration { name, ty, value } => {
                 // Creating the local was already handled by `populate_locals`.
                 let local = *self.locals.get(name).unwrap();
 
                 // If there's an initial value, generate its assignment here.
-                if let Some(value) = value {
-                    return self.translate_expression(value)?
-                        .map(|v| {
-                            let v = v.consume_read(self.target_mut());
-                            self.target.as_mut().unwrap().add_void_instruction(
-                                ir::Instruction::new(ir::InstructionKind::WriteLocal(local, v))
-                            );
-                            ().into()
-                        });
+                match value {
+                    DeclarationInitialValue::Assignment(value) => {
+                        return self.translate_expression(value)?
+                            .map(|v| {
+                                let v = v.consume_read(self.target_mut());
+                                self.target.as_mut().unwrap().add_void_instruction(
+                                    ir::Instruction::new(ir::InstructionKind::WriteLocal(local, v))
+                                );
+                                ().into()
+                            });
+                    },
+
+                    DeclarationInitialValue::CompoundAssignment(compound) => {
+                        return self.translate_statement(
+                            &Statement::new(node::StatementKind::CompoundAssignment {
+                                target: node::Expression {
+                                    kind: node::ExpressionKind::Identifier(name.clone()),
+                                    loc: SourceLocation::stub(),
+                                    data: ty.clone(),
+                                },
+                                value: compound.clone(),
+                            }, SourceLocation::stub())
+                        )
+                    }
+
+                    DeclarationInitialValue::None => (), // Nothing to do!
                 }
             }
 
