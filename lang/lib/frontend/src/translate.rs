@@ -786,47 +786,8 @@ impl<'c> FunctionTranslator<'c> {
             }
 
             node::ExpressionKind::FieldAccess { target, field } => {
-                // Get index of field being accessed
-                let type_check::Type::Struct(fields) = target.data.desugar() else {
-                    unreachable!("access on non-struct")
-                };
-                let Some((index, (_, ty))) = fields.iter().enumerate().find(|(_, (name, _))| name == field) else {
-                    unreachable!("missing field {field}")
-                };
-                let ty = ty.clone();
-
                 self.translate_expression(target)?
-                    .map(|strct| {
-                        // Get pointer to structure
-                        let ptr = strct.consume_pointer(self.target_mut());
-
-                        // Calculate an index into the structure
-                        let offset_var = self.target_mut().add_instruction(
-                            Instruction::new(ir::InstructionKind::FieldOffset {
-                                ty: target.data.desugar().to_ir_type(),
-                                index,
-                            })
-                        );
-                        let field_address = self.target_mut().add_instruction(
-                            Instruction::new(ir::InstructionKind::Add(ptr, offset_var))
-                        );
-
-                        Value::new_read_write_pointer(
-                            move |target| target.add_instruction(
-                                Instruction::new(ir::InstructionKind::ReadMemory {
-                                    address: field_address,
-                                    ty: ty.to_ir_type(),
-                                })
-                            ),
-                            move |target, value| target.add_void_instruction(
-                                Instruction::new(ir::InstructionKind::WriteMemory {
-                                    address: field_address,
-                                    value,
-                                })
-                            ),
-                            move |_| field_address,
-                        ).into()
-                    })
+                    .map(|strct| self.access_struct_field(strct, &target.data, field).into())
             }
 
             node::ExpressionKind::BitwiseNot(v) => {
@@ -1137,6 +1098,53 @@ impl<'c> FunctionTranslator<'c> {
             target.add_instruction(
                 Instruction::new(ir::InstructionKind::Add(array_pointer, offset))
             )
+        )
+    }
+
+    /// Given a [Value] for a structure, and the name of a field within that structure, returns a
+    /// [Value] for that field.
+    fn access_struct_field(
+        &mut self,
+        struct_val: Value,
+        struct_ty: &Type,
+        field: &str,
+    ) -> Value {
+        let type_check::Type::Struct(fields) = struct_ty.desugar() else {
+            unreachable!("access on non-struct")
+        };
+        let Some((index, (_, ty))) = fields.iter().enumerate().find(|(_, (name, _))| name == field) else {
+            unreachable!("missing field {field}")
+        };
+        let ty = ty.clone();
+
+        // Get pointer to structure
+        let ptr = struct_val.consume_pointer(self.target_mut());
+
+        // Calculate an index into the structure
+        let offset_var = self.target_mut().add_instruction(
+            Instruction::new(ir::InstructionKind::FieldOffset {
+                ty: struct_ty.desugar().to_ir_type(),
+                index,
+            })
+        );
+        let field_address = self.target_mut().add_instruction(
+            Instruction::new(ir::InstructionKind::Add(ptr, offset_var))
+        );
+
+        Value::new_read_write_pointer(
+            move |target| target.add_instruction(
+                Instruction::new(ir::InstructionKind::ReadMemory {
+                    address: field_address,
+                    ty: ty.to_ir_type(),
+                })
+            ),
+            move |target, value| target.add_void_instruction(
+                Instruction::new(ir::InstructionKind::WriteMemory {
+                    address: field_address,
+                    value,
+                })
+            ),
+            move |_| field_address,
         )
     }
 
