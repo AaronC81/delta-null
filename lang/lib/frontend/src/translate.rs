@@ -437,6 +437,7 @@ impl<'c> FunctionTranslator<'c> {
             node::StatementKind::Return(_)
             | node::StatementKind::Expression(_)
             | node::StatementKind::Assignment { .. }
+            | node::StatementKind::CompoundAssignment { .. }
             | node::StatementKind::Break
             | node::StatementKind::InlineAssembly(_) => (),
         }
@@ -487,6 +488,8 @@ impl<'c> FunctionTranslator<'c> {
                         ().into()
                     })
             }
+
+            node::StatementKind::CompoundAssignment { target, value } => todo!(), // TODO
 
             node::StatementKind::Return(value) => {
                 if let Some(value) = value {

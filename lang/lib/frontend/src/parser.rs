@@ -1,6 +1,6 @@
 use std::{iter::Peekable, fmt::Display, error::Error};
 
-use crate::{fallible::{Fallible, MaybeFatal}, frontend_error, node::{ArithmeticBinOp, ComparisonBinOp, Expression, ExpressionKind, FunctionBody, FunctionParameter, Module, Statement, StatementKind, TopLevelItem, TopLevelItemKind, Type, TypeKind}, source::SourceLocation, tokenizer::{Token, TokenKind}};
+use crate::{fallible::{Fallible, MaybeFatal}, frontend_error, node::{ArithmeticBinOp, ComparisonBinOp, Compound, CompoundField, CompoundKind, Expression, ExpressionKind, FunctionBody, FunctionParameter, Module, Statement, StatementKind, TopLevelItem, TopLevelItemKind, Type, TypeKind}, source::SourceLocation, tokenizer::{Token, TokenKind}};
 
 /// Parses an iterator of [Token]s, interpreting them into a "module" - a collection of
 /// [TopLevelItem]s (like functions and definitions).
@@ -72,13 +72,7 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         self.expect(TokenKind::KwFn)?;
 
         // Parse function name
-        let name_token = self.tokens.next();
-        let Some(TokenKind::Identifier(name)) = name_token.as_ref().map(|t| &t.kind) else {
-            return Fallible::new_fatal(vec![
-                ParseError::new("expected identifier after `fn`", name_token.unwrap().loc),
-            ])
-        };
-        let name = name.to_owned();
+        let (name, _) = self.expect_identifier()?;
 
         // Parse parameters
         let parameters = self.parse_parenthesised_list_of(Self::parse_function_parameter);
@@ -230,6 +224,17 @@ impl<I: Iterator<Item = Token>> Parser<I> {
                     return self.parse_expression()?
                         .combine(self.expect(TokenKind::Semicolon)?)
                         .map(|(value, _)| Statement::new(StatementKind::Assignment {
+                            target: expr,
+                            value,
+                        }, loc).into());
+                }
+
+                // If it's a `<-`, we have a compound assignment!
+                if self.tokens.peek().map(|t| &t.kind) == Some(&TokenKind::LArrow) {
+                    self.tokens.next();
+                    return self.parse_compound()?
+                        .combine(self.expect(TokenKind::Semicolon)?)
+                        .map(|(value, _)| Statement::new(StatementKind::CompoundAssignment {
                             target: expr,
                             value,
                         }, loc).into());
@@ -870,6 +875,52 @@ impl<I: Iterator<Item = Token>> Parser<I> {
         errors.map_inner(|_| (name, ty, value))
     }
 
+    /// Parse a compound expression.
+    fn parse_compound(&mut self) -> Fallible<MaybeFatal<Compound>, ParseError> {
+        self.expect(TokenKind::Hash)?;
+
+        let Some(start_tok) = self.tokens.peek().cloned() else {
+            return Fallible::new_fatal(vec![
+                ParseError::new(&format!("expected start of compound, got end of file"), SourceLocation::stub())
+            ])
+        };
+
+        match start_tok.kind {
+            // Array compound
+            TokenKind::LBracket =>
+                self.parse_bounded_list_of(
+                    TokenKind::LBracket,
+                    TokenKind::RBracket,
+                    |p| p.parse_expression()
+                )
+                    .map(|exprs| MaybeFatal::Ok(
+                        Compound::new(CompoundKind::Array(exprs), start_tok.loc))),
+
+            // Struct compound
+            TokenKind::LBrace =>
+                self.parse_bounded_list_of(
+                    TokenKind::LBrace,
+                    TokenKind::RBrace,
+                    |p| p.parse_compound_struct_field()
+                )
+                    .map(|fields| MaybeFatal::Ok(
+                        Compound::new(CompoundKind::Struct(fields), start_tok.loc))),
+
+            _ => Fallible::new_fatal(vec![
+                ParseError::new(&format!("unexpected token for compound literal {:?}", start_tok.kind), start_tok.loc)
+            ])
+        }
+    }
+
+    /// Parses a single field of a compound struct assignment.
+    fn parse_compound_struct_field(&mut self) -> Fallible<MaybeFatal<CompoundField>, ParseError> {
+        let (id, loc) = self.expect_identifier()?;
+        self.expect(TokenKind::Equals)?;
+        
+        self.parse_expression()
+            .map_inner(|e| CompoundField::new(id, e, loc))
+    }
+
     /// Assume that the next token has the given [TokenKind], and returns it, else fail with a parse
     /// error.
     #[must_use]
@@ -886,6 +937,17 @@ impl<I: Iterator<Item = Token>> Parser<I> {
             Fallible::new_fatal(vec![
                 ParseError::new(&format!("expected {kind:?}, got end of file"), SourceLocation::stub())
             ])
+        }
+    }
+
+    /// Assume that the next token is a [TokenKind::Identifier], and returns its inner string and
+    /// location, else fail with a parse error.
+    #[must_use]
+    fn expect_identifier(&mut self) -> Result<(String, SourceLocation), ParseError> {
+        match self.tokens.next() {
+            Some(Token { kind: TokenKind::Identifier(i), loc }) => Ok((i, loc)),
+            Some(Token { kind: _, loc }) => Err(ParseError::new("expected identifier", loc)),
+            None => Err(ParseError::new("unexpected end-of-file", SourceLocation::stub())),
         }
     }
 

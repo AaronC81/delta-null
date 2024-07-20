@@ -68,6 +68,7 @@ pub enum TokenKind {
     DotStar, // .*
     LeftShift,
     RightShift,
+    Hash,
 
     LBrace,
     RBrace,
@@ -83,6 +84,7 @@ pub enum TokenKind {
     Colon,
     Semicolon,
     RArrow,
+    LArrow,
     Comma,
 
     InlineAssemblyFragment(String),
@@ -114,6 +116,8 @@ pub fn tokenize(input: &str, input_type: SourceInputType) -> (Vec<Token>, Vec<To
                 chars.next();
                 if chars.next_if(|(c, _)| *c == '<').is_some() {
                     tokens.push(Token::new(TokenKind::LeftShift, loc))
+                } else if chars.next_if(|(c, _)| *c == '-').is_some() {
+                    tokens.push(Token::new(TokenKind::LArrow, loc))
                 } else if chars.next_if(|(c, _)| *c == '=').is_some() {
                     tokens.push(Token::new(TokenKind::LAngleEquals, loc))
                 } else {
@@ -163,6 +167,7 @@ pub fn tokenize(input: &str, input_type: SourceInputType) -> (Vec<Token>, Vec<To
                     tokens.push(Token::new(TokenKind::Equals, loc))
                 }
             },
+            '#' => { chars.next(); tokens.push(Token::new(TokenKind::Hash, loc)) },
 
             // Comment, or forward slash
             '/' => {

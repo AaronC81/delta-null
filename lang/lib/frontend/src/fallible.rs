@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::Debug, ops::{ControlFlow, FromResidual, Try}};
+use std::{convert::Infallible, error::Error, fmt::Debug, ops::{ControlFlow, FromResidual, Try}};
 
 /// Represents the result of an operation which will always yield a value, but possibly with a
 /// collection of associated (non-fatal) errors too.
@@ -259,6 +259,16 @@ impl<T, E1: Debug, E2: From<E1> + Debug> FromResidual<Fallible<MaybeFatal<!>, E1
             MaybeFatal::Fatal,
             residual.errors.into_iter().map(|e| e.into()).collect(),
         )
+    }
+}
+
+// Permit using `?` on a `Result<T, E>` within a `Fallible<MaybeFatal<T>, E>` function.
+impl<T, E: Debug> FromResidual<Result<Infallible, E>> for Fallible<MaybeFatal<T>, E> {
+    fn from_residual(residual: Result<Infallible, E>) -> Self {
+        match residual {
+            Ok(t) => unreachable!(),
+            Err(e) => Fallible::new_fatal(vec![e]),
+        }
     }
 }
 

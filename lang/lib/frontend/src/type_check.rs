@@ -385,6 +385,8 @@ pub fn type_check_statement(stmt: Statement<()>, ctx: &mut Context) -> Fallible<
                 StatementKind::Assignment { target, value }
             }
 
+            StatementKind::CompoundAssignment { target, value } => todo!(), // TODO
+
             StatementKind::InlineAssembly(contents) => StatementKind::InlineAssembly(contents),
 
             StatementKind::Return(value) => {
@@ -773,6 +775,7 @@ pub fn do_all_paths_diverge(body: &Statement<Type, Type>) -> bool {
 
         StatementKind::VariableDeclaration { .. } 
         | StatementKind::Assignment { .. }
+        | StatementKind::CompoundAssignment { .. }
         | StatementKind::Break
         | StatementKind::Expression(_)
         | StatementKind::InlineAssembly(_) => false,
@@ -797,6 +800,7 @@ pub fn find_statement<'s, D, Ty>(stmt: &'s Statement<D, Ty>, predicate: &impl Fn
 
         StatementKind::VariableDeclaration { .. }
         | StatementKind::Assignment { .. }
+        | StatementKind::CompoundAssignment { .. }
         | StatementKind::Expression(_)
         | StatementKind::Return(_)
         | StatementKind::Break

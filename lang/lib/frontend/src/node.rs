@@ -168,6 +168,10 @@ pub enum StatementKind<D = (), Ty = crate::node::Type> {
         target: Expression<D, Ty>,
         value: Expression<D, Ty>,
     },
+    CompoundAssignment {
+        target: Expression<D, Ty>,
+        value: Compound<D, Ty>,
+    },
     Return(Option<Expression<D, Ty>>),
     Loop(Box<Statement<D, Ty>>),
     While {
@@ -320,4 +324,37 @@ pub enum TypeKind {
     Pointer(Box<Type>),
     Array(Box<Type>, usize),
     Struct(Vec<(String, Type)>),
+}
+
+/// A parsed compound expression.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Compound<D = (), Ty = crate::node::Type> {
+    pub kind: CompoundKind<D, Ty>,
+    pub loc: SourceLocation,
+}
+
+impl<D, Ty> Compound<D, Ty> {
+    pub fn new(kind: CompoundKind<D, Ty>, loc: SourceLocation) -> Self {
+        Self { kind, loc }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CompoundKind<D = (), Ty = crate::node::Type> {
+    Array(Vec<Expression<D, Ty>>),
+    Struct(Vec<CompoundField<D, Ty>>),
+}
+
+/// A single field assigned as part of a [CompoundKind::Struct].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CompoundField<D = (), Ty = crate::node::Type> {
+    pub name: String,
+    pub value: Expression<D, Ty>,
+    pub loc: SourceLocation,
+}
+
+impl<D, Ty> CompoundField<D, Ty> {
+    pub fn new(name: String, value: Expression<D, Ty>, loc: SourceLocation) -> Self {
+        Self { name, value, loc }
+    }
 }
