@@ -885,12 +885,7 @@ impl<'c> FunctionTranslator<'c> {
                             Value::new_read_only(move |target| {
                                 let l = l.consume_read(target);
                                 let r = r.consume_read(target);
-                                let size = target.add_instruction(
-                                    ir::Instruction::new(ir::InstructionKind::WordSize(pointee.to_ir_type()))
-                                );
-                                let scaled_r = target.add_instruction(
-                                    ir::Instruction::new(ir::InstructionKind::Multiply(r, size))
-                                );
+                                let scaled_r = Self::scale_to_words_by_pointee_type(target, r, &pointee);
     
                                 target.add_instruction(
                                     ir::Instruction::new(ir_kind(l, scaled_r))
@@ -965,7 +960,7 @@ impl<'c> FunctionTranslator<'c> {
                 };
                 let pointee_ty = pointee_ty.clone();
 
-                self.generate_array_element_pointer_expression(target, index)?
+                self.calculate_array_element_pointer_from_expressions(target, index)?
                     .map(|v| {
                         let v = v.consume_read(self.target_mut());
                         Value::new_read_write(
@@ -1068,28 +1063,68 @@ impl<'c> FunctionTranslator<'c> {
     /// 
     /// This can then be used with [ir::InstructionKind::ReadMemory] or
     /// [ir::InstructionKind::WriteMemory] to retrieve or update the array element.
-    fn generate_array_element_pointer_expression(
+    fn calculate_array_element_pointer_from_expressions(
         &mut self,
-        target: &node::Expression<ExpressionData, Type>,
+        array: &node::Expression<ExpressionData, Type>,
         index: &node::Expression<ExpressionData, Type>
     ) -> Fallible<MaybeFatal<Value>, TranslateError> {
-        let type_check::Type::Array(pointee_ty, _) = &target.data else {
+        let type_check::Type::Array(pointee_ty, _) = &array.data else {
             panic!("translating index to non-array")
         };
 
-        self.translate_expression(&node::Expression::new_with_data(
-            node::ExpressionKind::ArithmeticBinOp(
-                node::ArithmeticBinOp::Add,
-                Box::new(node::Expression::new_with_data(
-                    node::ExpressionKind::PointerTake(Box::new(target.clone())),
-                    target.loc.clone(),
-                    type_check::Type::Pointer(pointee_ty.clone()),
-                )),
-                Box::new(index.clone()),
-            ),
-            target.loc.clone(),
-            type_check::Type::Pointer(pointee_ty.clone()),
-        ))
+        // Get pointer to array's first element
+        let array_pointer = self.translate_expression(array)?
+            .map(|array| array.consume_pointer(self.target_mut()));
+
+        // Get word offset required to index given element
+        let index = self.translate_expression(index)?
+            .map(|index| index.consume_read(self.target_mut()));
+
+        // Add offset to pointer to yield element pointer
+        array_pointer.combine(index).map(|(array_pointer, index)|
+            MaybeFatal::Ok(self.calculate_array_element_pointer_from_variables(array_pointer, index, &pointee_ty)))
+    }
+
+    /// Given a target variable representing a pointer to an array's first element, and an index
+    /// variable of integral type, generates an expression which evaluates to a pointer to the given
+    /// element of the target array.
+    /// 
+    /// This can then be used with [ir::InstructionKind::ReadMemory] or
+    /// [ir::InstructionKind::WriteMemory] to retrieve or update the array element.
+    fn calculate_array_element_pointer_from_variables(
+        &mut self,
+        array_pointer: VariableId,
+        index: VariableId,
+        pointee_ty: &Type,
+    ) -> Value {
+        // Get word offset required to index given element
+        let offset = Self::scale_to_words_by_pointee_type(self.target_mut(), index, pointee_ty);
+
+        // Add offset to pointer to yield element pointer
+        Value::new_read_only(move |target|
+            target.add_instruction(
+                Instruction::new(ir::InstructionKind::Add(array_pointer, offset))
+            )
+        )
+    }
+
+    /// Produces a [VariableId] by converting an offset in "number of instances of type" to
+    /// "number of words" - useful for pointer arithmetic or array indexing.
+    /// 
+    /// For example, for an offset of 3 and a pointee type of size 4, this yields 12.
+    fn scale_to_words_by_pointee_type(
+        target: &mut BasicBlockBuilder,
+        offset: VariableId,
+        pointee_ty: &Type,
+    ) -> VariableId {
+        let size = target.add_instruction(
+            ir::Instruction::new(ir::InstructionKind::WordSize(pointee_ty.to_ir_type()))
+        );
+        let scaled_r = target.add_instruction(
+            ir::Instruction::new(ir::InstructionKind::Multiply(offset, size))
+        );
+
+        scaled_r
     }
 }
 
