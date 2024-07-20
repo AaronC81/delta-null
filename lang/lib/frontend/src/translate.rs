@@ -492,7 +492,7 @@ impl<'c> FunctionTranslator<'c> {
             node::StatementKind::CompoundAssignment { target, value } => {
                 match &value.kind {
                     node::CompoundKind::Array(elements) => {
-                        let type_check::Type::Array(pointee_ty, _) = &target.data else {
+                        let type_check::Type::Array(pointee_ty, _) = &target.data.desugar() else {
                             panic!("must compound-assign to array")
                         };
                 
@@ -519,7 +519,23 @@ impl<'c> FunctionTranslator<'c> {
                         }
                     },
 
-                    node::CompoundKind::Struct(_) => todo!(),
+                    node::CompoundKind::Struct(fields) => {
+                        let struct_ty = target.data.desugar().clone();
+
+                        // Take pointer to target struct
+                        let mut target = self.translate_expression(target)?
+                            .map(|value| value.consume_pointer(self.target_mut()));
+
+                        for field in fields {
+                            // Evaluate the value we'll write to the field
+                            let value = self.translate_expression(&field.value)?.propagate(&mut target)
+                                .consume_read(self.target_mut());
+
+                            // Write to field
+                            self.access_struct_field(*target.as_ref().unwrap(), &struct_ty, &field.name)
+                                .consume_write(self.target_mut(), value);
+                        }
+                    }
                 }
             }
 
@@ -787,7 +803,10 @@ impl<'c> FunctionTranslator<'c> {
 
             node::ExpressionKind::FieldAccess { target, field } => {
                 self.translate_expression(target)?
-                    .map(|strct| self.access_struct_field(strct, &target.data, field).into())
+                    .map(|strct| {
+                        let ptr = strct.consume_pointer(self.target_mut());
+                        self.access_struct_field(ptr, &target.data, field).into()
+                    })
             }
 
             node::ExpressionKind::BitwiseNot(v) => {
@@ -1101,11 +1120,11 @@ impl<'c> FunctionTranslator<'c> {
         )
     }
 
-    /// Given a [Value] for a structure, and the name of a field within that structure, returns a
-    /// [Value] for that field.
+    /// Given a [VariableId] for a pointer to a structure, and the name of a field within that
+    /// structure, returns a [Value] for that field.
     fn access_struct_field(
         &mut self,
-        struct_val: Value,
+        struct_ptr: VariableId,
         struct_ty: &Type,
         field: &str,
     ) -> Value {
@@ -1117,9 +1136,6 @@ impl<'c> FunctionTranslator<'c> {
         };
         let ty = ty.clone();
 
-        // Get pointer to structure
-        let ptr = struct_val.consume_pointer(self.target_mut());
-
         // Calculate an index into the structure
         let offset_var = self.target_mut().add_instruction(
             Instruction::new(ir::InstructionKind::FieldOffset {
@@ -1128,7 +1144,7 @@ impl<'c> FunctionTranslator<'c> {
             })
         );
         let field_address = self.target_mut().add_instruction(
-            Instruction::new(ir::InstructionKind::Add(ptr, offset_var))
+            Instruction::new(ir::InstructionKind::Add(struct_ptr, offset_var))
         );
 
         Value::new_read_write_pointer(

@@ -105,3 +105,38 @@ fn test_array_compound_assign() {
         (10 + 20 + 30 + 40) + (2 + 4 + 6 + 8)
     );
 }
+
+#[test]
+fn test_struct_compound_assign() {
+    // Single assignment
+    assert_eq!(
+        util::compile_and_execute("
+            fn main() -> u16 {
+                var a: struct { x: u16, y: u16 };
+                a <- #{ x = 10, y = 20 };
+
+                return a.x + a.y;
+            }
+        ").unwrap(),
+        10 + 20
+    );
+
+    // Overwrite
+    assert_eq!(
+        util::compile_and_execute("
+            fn main() -> u16 {
+                var acc: u16 = 0;
+                var a: struct { x: u16, y: u16 };
+
+                a <- #{ x = 10, y = 20 };
+                acc = acc + a.x + a.y;
+
+                a <- #{ x = 2, y = 4 };
+                acc = acc + a.x + a.y;
+
+                return acc;
+            }
+        ").unwrap(),
+        (10 + 20) + (2 + 4)
+    );
+}
