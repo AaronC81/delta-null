@@ -489,7 +489,39 @@ impl<'c> FunctionTranslator<'c> {
                     })
             }
 
-            node::StatementKind::CompoundAssignment { target, value } => todo!(), // TODO
+            node::StatementKind::CompoundAssignment { target, value } => {
+                match &value.kind {
+                    node::CompoundKind::Array(elements) => {
+                        let type_check::Type::Array(pointee_ty, _) = &target.data else {
+                            panic!("must compound-assign to array")
+                        };
+                
+                        // Take pointer to target array
+                        let mut target = self.translate_expression(target)?
+                            .map(|value| value.consume_pointer(self.target_mut()));
+        
+                        for (i, element) in elements.iter().enumerate() {
+                            // Create index
+                            let index = self.target_mut().add_constant(ir::ConstantValue::U16(i as u16));
+
+                            // Evaluate the value which we'll write into the index
+                            let value = self.translate_expression(element)?.propagate(&mut target)
+                                .consume_read(self.target_mut());
+
+                            // Calculate pointer for array write
+                            let array_element_pointer = self.calculate_array_element_pointer_from_variables(*target.as_ref().unwrap(), index, pointee_ty)
+                                .consume_read(&mut self.target_mut());
+                            
+                            // Perform memory write to pointer
+                            self.target_mut().add_void_instruction(Instruction::new(
+                                ir::InstructionKind::WriteMemory { address: array_element_pointer, value }
+                            ));
+                        }
+                    },
+
+                    node::CompoundKind::Struct(_) => todo!(),
+                }
+            }
 
             node::StatementKind::Return(value) => {
                 if let Some(value) = value {

@@ -70,3 +70,38 @@ fn test_init_entry_flow() {
         5
     );    
 }
+
+#[test]
+fn test_array_compound_assign() {
+    // Single assignment
+    assert_eq!(
+        util::compile_and_execute("
+            fn main() -> u16 {
+                var a: [4]u16;
+                a <- #[ 10, 20, 30, 40 ];
+
+                return a[0] + a[1] + a[2] + a[3];
+            }
+        ").unwrap(),
+        10 + 20 + 30 + 40
+    );
+
+    // Overwrite
+    assert_eq!(
+        util::compile_and_execute("
+            fn main() -> u16 {
+                var acc: u16 = 0;
+                var a: [4]u16;
+
+                a <- #[ 10, 20, 30, 40 ];
+                acc = acc + a[0] + a[1] + a[2] + a[3];
+
+                a <- #[ 2, 4, 6, 8 ];
+                acc = acc + a[0] + a[1] + a[2] + a[3];
+
+                return acc;
+            }
+        ").unwrap(),
+        (10 + 20 + 30 + 40) + (2 + 4 + 6 + 8)
+    );
+}
