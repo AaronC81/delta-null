@@ -97,13 +97,9 @@ fn ili9341_packet(device: *Ili9341, cmd: u16, bs: *u16, len: u16) {
 }
 
 fn ili9341_fill_screen(device: *Ili9341, colour: u16) {
-    // CASET
-    var c_bounds: [2]u16 <- #[ 0x0000, 0xef00 ]; // (0, 239)
-    ili9341_packet(device, 0x2A, &c_bounds, 4);
-
-    // PASET
-    var p_bounds: [2]u16 <- #[ 0x0000, 0x3f01 ]; // (0, 319)
-    ili9341_packet(device, 0x2B, &p_bounds, 4);
+    // Set range to full screen
+    ili9341_set_x_range(device, 0, 239);
+    ili9341_set_y_range(device, 0, 319);
 
     // Fill the screen
     ili9341_command(device, 0x2C); // RAMWR
@@ -116,7 +112,23 @@ fn ili9341_fill_screen(device: *Ili9341, colour: u16) {
     }
 }
 
+fn ili9341_set_x_range(device: *Ili9341, start_x: u16, end_x: u16) {
+    // CASET
+    var c_bounds: [2]u16 <- #[ ili9341_swap_bytes(start_x), ili9341_swap_bytes(end_x) ];
+    ili9341_packet(device, 0x2A, &c_bounds, 4);
+}
+
+fn ili9341_set_y_range(device: *Ili9341, start_y: u16, end_y: u16) {
+    // PASET
+    var c_bounds: [2]u16 <- #[ ili9341_swap_bytes(start_y), ili9341_swap_bytes(end_y) ];
+    ili9341_packet(device, 0x2B, &c_bounds, 4);
+}
+
 fn ili9341_half_second_delay() {
     timer_start(9, 0); // Very approximately half a second
     timer_wait();
+}
+
+fn ili9341_swap_bytes(b: u16) -> u16 {
+    return (b >> 8) | (b << 8);
 }
