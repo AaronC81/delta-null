@@ -166,8 +166,13 @@ impl<'p> RegisterAllocator<'p> {
         if let Some(pref_reg) = self.preferences.get(var) && self.remaining_preferred.contains(&pref_reg) {
             self.remaining_preferred.retain(|r| *r != pref_reg);
             return Some(pref_reg)
+        } else if let Some(reg) = self.remaining_rest.pop() {
+            Some(reg)
+        } else if let Some(reg) = self.remaining_preferred.pop() {
+            // If we really need to, we can 'pinch' a preferred register for a non-preferred allocation
+            Some(reg)
         } else {
-            self.remaining_rest.pop()
+            None
         }
     }
 
