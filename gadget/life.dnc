@@ -100,11 +100,6 @@ fn life_evolve_cell(old_buffer: *u16, new_buffer: *u16, x: u16, y: u16) {
     if x < (LIFE_COLS - 1) && y < (LIFE_ROWS - 1)
         live_neighbours = live_neighbours + life_get_cell(old_buffer, x + 1, y + 1);
 
-    // HACK: Debugging
-    // var log_str: String = " ";
-    // *string_data(log_str) = 48 + live_neighbours; // 48 = ASCII 0
-    // logger_send(log_str);
-
     // Rules (verbatim from Wikipedia):
     // 1. Any live cell with fewer than two live neighbours dies, as if by underpopulation.
     // 2. Any live cell with two or three live neighbours lives on to the next generation.
@@ -144,7 +139,6 @@ fn life_evolve(old_buffer: *u16, new_buffer: *u16) {
             life_evolve_cell(old_buffer, new_buffer, x, y);
             y = y + 1;
         }
-        logger_send("\r\n"); // HACK
         x = x + 1;
     }
 }

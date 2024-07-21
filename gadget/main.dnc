@@ -26,8 +26,6 @@ fn main() {
     draw_life(&device, &LIFE_BUFFER_B, &LIFE_BUFFER_A);
 
     loop {
-        ili9341_half_second_delay();
-
         if new_buffer_is_a {
             life_evolve(&LIFE_BUFFER_B, &LIFE_BUFFER_A);
             draw_life(&device, &LIFE_BUFFER_B, &LIFE_BUFFER_A);
@@ -36,8 +34,6 @@ fn main() {
             draw_life(&device, &LIFE_BUFFER_A, &LIFE_BUFFER_B);
         }
         new_buffer_is_a = !new_buffer_is_a;
-
-        // logger_send("\r\nEvolution done\r\n");
     }
 }
 
