@@ -1,0 +1,150 @@
+use "../lang/stdlib/logger.dnc";
+use "../lang/stdlib/string.dnc";
+
+var LIFE_ROWS: u16 = 45;
+var LIFE_COLS: u16 = 32;
+
+var LIFE_BUFFER_A: [90]u16; // (32 * 45) / 16
+var LIFE_BUFFER_B: [90]u16;
+
+// Buffers are formatted like:
+//
+//                   y = 0                         y = 1
+//  .--------------------------------------.  .------------.
+// [0bAAAAAAAA_AAAAAAAA, 0bBBBBBBBB_BBBBBBBB, 0xCCCC, 0xDDDD, ...]
+//    |               |                    |
+//    ` x = 15        ` x = 0             ` x = 16
+
+/// Gets the state of the given cell, which must be in-bounds.
+/// 
+/// If the cell is alive, returns 1, else 0.
+fn life_get_cell(buffer: *u16, x: u16, y: u16) -> u16 {
+    // // Wrap
+    // var real_x: u16 = x;
+    // var real_y: u16 = y;
+    // if x == 0xFFFF {
+    //     real_x = LIFE_COLS - 1;
+    // }
+    // if x > LIFE_COLS {
+    //     real_x = 0;
+    // }
+    // if y == 0xFFFF {
+    //     real_y = LIFE_ROWS - 1;
+    // }
+    // if y > LIFE_ROWS {
+    //     real_y = 0;
+    // }
+
+    // Calculate offsets required for access
+    var bit_offset: u16 = x;
+    var hi_lo_selector: u16 = 0;
+    if x > 15 {
+        hi_lo_selector = 1;
+        bit_offset = bit_offset - 16;
+    }
+
+    // Get relevant word out of the buffer
+    var word: u16 = *(buffer + (y * 2 + hi_lo_selector));
+
+    // Select bit and convert into 1 or 0
+    if (word & (1 << bit_offset)) > 0 { 
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+/// Sets whether a cell is alive. The cell must be in-bounds.
+fn life_set_cell(buffer: *u16, x: u16, y: u16, is_alive: bool) {
+    // Calculate offsets required for access
+    var bit_offset: u16 = x;
+    var hi_lo_selector: u16 = 0;
+    if x > 15 {
+        hi_lo_selector = 1;
+        bit_offset = bit_offset - 16;
+    }
+
+    // Get pointer to word in the buffer
+    var word: *u16 = buffer + (y * 2 + hi_lo_selector);
+
+    // Mask and write back word
+    var mask: u16 = 1 << bit_offset;
+    if is_alive {
+        *word = *word | mask;
+    } else {
+        *word = *word & ~mask;
+    }
+}
+
+/// Updates a cell based on its neighbours. The cell must be in-bounds.
+fn life_evolve_cell(old_buffer: *u16, new_buffer: *u16, x: u16, y: u16) {
+    // Get whether *this* cell is alive
+    var current_cell_alive: bool = life_get_cell(old_buffer, x, y) > 0;
+
+    // Sum up how many neighbours are alive
+    var live_neighbours: u16 = 0;
+    if x > 0 && y > 0
+        live_neighbours = live_neighbours + life_get_cell(old_buffer, x - 1, y - 1);
+    if y > 0
+        live_neighbours = live_neighbours + life_get_cell(old_buffer, x    , y - 1);
+    if x < (LIFE_COLS - 1) && y > 0
+        live_neighbours = live_neighbours + life_get_cell(old_buffer, x + 1, y - 1);
+    if x > 0
+        live_neighbours = live_neighbours + life_get_cell(old_buffer, x - 1, y    );
+    if x < (LIFE_COLS - 1)
+        live_neighbours = live_neighbours + life_get_cell(old_buffer, x + 1, y    );
+    if x > 0 && y < (LIFE_ROWS - 1)
+        live_neighbours = live_neighbours + life_get_cell(old_buffer, x - 1, y + 1);
+    if y < (LIFE_ROWS - 1)
+        live_neighbours = live_neighbours + life_get_cell(old_buffer, x    , y + 1);
+    if x < (LIFE_COLS - 1) && y < (LIFE_ROWS - 1)
+        live_neighbours = live_neighbours + life_get_cell(old_buffer, x + 1, y + 1);
+
+    // HACK: Debugging
+    // var log_str: String = " ";
+    // *string_data(log_str) = 48 + live_neighbours; // 48 = ASCII 0
+    // logger_send(log_str);
+
+    // Rules (verbatim from Wikipedia):
+    // 1. Any live cell with fewer than two live neighbours dies, as if by underpopulation.
+    // 2. Any live cell with two or three live neighbours lives on to the next generation.
+    // 3. Any live cell with more than three live neighbours dies, as if by overpopulation.
+    // 4. Any dead cell with exactly three live neighbours becomes a live cell, as if by reproduction.
+    var is_alive_now: bool = current_cell_alive;
+    if current_cell_alive {
+        // Rule 1
+        if live_neighbours < 2 {
+            is_alive_now = false;
+        }
+        
+        // Rule 2 happens by the absence of a specific rule
+
+        // Rule 3
+        if live_neighbours > 3 {
+            is_alive_now = false;
+        }
+    } else {
+        // Rule 4
+        if live_neighbours == 3 {
+            is_alive_now = true;
+        }
+    }
+
+    // If we didn't return early, then nothing has changed.
+    // Copy over the existing value
+    life_set_cell(new_buffer, x, y, is_alive_now);
+}
+
+/// Updates an entire buffer based on each cell's neighbours.
+fn life_evolve(old_buffer: *u16, new_buffer: *u16) {
+    var x: u16 = 0;
+    while x < LIFE_COLS {
+        var y: u16 = 0;
+        while y < LIFE_ROWS {
+            life_evolve_cell(old_buffer, new_buffer, x, y);
+            y = y + 1;
+        }
+        logger_send("\r\n"); // HACK
+        x = x + 1;
+    }
+}

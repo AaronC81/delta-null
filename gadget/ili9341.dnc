@@ -102,7 +102,7 @@ fn ili9341_fill_screen(device: *Ili9341, colour: u16) {
     ili9341_set_y_range(device, 0, 319);
 
     // Fill the screen
-    ili9341_command(device, 0x2C); // RAMWR
+    ili9341_begin_ramwr(device);
     var buffer: [8]u16 <- #[ colour, colour, colour, colour, colour, colour, colour, colour ];
     var i: u16 = 0;
     while i < 9600 { // (240 * 320 * 2) / 16
@@ -122,6 +122,10 @@ fn ili9341_set_y_range(device: *Ili9341, start_y: u16, end_y: u16) {
     // PASET
     var c_bounds: [2]u16 <- #[ ili9341_swap_bytes(start_y), ili9341_swap_bytes(end_y) ];
     ili9341_packet(device, 0x2B, &c_bounds, 4);
+}
+
+fn ili9341_begin_ramwr(device: *Ili9341) {
+    ili9341_command(device, 0x2C); // RAMWR
 }
 
 fn ili9341_half_second_delay() {
