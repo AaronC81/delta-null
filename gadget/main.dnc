@@ -1,0 +1,145 @@
+// TODO: better way
+use "../lang/stdlib/spi.dnc";
+use "../lang/stdlib/gpio.dnc";
+use "../lang/stdlib/timer.dnc";
+
+type Ili9341 = struct {
+    dc_bank: u16,
+    dc_pin:  u16,
+    rst_bank: u16,
+    rst_pin: u16,
+};
+
+fn ili9341_init(device: *Ili9341) {
+    gpio_mode_output(device.*.dc_bank, device.*.dc_pin);
+    gpio_mode_output(device.*.rst_bank, device.*.rst_pin);
+    spi_configure_clock_shift(1); // ~4MHz on Colorlight
+
+    // Hardware reset (active low)
+    gpio_write(device.*.rst_bank, device.*.rst_pin, 1);
+    ili9341_delay();
+    gpio_write(device.*.rst_bank, device.*.rst_pin, 0);
+    ili9341_delay();
+    gpio_write(device.*.rst_bank, device.*.rst_pin, 1);
+    ili9341_delay();
+
+    // Software reset
+    ili9341_command(device, 0x11);
+    ili9341_delay();
+    ili9341_command(device, 0x29);
+    ili9341_delay();
+
+    // Init sequence
+    var small_buffer: [3]u16;
+    small_buffer <- #[ 0x8003, 0x0002, 0 ];
+    ili9341_packet(device, 0x0F, &small_buffer, 3); // self.send_packet(0x0F, &[0x03, 0x80, 0x02])?;
+    small_buffer <- #[ 0xC100, 0x0030, 0 ];
+    ili9341_packet(device, 0xCF, &small_buffer, 3); // self.send_packet(0xCF, &[0x00, 0xC1, 0x30])?;
+    small_buffer <- #[ 0x0364, 0x8112, 0 ];
+    ili9341_packet(device, 0xed, &small_buffer, 4); // self.send_packet(0xed, &[0x64, 0x03, 0x12, 0x81])?;
+    small_buffer <- #[ 0x0085, 0x0078, 0 ];
+    ili9341_packet(device, 0xe8, &small_buffer, 3); // self.send_packet(0xe8, &[0x85, 0x00, 0x78])?;
+    small_buffer <- #[ 0x2c39, 0x3400, 0x0002 ];
+    ili9341_packet(device, 0xcb, &small_buffer, 5); // self.send_packet(0xcb, &[0x39, 0x2c, 0x00, 0x34, 0x02])?;
+    small_buffer <- #[ 0x0020, 0, 0 ];
+    ili9341_packet(device, 0xf7, &small_buffer, 1); // self.send_packet(0xf7, &[0x20])?;
+    small_buffer <- #[ 0x0000, 0, 0 ];
+    ili9341_packet(device, 0xea, &small_buffer, 2); // self.send_packet(0xea, &[0x00, 0x00])?;
+    small_buffer <- #[ 0x0023, 0, 0 ];
+    ili9341_packet(device, 0xc0, &small_buffer, 1); // self.send_packet(0xc0, &[0x23])?;
+    small_buffer <- #[ 0x0010, 0, 0 ];
+    ili9341_packet(device, 0xc1, &small_buffer, 1); // self.send_packet(0xc1, &[0x10])?;
+    small_buffer <- #[ 0x283e, 0, 0 ];
+    ili9341_packet(device, 0xc5, &small_buffer, 2); // self.send_packet(0xc5, &[0x3e, 0x28])?;
+    small_buffer <- #[ 0x0086, 0, 0 ];
+    ili9341_packet(device, 0xc7, &small_buffer, 1); // self.send_packet(0xc7, &[0x86])?;
+    small_buffer <- #[ 0x0048, 0, 0 ];
+    ili9341_packet(device, 0x36, &small_buffer, 1); // self.send_packet(0x36, &[0x48])?;
+    small_buffer <- #[ 0x0055, 0, 0 ];
+    ili9341_packet(device, 0x3a, &small_buffer, 1); // self.send_packet(0x3a, &[0x55])?;
+    small_buffer <- #[ 0x1800, 0, 0 ];
+    ili9341_packet(device, 0xb1, &small_buffer, 2); // self.send_packet(0xb1, &[0x00, 0x18])?;
+    small_buffer <- #[ 0x8208, 0x0027, 0 ];
+    ili9341_packet(device, 0xb6, &small_buffer, 3); // self.send_packet(0xb6, &[0x08, 0x82, 0x27])?;
+    small_buffer <- #[ 0x0000, 0, 0 ];
+    ili9341_packet(device, 0xf2, &small_buffer, 1); // self.send_packet(0xf2, &[0x00])?;
+    small_buffer <- #[ 0x0001, 0, 0 ];
+    ili9341_packet(device, 0x26, &small_buffer, 1); // self.send_packet(0x26, &[0x01])?;
+    
+    var big_buffer: [8]u16;
+    big_buffer <- #[ 0x310f, 0x0c2b, 0x080e, 0xf14e, 0x0737, 0x0310, 0x090e, 0x0000 ];
+    ili9341_packet(device, 0xe0, &big_buffer, 15); // self.send_packet(0xe0, &[0xf, 0x31, 0x2b, 0xc, 0xe, 0x8, 0x4e, 0xf1, 0x37, 0x7, 0x10, 0x3, 0xe, 0x9, 0x0])?;
+    big_buffer <- #[ 0x0e00, 0x0314, 0x0711, 0xc131, 0x0848, 0x0c0f, 0x3631, 0x000f ];
+    ili9341_packet(device, 0xe1, &big_buffer, 15); // self.send_packet(0xe1, &[0x0, 0xe, 0x14, 0x3, 0x11, 0x7, 0x31, 0xc1, 0x48, 0x8, 0xf, 0xc, 0x31, 0x36, 0xf])?;
+}
+
+fn ili9341_command(device: *Ili9341, b: u16) {
+    gpio_write(device.*.dc_bank, device.*.dc_pin, 0);
+    // Language quirk, args aren't addressable
+    var _b: u16 = b;
+    spi_send(&_b, 1);
+}
+
+fn ili9341_data_one(device: *Ili9341, b: u16) {
+    gpio_write(device.*.dc_bank, device.*.dc_pin, 1);
+    // Language quirk, args aren't addressable
+    var _b: u16 = b;
+    spi_send(&_b, 1);
+}
+
+fn ili9341_data_many(device: *Ili9341, bs: *u16, len: u16) {
+    gpio_write(device.*.dc_bank, device.*.dc_pin, 1);
+    spi_send(bs, len);
+}
+
+fn ili9341_packet(device: *Ili9341, cmd: u16, bs: *u16, len: u16) {
+    ili9341_command(device, cmd);
+    ili9341_data_many(device, bs, len);
+}
+
+fn ili9341_delay() {
+    timer_start(9, 0); // Very approximately half a second
+    timer_wait();
+}
+
+fn main() {
+    var device: Ili9341 <- #{
+        dc_bank = 0, dc_pin = 1,
+        rst_bank = 0, rst_pin = 2,
+    };
+
+    ili9341_init(&device);
+    ili9341_delay();
+
+    loop {
+        fill_screen(&device, 0x00F8); // Red
+        ili9341_delay();
+        fill_screen(&device, 0x9203); // Blue
+        ili9341_delay();
+        fill_screen(&device, 0x40D3); // Orange
+        ili9341_delay();
+        ili9341_delay();
+    }
+
+    loop {}
+}
+
+fn fill_screen(device: *Ili9341, colour: u16) {
+    // CASET
+    var c_bounds: [2]u16 <- #[ 0x0000, 0xef00 ]; // (0, 239)
+    ili9341_packet(device, 0x2A, &c_bounds, 4);
+
+    // PASET
+    var p_bounds: [2]u16 <- #[ 0x0000, 0x3f01 ]; // (0, 319)
+    ili9341_packet(device, 0x2B, &p_bounds, 4);
+
+    // Fill the screen
+    ili9341_command(device, 0x2C); // RAMWR
+    var buffer: [8]u16 <- #[ colour, colour, colour, colour, colour, colour, colour, colour ];
+    var i: u16 = 0;
+    while i < 9600 { // (240 * 320 * 2) / 16
+        // Send 16 bytes = 8 pixels
+        ili9341_data_many(device, &buffer, 16);
+        i = i + 1;
+    }
+}

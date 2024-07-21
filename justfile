@@ -33,3 +33,7 @@ emulator-frontend: build
 
 update-vscode-config: build
     cargo run --bin delta-null-core-assembler-bin /dev/null --generate-highlight-config > .vscode/settings.json
+
+gadget-program: build
+    just compile gadget/main.dnc > gadget/main.dna
+    just gateware-program i5 gadget/main.dna 
