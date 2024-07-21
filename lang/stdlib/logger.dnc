@@ -12,4 +12,12 @@ fn logger_send(message: String) {
     // Send message
     var logger_control: *u16 = 0xF200 as *u16;
     *logger_control = 0x80 | length;
+
+    // Wait for "has finished" bit
+    loop {
+        if *(0xF201 as *u16) & 0b1 == 1 {
+            *(0xF201 as *u16) = 0; // reset
+            break;
+        }
+    }
 }
