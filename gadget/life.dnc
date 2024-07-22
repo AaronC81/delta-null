@@ -19,22 +19,6 @@ var LIFE_BUFFER_B: [90]u16;
 /// 
 /// If the cell is alive, returns 1, else 0.
 fn life_get_cell(buffer: *u16, x: u16, y: u16) -> u16 {
-    // // Wrap
-    // var real_x: u16 = x;
-    // var real_y: u16 = y;
-    // if x == 0xFFFF {
-    //     real_x = LIFE_COLS - 1;
-    // }
-    // if x > LIFE_COLS {
-    //     real_x = 0;
-    // }
-    // if y == 0xFFFF {
-    //     real_y = LIFE_ROWS - 1;
-    // }
-    // if y > LIFE_ROWS {
-    //     real_y = 0;
-    // }
-
     // Calculate offsets required for access
     var bit_offset: u16 = x;
     var hi_lo_selector: u16 = 0;
