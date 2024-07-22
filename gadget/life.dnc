@@ -67,22 +67,24 @@ fn life_evolve_cell(old_buffer: *u16, new_buffer: *u16, x: u16, y: u16) {
 
     // Sum up how many neighbours are alive
     var live_neighbours: u16 = 0;
-    if x > 0 && y > 0
-        live_neighbours = live_neighbours + life_get_cell(old_buffer, x - 1, y - 1);
-    if y > 0
-        live_neighbours = live_neighbours + life_get_cell(old_buffer, x    , y - 1);
-    if x < (LIFE_COLS - 1) && y > 0
-        live_neighbours = live_neighbours + life_get_cell(old_buffer, x + 1, y - 1);
+    if y > 0 {
+        if x > 0
+            live_neighbours = live_neighbours + life_get_cell(old_buffer, x - 1, y - 1);
+        live_neighbours = live_neighbours     + life_get_cell(old_buffer, x    , y - 1);
+        if x < (LIFE_COLS - 1)
+            live_neighbours = live_neighbours + life_get_cell(old_buffer, x + 1, y - 1);
+    }
     if x > 0
         live_neighbours = live_neighbours + life_get_cell(old_buffer, x - 1, y    );
     if x < (LIFE_COLS - 1)
         live_neighbours = live_neighbours + life_get_cell(old_buffer, x + 1, y    );
-    if x > 0 && y < (LIFE_ROWS - 1)
-        live_neighbours = live_neighbours + life_get_cell(old_buffer, x - 1, y + 1);
-    if y < (LIFE_ROWS - 1)
-        live_neighbours = live_neighbours + life_get_cell(old_buffer, x    , y + 1);
-    if x < (LIFE_COLS - 1) && y < (LIFE_ROWS - 1)
-        live_neighbours = live_neighbours + life_get_cell(old_buffer, x + 1, y + 1);
+    if y < (LIFE_ROWS - 1) {
+        if x > 0
+            live_neighbours = live_neighbours + life_get_cell(old_buffer, x - 1, y + 1);
+        live_neighbours = live_neighbours     + life_get_cell(old_buffer, x    , y + 1);
+        if x < (LIFE_COLS - 1)
+            live_neighbours = live_neighbours + life_get_cell(old_buffer, x + 1, y + 1);
+    }
 
     // Rules (verbatim from Wikipedia):
     // 1. Any live cell with fewer than two live neighbours dies, as if by underpopulation.
