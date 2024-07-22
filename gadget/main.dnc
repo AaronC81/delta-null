@@ -12,14 +12,7 @@ fn main() {
     ili9341_fill_screen(&device, 0); // Black
     ili9341_half_second_delay();
 
-    LIFE_BUFFER_A[4]  = 0b0000001100000;
-    LIFE_BUFFER_A[6]  = 0b0000010010000;
-    LIFE_BUFFER_A[8]  = 0b0000100001000;
-    LIFE_BUFFER_A[10] = 0b0001000000100;
-    LIFE_BUFFER_A[12] = 0b0001000000100;
-    LIFE_BUFFER_A[14] = 0b0000100001000;
-    LIFE_BUFFER_A[16] = 0b0000010010000;
-    LIFE_BUFFER_A[18] = 0b0000001100000;
+    init_buffer(&LIFE_BUFFER_A);
     
     // Start with buffer A, and draw it un-evolved for reference
     var new_buffer_is_a: bool = false;
@@ -37,15 +30,63 @@ fn main() {
     }
 }
 
+fn init_buffer(buffer: *u16) {
+    *(buffer + 00) = 0b0000000000000000; *(buffer + 01) = 0b0000000000000000; 
+    *(buffer + 02) = 0b0000000000000000; *(buffer + 03) = 0b0000000000000000; 
+    *(buffer + 04) = 0b0000011000000000; *(buffer + 05) = 0b0000000000000000; 
+    *(buffer + 06) = 0b0000011000000000; *(buffer + 07) = 0b0000000000000000; 
+    *(buffer + 08) = 0b0000000000000000; *(buffer + 09) = 0b0000000000000000; 
+    *(buffer + 10) = 0b0000000000000000; *(buffer + 11) = 0b0000000000000000; 
+    *(buffer + 12) = 0b0000000000000000; *(buffer + 13) = 0b0000000000000000; 
+    *(buffer + 14) = 0b0000000000000000; *(buffer + 15) = 0b0000000000000000; 
+    *(buffer + 16) = 0b0000000000000000; *(buffer + 17) = 0b0000000000000000; 
+    *(buffer + 18) = 0b0000000000000000; *(buffer + 19) = 0b0000000000000000; 
+    *(buffer + 20) = 0b0000000000000000; *(buffer + 21) = 0b0000000000000000; 
+    *(buffer + 22) = 0b0000000000000000; *(buffer + 23) = 0b0000000000000000; 
+    *(buffer + 24) = 0b0000111000000000; *(buffer + 25) = 0b0000000000000000; 
+    *(buffer + 26) = 0b0001000100000000; *(buffer + 27) = 0b0000000000000000; 
+    *(buffer + 28) = 0b0010000010000000; *(buffer + 29) = 0b0000000000000000; 
+    *(buffer + 30) = 0b0010000010000000; *(buffer + 31) = 0b0000000000000000; 
+    *(buffer + 32) = 0b0000010000000000; *(buffer + 33) = 0b0000000000000000; 
+    *(buffer + 34) = 0b0001000100000000; *(buffer + 35) = 0b0000000000000000; 
+    *(buffer + 36) = 0b0000111000000000; *(buffer + 37) = 0b0000000000000000; 
+    *(buffer + 38) = 0b0000010000000000; *(buffer + 39) = 0b0000000000000000; 
+    *(buffer + 40) = 0b0000000000000000; *(buffer + 41) = 0b0000000000000000; 
+    *(buffer + 42) = 0b0000000000000000; *(buffer + 43) = 0b0000000000000000; 
+    *(buffer + 44) = 0b0000001110000000; *(buffer + 45) = 0b0000000000000000; 
+    *(buffer + 46) = 0b0000001110000000; *(buffer + 47) = 0b0000000000000000; 
+    *(buffer + 48) = 0b0000010001000000; *(buffer + 49) = 0b0000000000000000; 
+    *(buffer + 50) = 0b0000000000000000; *(buffer + 51) = 0b0000000000000000; 
+    *(buffer + 52) = 0b0000110001100000; *(buffer + 53) = 0b0000000000000000; 
+    *(buffer + 54) = 0b0000000000000000; *(buffer + 55) = 0b0000000000000000; 
+    *(buffer + 56) = 0b0000000000000000; *(buffer + 57) = 0b0000000000000000; 
+    *(buffer + 58) = 0b0000000000000000; *(buffer + 59) = 0b0000000000000000; 
+    *(buffer + 60) = 0b0000000000000000; *(buffer + 61) = 0b0000000000000000; 
+    *(buffer + 62) = 0b0000000000000000; *(buffer + 63) = 0b0000000000000000; 
+    *(buffer + 64) = 0b0000000000000000; *(buffer + 65) = 0b0000000000000000; 
+    *(buffer + 66) = 0b0000000000000000; *(buffer + 67) = 0b0000000000000000; 
+    *(buffer + 68) = 0b0000000000000000; *(buffer + 69) = 0b0000000000000000; 
+    *(buffer + 70) = 0b0000000000000000; *(buffer + 71) = 0b0000000000000000; 
+    *(buffer + 72) = 0b0000000110000000; *(buffer + 73) = 0b0000000000000000; 
+    *(buffer + 74) = 0b0000000110000000; *(buffer + 75) = 0b0000000000000000; 
+    *(buffer + 76) = 0b0000000000000000; *(buffer + 77) = 0b0000000000000000; 
+    *(buffer + 78) = 0b0000000000000000; *(buffer + 79) = 0b0000000000000000; 
+    *(buffer + 80) = 0b0000000000000000; *(buffer + 81) = 0b0000000000000000; 
+    *(buffer + 82) = 0b0000000000000000; *(buffer + 83) = 0b0000000000000000; 
+    *(buffer + 84) = 0b0000000000000000; *(buffer + 85) = 0b0000000000000000; 
+    *(buffer + 86) = 0b0000000000000000; *(buffer + 87) = 0b0000000000000000; 
+    *(buffer + 88) = 0b0000000000000000; *(buffer + 89) = 0b0000000000000000; 
+}
+
 fn draw_box(device: *Ili9341, x: u16, y: u16, c: u16) {
-    var _c: u16 = c; // Hack: can't take pointer to argument
     ili9341_set_x_range(device, x, x + 6);
     ili9341_set_y_range(device, y, y + 6);
 
     ili9341_begin_ramwr(device);
     var i: u16 = 0;
-    while i < (7 * 7) {
-        ili9341_data_many(device, &_c, 2);
+    var buffer: [7]u16 <- #[ c, c, c, c, c, c, c ];
+    while i < 7 {
+        ili9341_data_many(device, &buffer, 14);
         i = i + 1;
     }
 }
@@ -56,13 +97,13 @@ fn draw_life(device: *Ili9341, old_buffer: *u16, new_buffer: *u16) {
         var col: u16 = 0;
         while col < LIFE_COLS {
             // Redraw the cell if it's changed
-            var old_cell: u16 = life_get_cell(old_buffer, row, col);
-            var new_cell: u16 = life_get_cell(new_buffer, row, col);
+            var old_cell: u16 = life_get_cell(old_buffer, col, row);
+            var new_cell: u16 = life_get_cell(new_buffer, col, row);
             if !(old_cell == new_cell) {
                 if new_cell > 0 {
-                    draw_box(device, row * 7, col * 7, 0xFFFF);
+                    draw_box(device, col * 7, row * 7, 0xFFFF);
                 } else {
-                    draw_box(device, row * 7, col * 7, 0);
+                    draw_box(device, col * 7, row * 7, 0);
                 }
             }
 
