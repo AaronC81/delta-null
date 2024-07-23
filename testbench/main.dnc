@@ -1,6 +1,0 @@
-use "a.dnc";
-use "b.dnc";
-
-fn main() -> u16 {
-    return magic_number();
-}
