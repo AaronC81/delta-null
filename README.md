@@ -11,8 +11,8 @@ This comprises:
   - A software emulator
 - An **assembler**
 - A **compiler for a low-level programming language**, producing assembly
-- An implementation of **Conway's Game of Life** written in that programming language, displaying
-  the result on an SPI display
+- An implementation of **Conway's Game of Life** written in that programming language, running on
+  the FPGA implementation of the core, displaying the result on an SPI display
 
 https://github.com/user-attachments/assets/50236fe0-164b-4091-94fb-241a1d4d2d7c
 
