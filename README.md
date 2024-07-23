@@ -1,31 +1,40 @@
 ## Delta Null
 
-An ongoing, heavily WIP, project to
+With Delta Null, I set out to
 **create an embedded project, as close to "from scratch" as you can get**.
 This comprises:
 
 - A **16-bit RISC processor core design**, implemented as:
-  - A **soft-core targeting the [TinyFPGA BX](https://tinyfpga.com/)**, written using [Amaranth HDL](https://github.com/amaranth-lang/amaranth), and
+  - An **FPGA soft-core** written using [Amaranth HDL](https://github.com/amaranth-lang/amaranth), targeting:
+    - [TinyFPGA BX](https://tinyfpga.com/)
+    - [Colorlight i5](https://www.colorlight-led.com/colorlight-i5/)
   - A software emulator
 - An **assembler**
 - A **compiler for a low-level programming language**, producing assembly
-
-The end result will _probably_ be a simple calculator, since I've
-[made](https://github.com/AaronC81/delta-m0)
-[some](https://github.com/AaronC81/delta-pico)
-[before](https://github.com/AaronC81/delta-radix),
-but we'll see where we go!
+- An implementation of **Conway's Game of Life** written in that programming language, displaying
+  the result on an SPI display
 
 ## Progress
 
-The processor core design is largely complete, besides a hardware BCD extension which will come
-later.
+**I am calling this complete!** You could spend forever on a project like this, so I wanted to get
+something cool out of it, and leave it there.
 
-The gateware implementation is functional, though poorly optimised, making no use of pipelining.
-This would be a nice improvement in future.
+The processor core is fully-functional, with the exception of a BCD extension which was designed
+but never implemented. The idea was that this could have been used for a calculator, but I didn't
+end up making one!
 
-The assembler works great, but the compiler is still very early in development, and not particularly
-useful yet.
+It could make use of pipelining to significantly speed things up, but right now it only executes a
+single instruction at a time.
+
+The assembler works perfectly, and is backed by a pile of libraries for instruction handling which
+came in useful for later work.
+
+The compiler is mostly usable, and produces decently-optimised code! The language front-end and
+back-end are nicely decoupled, with the front-end producing a typed IR which the back-end ingests
+and transform into core instructions. The back-end's generated code is reasonably optimised, but
+sometimes hits issues with internal limitations (e.g. a lack of register spilling limiting the
+complexity of single statements). Being aware of its flaws makes the language perfectly acceptable
+for writing non-trivial programs.
 
 ## Showcase
 
@@ -115,6 +124,33 @@ These get converted into an SSA IR, inspired by LLVM:
 
 And finally end up as assembly programs with an "acceptable" level of optimisation.
 
+### Gadget
+
+The "gadget" is what I've called the final product, which runs Conway's Game of Life and draws the
+result to an ILI9341 display.
+
+It's not particularly fast, and has a rather small (30x40-ish) non-wrapping area, but it works as a
+demonstration.
+
+This only supports the Colorlight i5, as it requires the SPI peripheral to be implemented on the
+core, which the TinyFPGA BX doesn't have any pins spare for unless I change things around.
+
+With reference to [this pin diagram](https://tomverbeure.github.io/2021/01/30/Colorlight-i5-Extension-Board-Pin-Mapping.html),
+the display should be connected as follows:
+
+| i5 Pin       | Display pin |
+|--------------|-------------|
+| PMOD_P4A_IO1 | MOSI        |
+| PMOD_P4A_IO2 | SCK         |
+| PMOD_P4A_IO3 | CS          |
+| PMOD_P2A_IO1 | DC          |
+| PMOD_P2A_IO2 | RST         |
+| Any 3V3      | VCC         |
+| Any 3V3      | LED         |
+| Any GND      | GND         |
+
+MISO is not used.
+
 ## Repository Structure
 
 This goes over the notable parts of this repository's folder hierarchy.
@@ -133,11 +169,12 @@ This goes over the notable parts of this repository's folder hierarchy.
   - `backend-core` - Translates IR to Delta Null assembly; the idea is that other `backend-X` crates
     could target other architectures
   - `examples` - Example programs
+- `gadget` - Game of Life implementation
 
 ## Usage
 
-**Note!** I really wouldn't recommend _actually_ using this project - it's far from complete, with
-plenty of rough edges.
+**Note!** I really wouldn't recommend _actually_ using this project - it's not really in a state
+where others could use it without running into rough edges.
 
 ### Prerequisites
 
@@ -147,6 +184,7 @@ You will need:
 - Python 3.10
 - [`just`](https://github.com/casey/just)
 - [`tinyprog`](https://pypi.org/project/tinyprog/), if uploading to a TinyFPGA BX
+- [`ecpdap`](https://github.com/adamgreig/ecpdap), if uploading to a Colorlight i5
 - [ZeroMQ](https://zeromq.org/download/), for socket communication between the emulator frontend and
   backend
 
@@ -158,7 +196,8 @@ You will need:
 - `just gateware-build` - Synthesise FPGA soft-core gateware. This is relatively slow, so isn't
   included in `just build`.
 - `just gateware-program` - Synthesise FPGA soft-core gateware, then upload it to the connected
-  TinyFPGA BX.
+  board.
+- `just gadget-program` - Compile gadget code, and synthesise FPGA soft-core gateware with it.
 
 ### Tooling Commands
 
